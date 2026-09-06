@@ -9,7 +9,7 @@ import (
 func TestHealthEndpoints(t *testing.T) {
 	t.Parallel()
 
-	srv := New()
+	srv := New(Dependencies{})
 	for _, path := range []string{"/livez", "/healthz"} {
 		path := path
 		t.Run(path, func(t *testing.T) {

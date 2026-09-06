@@ -8,18 +8,13 @@ import java.util.UUID
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
+import org.json.JSONException
 
 class LinkUpApiClient(
     baseUrl: String,
     private val sessions: SecureSessionStore,
 ) : SocialApi {
-    private val root = baseUrl.trimEnd('/')
-
-    init {
-        require(root.startsWith("https://") || root.startsWith("http://10.0.2.2") || root.startsWith("http://127.0.0.1")) {
-            "API base URL must use HTTPS outside local Android development"
-        }
-    }
+    private val root = validatedApiRoot(baseUrl)
 
     suspend fun register(
         email: String,
@@ -278,6 +273,9 @@ class LinkUpApiClient(
     ): JSONObject? = withContext(Dispatchers.IO) {
         val connection = URL(root + path).openConnection() as HttpURLConnection
         try {
+            // Redirects must never forward bearer credentials or silently replay a mutation.
+            connection.instanceFollowRedirects = false
+            connection.useCaches = false
             connection.requestMethod = method
             connection.connectTimeout = 10_000
             connection.readTimeout = 15_000
@@ -297,16 +295,19 @@ class LinkUpApiClient(
             if (status == HttpURLConnection.HTTP_NO_CONTENT) return@withContext null
             val stream = if (status in 200..299) connection.inputStream else connection.errorStream
             val text = stream?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }.orEmpty()
-            val json = if (text.isBlank()) JSONObject() else JSONObject(text)
+            val requestId = connection.getHeaderField("X-Request-ID")
+            val json = try { JSONObject(text) } catch (_: JSONException) { null }
             if (status !in 200..299) {
+                // Proxies may return HTML or empty errors, including 401. Preserve
+                // HTTP status so session recovery does not depend on JSON validity.
                 throw ApiException(
                     status = status,
-                    code = json.optString("code", "http_error"),
-                    message = json.optString("message", "Request failed"),
-                    requestId = json.optString("requestId").ifBlank { null },
+                    code = json?.optString("code")?.ifBlank { null } ?: "http_error",
+                    message = json?.optString("message")?.ifBlank { null } ?: "Request failed (HTTP $status)",
+                    requestId = json?.optString("requestId")?.ifBlank { null } ?: requestId,
                 )
             }
-            json
+            json ?: throw ApiException(status, "protocol_error", "Invalid server response", requestId)
         } finally {
             connection.disconnect()
         }

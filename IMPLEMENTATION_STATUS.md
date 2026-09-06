@@ -421,3 +421,23 @@ Reason: substantial real source now exists on both server and Android for the ma
 7. run migrations/integration/race tests in allowed PostgreSQL environment;
 8. run real two-user foundation smoke;
 9. only after foundation is green move to transactional outbox/realtime/offline/City Context dependency block.
+
+
+## 17. 2026-09-06 — Repository audit / transport and auth stabilization
+
+Audited current `main` starting at `77349f8`, independently of historical Linkup-Plus claims.
+
+Changes:
+- corrected obsolete `New()` call in Go HTTP health test to `New(Dependencies{})`;
+- JSON request decoding now consumes the whole 64 KiB bounded body and rejects trailing values/garbage/oversized whitespace before mutation;
+- authentication storage failures now return generic 503, not credential-revoking 401; actual invalid credentials remain 401;
+- Android validates the parsed API URI authority, rejects HTTP host-prefix impersonation and embedded credentials/query/fragment;
+- Android disables automatic redirects and transport caching;
+- non-JSON HTTP errors preserve their status/request ID; malformed successful JSON gets explicit `protocol_error`;
+- logout always updates local session routing even when remote logout fails; UI handles the error.
+
+Regression test sources: `request_boundary_test.go`, `ApiEndpointTest.kt`.
+Validation performed: source review and `git diff --check`. **Go/Android tests have not run.**
+Environment: Java 17 is available; Go, Gradle, Kotlin compiler and Android SDK were not found. Go download attempt did not pass network approval. No substitute checks are counted as compilation. `go.sum`, wrapper and all previous build/DB/device gates remain open. No server deployment or database mutation performed.
+
+Production readiness remains **0%** under this ledger's verified end-to-end criterion.

@@ -57,7 +57,8 @@ func (s *Service) Login(ctx context.Context, in Login) (AuthResult, error) {
 	identifierText := strings.ToLower(strings.TrimSpace(in.Identifier))
 	if identifierText == "" || in.Password == "" { return AuthResult{}, ErrUnauthorized }
 	found, err := s.store.FindByLogin(ctx, identifierText)
-	if err != nil { return AuthResult{}, ErrUnauthorized }
+	if errors.Is(err, ErrNotFound) { return AuthResult{}, ErrUnauthorized }
+	if err != nil { return AuthResult{}, err }
 	ok, err := password.Verify(found.PasswordHash, in.Password)
 	if err != nil || !ok { return AuthResult{}, ErrUnauthorized }
 	sessionID, err := identifier.NewUUID(); if err != nil { return AuthResult{}, err }

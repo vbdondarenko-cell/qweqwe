@@ -23,7 +23,14 @@ func (s *Server) login(w http.ResponseWriter,r *http.Request){
 	if s.deps.Accounts==nil { writeProblem(w,r,http.StatusServiceUnavailable,"not_ready","account service is unavailable"); return }
 	var in loginRequest; if err:=decodeJSON(w,r,&in); err!=nil { writeProblem(w,r,http.StatusBadRequest,"invalid_request","invalid JSON body"); return }
 	out,err:=s.deps.Accounts.Login(r.Context(),account.Login{Identifier:in.Identifier,Password:in.Password,DeviceLabel:in.DeviceLabel})
-	if err!=nil { writeProblem(w,r,http.StatusUnauthorized,"invalid_credentials","invalid credentials"); return }
+	if err != nil {
+		if errors.Is(err, account.ErrUnauthorized) {
+			writeProblem(w,r,http.StatusUnauthorized,"invalid_credentials","invalid credentials")
+		} else {
+			writeProblem(w,r,http.StatusServiceUnavailable,"not_ready","authentication service is temporarily unavailable")
+		}
+		return
+	}
 	writeJSON(w,http.StatusOK,out)
 }
 

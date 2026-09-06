@@ -248,7 +248,12 @@ private fun SignedInRoot(
                                         catch (error: Exception) { meError = error.userMessage() }
                                     }
                                 },
-                                onLogout = { scope.launch { sessions.logout() } },
+                                onLogout = {
+                                    scope.launch {
+                                        try { sessions.logout() }
+                                        catch (error: Exception) { meError = error.userMessage() }
+                                    }
+                                },
                             )
                             MainTab.MAP -> CapabilitySurface("Map", "Real City Context and map data are not active in this capability block yet.")
                             MainTab.FLY -> CapabilitySurface("Fly", "Fly production behavior is scheduled after its required city/realtime foundations.")

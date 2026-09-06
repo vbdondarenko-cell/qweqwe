@@ -3,6 +3,8 @@ package httpserver
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"io"
 	"log/slog"
 	"net"
 	"net/http"
@@ -120,7 +122,11 @@ func (s *Server) requireAuth(next http.Handler) http.Handler {
 		}
 		u, sid, err := s.deps.Accounts.Authenticate(r.Context(), raw)
 		if err != nil {
-			writeProblem(w, r, http.StatusUnauthorized, "unauthorized", "authentication required")
+			if errors.Is(err, account.ErrUnauthorized) || errors.Is(err, account.ErrNotFound) {
+				writeProblem(w, r, http.StatusUnauthorized, "unauthorized", "authentication required")
+			} else {
+				writeProblem(w, r, http.StatusServiceUnavailable, "not_ready", "authentication service is temporarily unavailable")
+			}
 			return
 		}
 		ctx := context.WithValue(r.Context(), authKey, authContext{User: u, SessionID: sid, RawToken: raw})
@@ -182,7 +188,17 @@ func decodeJSON(w http.ResponseWriter, r *http.Request, dst any) error {
 	r.Body = http.MaxBytesReader(w, r.Body, 64<<10)
 	dec := json.NewDecoder(r.Body)
 	dec.DisallowUnknownFields()
-	return dec.Decode(dst)
+	if err := dec.Decode(dst); err != nil {
+		return err
+	}
+	// Consume the entire bounded body: a valid prefix must not hide another
+	// command, malformed trailing bytes, or a payload beyond MaxBytesReader.
+	var extra any
+	if err := dec.Decode(&extra); !errors.Is(err, io.EOF) {
+		if err != nil { return err }
+		return errors.New("expected one JSON value")
+	}
+	return nil
 }
 
 func writeJSON(w http.ResponseWriter, status int, body any) {

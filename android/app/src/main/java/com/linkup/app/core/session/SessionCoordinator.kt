@@ -66,8 +66,12 @@ class SessionCoordinator(
     }
 
     suspend fun logout() {
-        api.logout()
-        mutableState.value = SessionState.SignedOut
+        try {
+            api.logout()
+        } finally {
+            // The API clears local credentials even if remote revocation fails.
+            mutableState.value = SessionState.SignedOut
+        }
     }
 
     fun clearLocalSession() {
