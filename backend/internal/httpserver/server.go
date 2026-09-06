@@ -12,6 +12,7 @@ import (
 
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/account"
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/blocklist"
+	"github.com/vbdondarenko-cell/qweqwe/backend/internal/chat"
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/identifier"
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/ratelimit"
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/slot"
@@ -21,6 +22,7 @@ type Dependencies struct {
 	Accounts    *account.Service
 	Blocks      *blocklist.Service
 	Slots       *slot.Service
+	Chats       *chat.Service
 	Ready       func(context.Context) error
 	AuthLimiter *ratelimit.Limiter
 }
@@ -80,6 +82,8 @@ func New(deps Dependencies) *Server {
 	mux.Handle("POST /v1/slots/{slotID}/requests/{userID}/reject", s.requireAuth(http.HandlerFunc(s.rejectRequest)))
 	mux.Handle("POST /v1/slots/{slotID}/start", s.requireAuth(http.HandlerFunc(s.startSlot)))
 	mux.Handle("POST /v1/slots/{slotID}/complete", s.requireAuth(http.HandlerFunc(s.completeSlot)))
+	mux.Handle("GET /v1/slots/{slotID}/chat/messages", s.requireAuth(http.HandlerFunc(s.listChatMessages)))
+	mux.Handle("POST /v1/slots/{slotID}/chat/messages", s.requireAuth(http.HandlerFunc(s.sendChatMessage)))
 
 	s.handler = s.requestMeta(mux)
 	return s
@@ -134,9 +138,7 @@ func (s *Server) authRateLimit(next http.Handler) http.Handler {
 		allowed, retry := s.deps.AuthLimiter.Allow(key)
 		if !allowed {
 			seconds := int((retry + time.Second - 1) / time.Second)
-			if seconds < 1 {
-				seconds = 1
-			}
+			if seconds < 1 { seconds = 1 }
 			w.Header().Set("Retry-After", strconv.Itoa(seconds))
 			writeProblem(w, r, http.StatusTooManyRequests, "rate_limited", "too many authentication attempts")
 			return
@@ -146,17 +148,13 @@ func (s *Server) authRateLimit(next http.Handler) http.Handler {
 }
 
 func remoteIP(remoteAddr string) string {
-	if host, _, err := net.SplitHostPort(strings.TrimSpace(remoteAddr)); err == nil && host != "" {
-		return host
-	}
+	if host, _, err := net.SplitHostPort(strings.TrimSpace(remoteAddr)); err == nil && host != "" { return host }
 	return strings.TrimSpace(remoteAddr)
 }
 
 func bearerToken(v string) (string, bool) {
 	parts := strings.Fields(v)
-	if len(parts) == 2 && strings.EqualFold(parts[0], "Bearer") && parts[1] != "" {
-		return parts[1], true
-	}
+	if len(parts) == 2 && strings.EqualFold(parts[0], "Bearer") && parts[1] != "" { return parts[1], true }
 	return "", false
 }
 
@@ -167,35 +165,18 @@ func authFrom(r *http.Request) (authContext, bool) {
 
 func (s *Server) requestMeta(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		id, err := identifier.NewUUID()
-		if err != nil {
-			id = "unavailable"
-		}
+		id, err := identifier.NewUUID(); if err != nil { id = "unavailable" }
 		w.Header().Set("X-Request-ID", id)
 		ctx := context.WithValue(r.Context(), requestIDKey, id)
 		start := time.Now()
 		rw := &statusWriter{ResponseWriter: w, status: http.StatusOK}
 		next.ServeHTTP(rw, r.WithContext(ctx))
-		slog.Info(
-			"http request",
-			"request_id", id,
-			"method", r.Method,
-			"path", r.URL.Path,
-			"status", rw.status,
-			"duration_ms", time.Since(start).Milliseconds(),
-		)
+		slog.Info("http request", "request_id", id, "method", r.Method, "path", r.URL.Path, "status", rw.status, "duration_ms", time.Since(start).Milliseconds())
 	})
 }
 
-type statusWriter struct {
-	http.ResponseWriter
-	status int
-}
-
-func (w *statusWriter) WriteHeader(code int) {
-	w.status = code
-	w.ResponseWriter.WriteHeader(code)
-}
+type statusWriter struct { http.ResponseWriter; status int }
+func (w *statusWriter) WriteHeader(code int) { w.status = code; w.ResponseWriter.WriteHeader(code) }
 
 func decodeJSON(w http.ResponseWriter, r *http.Request, dst any) error {
 	r.Body = http.MaxBytesReader(w, r.Body, 64<<10)
@@ -207,9 +188,7 @@ func decodeJSON(w http.ResponseWriter, r *http.Request, dst any) error {
 func writeJSON(w http.ResponseWriter, status int, body any) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(status)
-	if body != nil {
-		_ = json.NewEncoder(w).Encode(body)
-	}
+	if body != nil { _ = json.NewEncoder(w).Encode(body) }
 }
 
 func writeProblem(w http.ResponseWriter, r *http.Request, status int, code, message string) {
