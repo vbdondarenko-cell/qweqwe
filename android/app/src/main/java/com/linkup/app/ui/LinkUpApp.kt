@@ -17,6 +17,8 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.key
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -56,6 +58,7 @@ import com.linkup.app.ui.theme.LinkUpTextDimmed
 import com.linkup.app.ui.theme.LinkUpTextMuted
 import com.linkup.app.ui.theme.LinkUpTextPrimary
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.CancellationException
 
 private enum class MainTab { PULSE, MAP, LINK, FLY, ME }
 
@@ -107,7 +110,9 @@ fun LinkUpApp(
                     }
                 },
             )
-            is SessionState.SignedIn -> SignedInRoot(state.user, api, sessions, social)
+            is SessionState.SignedIn -> key(state.user.id) {
+                SignedInRoot(state.user, api, sessions, social)
+            }
             is SessionState.OfflineSession -> OfflineSessionSurface(
                 expiresAt = state.expiresAtEpochMillis,
                 onRetry = { scope.launch { sessions.bootstrap() } },
@@ -156,6 +161,9 @@ private fun SignedInRoot(
         }
     }
 
+    DisposableEffect(user.id) {
+        onDispose { social.clearAll() }
+    }
     LaunchedEffect(user.id) {
         social.refreshPulse()
     }
@@ -171,8 +179,7 @@ private fun SignedInRoot(
                     onClose = { editTarget = null },
                     onSave = { input ->
                         scope.launch {
-                            social.editSlot(target.id, input)
-                            if (social.mutation.value is MutationState.Idle) editTarget = null
+                            if (social.editSlot(target.id, input)) editTarget = null
                         }
                     },
                 )
@@ -229,8 +236,7 @@ private fun SignedInRoot(
                                 onClose = { tab = MainTab.PULSE },
                                 onPublish = { input ->
                                     scope.launch {
-                                        social.createSlot(input)
-                                        if (social.mutation.value is MutationState.Idle) {
+                                        if (social.createSlot(input)) {
                                             tab = MainTab.PULSE
                                             detailOpen = true
                                         }
@@ -330,6 +336,7 @@ private fun CapabilitySurface(title: String, message: String) {
 private fun deviceLabel(): String = "${Build.MANUFACTURER} ${Build.MODEL}".trim().take(120)
 
 private fun Exception.userMessage(): String = when (this) {
+    is CancellationException -> throw this
     is ApiException -> message
     else -> message ?: "Request failed"
 }

@@ -14,6 +14,11 @@ import com.linkup.app.core.network.SlotVisibility
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
+import kotlin.test.assertTrue
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.runBlocking
 
 class SocialCoordinatorTest {
@@ -61,28 +66,122 @@ class SocialCoordinatorTest {
         assertIs<LoadState.Idle>(coordinator.chat.value)
     }
 
+    @Test
+    fun lateChatReadCannotRestoreTerminalThread() = runBlocking {
+        val response = CompletableDeferred<List<ChatMessage>>()
+        val api = FakeSocialApi().apply { chatResponse = response }
+        val coordinator = SocialCoordinator(api)
+        val read = launch(start = CoroutineStart.UNDISPATCHED) { coordinator.refreshChat("slot-1") }
+        api.mutationResult = slot(SlotViewerState.HOST, SlotState.COMPLETED)
+        coordinator.completeSlot("slot-1")
+        response.complete(listOf(message()))
+        read.join()
+        assertIs<LoadState.Idle>(coordinator.chat.value)
+    }
+
+    @Test
+    fun lateResponsesCannotRestoreDisposedAccount() = runBlocking {
+        val pulseResponse = CompletableDeferred<List<SlotModel>>()
+        val chatResponse = CompletableDeferred<List<ChatMessage>>()
+        val api = FakeSocialApi().apply {
+            this.pulseResponse = pulseResponse
+            this.chatResponse = chatResponse
+        }
+        val coordinator = SocialCoordinator(api)
+        val pulse = launch(start = CoroutineStart.UNDISPATCHED) { coordinator.refreshPulse() }
+        val chat = launch(start = CoroutineStart.UNDISPATCHED) { coordinator.refreshChat("slot-1") }
+        coordinator.clearAll()
+        pulseResponse.complete(listOf(slot(SlotViewerState.HOST)))
+        chatResponse.complete(listOf(message()))
+        pulse.join(); chat.join()
+        assertIs<LoadState.Idle>(coordinator.pulse.value)
+        assertIs<LoadState.Idle>(coordinator.chat.value)
+    }
+
+    @Test
+    fun duplicateTapDoesNotQueueSecondMutation() = runBlocking {
+        val response = CompletableDeferred<SlotModel>()
+        val api = FakeSocialApi().apply { requestResponse = response }
+        val coordinator = SocialCoordinator(api)
+        val first = launch(start = CoroutineStart.UNDISPATCHED) { coordinator.requestSlot("slot-1") }
+        val duplicate = launch(start = CoroutineStart.UNDISPATCHED) { coordinator.requestSlot("slot-1") }
+        assertTrue(duplicate.isCompleted)
+        assertEquals(1, api.requestCalls)
+        response.complete(slot(SlotViewerState.PENDING))
+        first.join()
+        assertEquals(1, api.requestCalls)
+    }
+
+    @Test
+    fun cancelledMutationReleasesLockAndPropagatesCancellation() = runBlocking {
+        val api = FakeSocialApi().apply { requestResponse = CompletableDeferred() }
+        val coordinator = SocialCoordinator(api)
+        val action = launch(start = CoroutineStart.UNDISPATCHED) { coordinator.requestSlot("slot-1") }
+        action.cancelAndJoin()
+        assertTrue(action.isCancelled)
+        assertIs<MutationState.Idle>(coordinator.mutation.value)
+        api.requestResponse = null
+        assertTrue(coordinator.requestSlot("slot-1"))
+        assertEquals(2, api.requestCalls)
+    }
+
+    @Test
+    fun latePulseSnapshotCannotOverwriteMutation() = runBlocking {
+        val response = CompletableDeferred<List<SlotModel>>()
+        val api = FakeSocialApi().apply { pulseResponse = response }
+        val coordinator = SocialCoordinator(api)
+        val read = launch(start = CoroutineStart.UNDISPATCHED) { coordinator.refreshPulse() }
+        api.mutationResult = slot(SlotViewerState.PENDING, version = 2)
+        coordinator.requestSlot("slot-1")
+        response.complete(listOf(slot(SlotViewerState.NONE)))
+        read.join()
+        val pulse = assertIs<LoadState.Content<List<SlotModel>>>(coordinator.pulse.value)
+        assertEquals(SlotViewerState.PENDING, pulse.value.single().viewerState)
+    }
+
+    @Test
+    fun lateMutationCannotRestoreClosedSelection() = runBlocking {
+        val response = CompletableDeferred<SlotModel>()
+        val api = FakeSocialApi().apply { requestResponse = response }
+        val coordinator = SocialCoordinator(api)
+        val action = launch(start = CoroutineStart.UNDISPATCHED) { coordinator.requestSlot("slot-1") }
+        coordinator.clearSelected()
+        response.complete(slot(SlotViewerState.PENDING))
+        action.join()
+        assertIs<LoadState.Idle>(coordinator.selectedSlot.value)
+    }
+
     private class FakeSocialApi : SocialApi {
+        var pulseResponse: CompletableDeferred<List<SlotModel>>? = null
+        var chatResponse: CompletableDeferred<List<ChatMessage>>? = null
+        var requestResponse: CompletableDeferred<SlotModel>? = null
+        var requestCalls = 0
         var pulseItems: List<SlotModel> = emptyList()
         var mutationResult: SlotModel = slot(viewer = SlotViewerState.HOST)
         var messages: List<ChatMessage> = emptyList()
 
-        override suspend fun pulse() = pulseItems
+        override suspend fun pulse() = pulseResponse?.await() ?: pulseItems
         override suspend fun createSlot(input: CreateSlotInput) = mutationResult
         override suspend fun getSlot(slotId: String) = mutationResult
         override suspend fun editSlot(slotId: String, input: EditSlotInput) = mutationResult
         override suspend fun cancelSlot(slotId: String, expectedVersion: Long) = mutationResult
-        override suspend fun requestSlot(slotId: String) = mutationResult
+        override suspend fun requestSlot(slotId: String): SlotModel {
+            requestCalls++
+            return requestResponse?.await() ?: mutationResult
+        }
         override suspend fun leaveSlot(slotId: String) = mutationResult
         override suspend fun pendingRequests(slotId: String): List<PendingSlotRequest> = emptyList()
         override suspend fun approveRequest(slotId: String, userId: String) = mutationResult
         override suspend fun rejectRequest(slotId: String, userId: String) = mutationResult
         override suspend fun startSlot(slotId: String) = mutationResult
         override suspend fun completeSlot(slotId: String) = mutationResult
-        override suspend fun chatMessages(slotId: String, limit: Int) = messages
+        override suspend fun chatMessages(slotId: String, limit: Int) = chatResponse?.await() ?: messages
         override suspend fun sendChatMessage(slotId: String, text: String) = messages.first()
     }
 
     companion object {
+        private fun message() = ChatMessage("m1", "slot-1", com.linkup.app.core.network.ChatAuthor("u", "u", "User", null), "hello", 1)
+
         private fun slot(
             viewer: SlotViewerState,
             state: SlotState = SlotState.FILLING,

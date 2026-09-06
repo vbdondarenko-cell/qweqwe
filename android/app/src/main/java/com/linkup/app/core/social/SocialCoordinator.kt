@@ -14,7 +14,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.CancellationException
 
 sealed interface LoadState<out T> {
     data object Idle : LoadState<Nothing>
@@ -40,6 +40,14 @@ class SocialCoordinator(
     private val api: SocialApi,
 ) {
     private val actionMutex = Mutex()
+    // Called by UI coroutines on Main. Tokens invalidate responses after navigation,
+    // access changes, or account disposal; cancellation alone cannot do that.
+    private var selectionGeneration = 0L
+    private var pulseRequest = 0L
+    private var pulseItems = emptyList<SlotModel>()
+    private var slotRequest = 0L
+    private var pendingRequest = 0L
+    private var chatRequest = 0L
 
     private val mutablePulse = MutableStateFlow<LoadState<List<SlotModel>>>(LoadState.Idle)
     val pulse: StateFlow<LoadState<List<SlotModel>>> = mutablePulse.asStateFlow()
@@ -57,20 +65,36 @@ class SocialCoordinator(
     val mutation: StateFlow<MutationState> = mutableMutation.asStateFlow()
 
     suspend fun refreshPulse() {
+        val request = ++pulseRequest
         mutablePulse.value = LoadState.Loading
         try {
             val items = api.pulse()
+            if (request != pulseRequest) return
+            pulseItems = items
             mutablePulse.value = if (items.isEmpty()) LoadState.Empty else LoadState.Content(items)
+        } catch (error: CancellationException) {
+            if (request == pulseRequest) mutablePulse.value = LoadState.Idle
+            throw error
         } catch (error: Exception) {
+            if (request != pulseRequest) return
             mutablePulse.value = LoadState.Failure(error.toSocialError())
         }
     }
 
     suspend fun openSlot(slotId: String) {
+        clearSelected()
+        val generation = selectionGeneration
+        val request = ++slotRequest
         mutableSelectedSlot.value = LoadState.Loading
         try {
-            applySelected(api.getSlot(slotId))
+            val slot = api.getSlot(slotId)
+            if (generation != selectionGeneration || request != slotRequest) return
+            applySelected(slot)
+        } catch (error: CancellationException) {
+            if (generation == selectionGeneration && request == slotRequest) mutableSelectedSlot.value = LoadState.Idle
+            throw error
         } catch (error: Exception) {
+            if (generation != selectionGeneration || request != slotRequest) return
             mutableSelectedSlot.value = LoadState.Failure(error.toSocialError())
         }
     }
@@ -82,70 +106,118 @@ class SocialCoordinator(
     suspend fun leaveSlot(slotId: String) = mutateSlot { api.leaveSlot(slotId) }
 
     suspend fun approveRequest(slotId: String, userId: String) {
-        mutateSlot { api.approveRequest(slotId, userId) }
-        if (mutableMutation.value is MutationState.Idle) refreshPending(slotId)
+        if (mutateSlot { api.approveRequest(slotId, userId) }) refreshPending(slotId)
     }
 
     suspend fun rejectRequest(slotId: String, userId: String) {
-        mutateSlot { api.rejectRequest(slotId, userId) }
-        if (mutableMutation.value is MutationState.Idle) refreshPending(slotId)
+        if (mutateSlot { api.rejectRequest(slotId, userId) }) refreshPending(slotId)
     }
 
     suspend fun startSlot(slotId: String) = mutateSlot { api.startSlot(slotId) }
     suspend fun completeSlot(slotId: String) = mutateSlot { api.completeSlot(slotId) }
 
     suspend fun refreshPending(slotId: String) {
+        val generation = selectionGeneration
+        val request = ++pendingRequest
         mutablePending.value = LoadState.Loading
         try {
             val items = api.pendingRequests(slotId)
+            if (generation != selectionGeneration || request != pendingRequest) return
             mutablePending.value = if (items.isEmpty()) LoadState.Empty else LoadState.Content(items)
+        } catch (error: CancellationException) {
+            if (generation == selectionGeneration && request == pendingRequest) mutablePending.value = LoadState.Idle
+            throw error
         } catch (error: Exception) {
+            if (generation != selectionGeneration || request != pendingRequest) return
             mutablePending.value = LoadState.Failure(error.toSocialError())
         }
     }
 
     suspend fun refreshChat(slotId: String, limit: Int = 100) {
+        val generation = selectionGeneration
+        val request = ++chatRequest
         mutableChat.value = LoadState.Loading
         try {
             val items = api.chatMessages(slotId, limit)
+            if (generation != selectionGeneration || request != chatRequest) return
             mutableChat.value = if (items.isEmpty()) LoadState.Empty else LoadState.Content(items)
+        } catch (error: CancellationException) {
+            if (generation == selectionGeneration && request == chatRequest) mutableChat.value = LoadState.Idle
+            throw error
         } catch (error: Exception) {
+            if (generation != selectionGeneration || request != chatRequest) return
             mutableChat.value = LoadState.Failure(error.toSocialError())
         }
     }
 
     suspend fun sendChatMessage(slotId: String, text: String) {
-        actionMutex.withLock {
-            mutableMutation.value = MutationState.Running
-            try {
-                val message = api.sendChatMessage(slotId, text)
+        // A Mutex queue would send a second mutation after a rapid double tap.
+        if (!actionMutex.tryLock()) return
+        val generation = selectionGeneration
+        val thread = chatRequest
+        mutableMutation.value = MutationState.Running
+        try {
+            val message = api.sendChatMessage(slotId, text)
+            if (generation != selectionGeneration) return
+            if (thread == chatRequest) {
                 val current = (mutableChat.value as? LoadState.Content)?.value.orEmpty()
-                mutableChat.value = LoadState.Content(current + message)
-                mutableMutation.value = MutationState.Idle
-            } catch (error: Exception) {
+                mutableChat.value = LoadState.Content((current + message).distinctBy { it.id }.takeLast(100))
+            }
+            mutableMutation.value = MutationState.Idle
+        } catch (error: CancellationException) {
+            if (generation == selectionGeneration) mutableMutation.value = MutationState.Idle
+            throw error
+        } catch (error: Exception) {
+            if (generation == selectionGeneration) {
+                if (error is ApiException && error.status in setOf(401, 403, 404, 409)) {
+                    ++chatRequest
+                    mutableChat.value = LoadState.Failure(error.toSocialError())
+                }
                 mutableMutation.value = MutationState.Failed(error.toSocialError())
             }
+        } finally {
+            actionMutex.unlock()
         }
     }
 
     fun clearSelected() {
+        ++selectionGeneration
+        ++slotRequest
+        ++pendingRequest
+        ++chatRequest
         mutableSelectedSlot.value = LoadState.Idle
         mutablePending.value = LoadState.Idle
         mutableChat.value = LoadState.Idle
         mutableMutation.value = MutationState.Idle
     }
 
-    private suspend fun mutateSlot(action: suspend () -> SlotModel) {
-        actionMutex.withLock {
-            mutableMutation.value = MutationState.Running
-            try {
-                val slot = action()
-                applySelected(slot)
-                reconcilePulse(slot)
-                mutableMutation.value = MutationState.Idle
-            } catch (error: Exception) {
-                mutableMutation.value = MutationState.Failed(error.toSocialError())
-            }
+    fun clearAll() {
+        ++pulseRequest
+        pulseItems = emptyList()
+        mutablePulse.value = LoadState.Idle
+        clearSelected()
+    }
+
+    private suspend fun mutateSlot(action: suspend () -> SlotModel): Boolean {
+        if (!actionMutex.tryLock()) return false
+        val generation = selectionGeneration
+        mutableMutation.value = MutationState.Running
+        try {
+            val slot = action()
+            if (generation != selectionGeneration) return false
+            ++slotRequest
+            applySelected(slot)
+            reconcilePulse(slot)
+            mutableMutation.value = MutationState.Idle
+            return true
+        } catch (error: CancellationException) {
+            if (generation == selectionGeneration) mutableMutation.value = MutationState.Idle
+            throw error
+        } catch (error: Exception) {
+            if (generation == selectionGeneration) mutableMutation.value = MutationState.Failed(error.toSocialError())
+            return false
+        } finally {
+            actionMutex.unlock()
         }
     }
 
@@ -153,26 +225,32 @@ class SocialCoordinator(
         mutableSelectedSlot.value = LoadState.Content(slot)
         when (slot.viewerState) {
             SlotViewerState.HOST -> Unit
-            SlotViewerState.ACCEPTED -> mutablePending.value = LoadState.Idle
+            SlotViewerState.ACCEPTED -> {
+                ++pendingRequest
+                mutablePending.value = LoadState.Idle
+            }
             SlotViewerState.PENDING, SlotViewerState.NONE -> {
+                ++pendingRequest
+                ++chatRequest
                 mutablePending.value = LoadState.Idle
                 mutableChat.value = LoadState.Idle
             }
         }
         if (slot.state in terminalStates) {
+            ++pendingRequest
+            ++chatRequest
             mutableChat.value = LoadState.Idle
             mutablePending.value = LoadState.Idle
         }
     }
 
     private fun reconcilePulse(slot: SlotModel) {
-        val current = when (val state = mutablePulse.value) {
-            is LoadState.Content -> state.value
-            else -> return
-        }
+        ++pulseRequest
+        val current = pulseItems
         val discoverable = slot.state == SlotState.PUBLISHED || slot.state == SlotState.FILLING || slot.state == SlotState.FULL
         val without = current.filterNot { it.id == slot.id }
         val updated = if (discoverable) listOf(slot) + without else without
+        pulseItems = updated
         mutablePulse.value = if (updated.isEmpty()) LoadState.Empty else LoadState.Content(updated)
     }
 

@@ -441,3 +441,14 @@ Validation performed: source review and `git diff --check`. **Go/Android tests h
 Environment: Java 17 is available; Go, Gradle, Kotlin compiler and Android SDK were not found. Go download attempt did not pass network approval. No substitute checks are counted as compilation. `go.sum`, wrapper and all previous build/DB/device gates remain open. No server deployment or database mutation performed.
 
 Production readiness remains **0%** under this ledger's verified end-to-end criterion.
+
+## 18. 2026-09-06 — Android response invalidation / audit findings
+
+- Mutation double taps are dropped while another action is running rather than queued; create/edit routing uses an explicit successful return.
+- Generation/request tokens prevent old selected/Pulse/chat/pending replies from restoring disposed state or overriding newer mutation state.
+- Terminal/access updates invalidate outstanding thread reads; sign-in UI is keyed by account and disposal clears all social data.
+- Cancellation propagates and releases the action lock; successful sends deduplicate and bound the local recent list.
+- Six additional deterministic suspended-response regression tests were added (nine social coordinator tests total).
+- `REPOSITORY_AUDIT.md` records audit scope, corrected defects, prioritized remaining SQL/auth/Android/build issues and precise verification limitations.
+
+Executed checks: diff whitespace/conflict check, Android XML parsing, preservation of design/iOS/existing migration files. Kotlin/Go tests remain unexecuted because toolchains are unavailable; no readiness increase or foundation-green claim.
