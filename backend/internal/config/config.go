@@ -9,32 +9,48 @@ import (
 )
 
 type Config struct {
-	HTTPAddr        string
-	DatabaseURL     string
-	SessionTTL      time.Duration
-	MigrationDir    string
-	ArgonMemoryKiB  uint32
-	ArgonIterations uint32
-	ArgonParallel   uint8
+	HTTPAddr          string
+	DatabaseURL       string
+	SessionTTL        time.Duration
+	PasswordResetTTL  time.Duration
+	MigrationDir      string
+	ArgonMemoryKiB    uint32
+	ArgonIterations   uint32
+	ArgonParallel     uint8
+	AuthRateLimit     int
+	AuthRateWindow    time.Duration
+	AuthRateIdleTTL   time.Duration
+	AuthRateMaxEntries int
 }
 
 func Load() (Config, error) {
 	cfg := Config{
-		HTTPAddr:        envOr("LINKUP_HTTP_ADDR", ":8080"),
-		DatabaseURL:     os.Getenv("DATABASE_URL"),
-		SessionTTL:      30 * 24 * time.Hour,
-		MigrationDir:    envOr("LINKUP_MIGRATIONS_DIR", "../db/migrations"),
-		ArgonMemoryKiB:  19 * 1024,
-		ArgonIterations: 2,
-		ArgonParallel:   1,
+		HTTPAddr:           envOr("LINKUP_HTTP_ADDR", ":8080"),
+		DatabaseURL:        os.Getenv("DATABASE_URL"),
+		SessionTTL:         30 * 24 * time.Hour,
+		PasswordResetTTL:   30 * time.Minute,
+		MigrationDir:       envOr("LINKUP_MIGRATIONS_DIR", "../db/migrations"),
+		ArgonMemoryKiB:     19 * 1024,
+		ArgonIterations:    2,
+		ArgonParallel:      1,
+		AuthRateLimit:      10,
+		AuthRateWindow:     time.Minute,
+		AuthRateIdleTTL:    10 * time.Minute,
+		AuthRateMaxEntries: 20_000,
 	}
 	if cfg.DatabaseURL == "" { return Config{}, errors.New("DATABASE_URL is required") }
 	var err error
 	if cfg.SessionTTL, err = durationEnv("LINKUP_SESSION_TTL", cfg.SessionTTL); err != nil { return Config{}, err }
+	if cfg.PasswordResetTTL, err = durationEnv("LINKUP_PASSWORD_RESET_TTL", cfg.PasswordResetTTL); err != nil { return Config{}, err }
 	if cfg.ArgonMemoryKiB, err = uint32Env("LINKUP_ARGON_MEMORY_KIB", cfg.ArgonMemoryKiB); err != nil { return Config{}, err }
 	if cfg.ArgonIterations, err = uint32Env("LINKUP_ARGON_ITERATIONS", cfg.ArgonIterations); err != nil { return Config{}, err }
 	parallel, err := uint32Env("LINKUP_ARGON_PARALLELISM", uint32(cfg.ArgonParallel)); if err != nil || parallel > 255 { if err==nil { err=errors.New("LINKUP_ARGON_PARALLELISM must be <=255") }; return Config{}, err }
 	cfg.ArgonParallel=uint8(parallel)
+	if cfg.AuthRateLimit, err = positiveIntEnv("LINKUP_AUTH_RATE_LIMIT", cfg.AuthRateLimit); err != nil { return Config{}, err }
+	if cfg.AuthRateWindow, err = durationEnv("LINKUP_AUTH_RATE_WINDOW", cfg.AuthRateWindow); err != nil { return Config{}, err }
+	if cfg.AuthRateIdleTTL, err = durationEnv("LINKUP_AUTH_RATE_IDLE_TTL", cfg.AuthRateIdleTTL); err != nil { return Config{}, err }
+	if cfg.AuthRateMaxEntries, err = positiveIntEnv("LINKUP_AUTH_RATE_MAX_ENTRIES", cfg.AuthRateMaxEntries); err != nil { return Config{}, err }
+	if cfg.AuthRateIdleTTL < cfg.AuthRateWindow { return Config{}, errors.New("LINKUP_AUTH_RATE_IDLE_TTL must be >= LINKUP_AUTH_RATE_WINDOW") }
 	return cfg, nil
 }
 
@@ -51,4 +67,10 @@ func uint32Env(key string, fallback uint32) (uint32,error) {
 	v:=os.Getenv(key); if v=="" { return fallback,nil }
 	n,err:=strconv.ParseUint(v,10,32); if err!=nil || n==0 { return 0,fmt.Errorf("%s must be a positive integer",key) }
 	return uint32(n),nil
+}
+
+func positiveIntEnv(key string, fallback int) (int, error) {
+	v := os.Getenv(key); if v == "" { return fallback, nil }
+	n, err := strconv.Atoi(v); if err != nil || n <= 0 { return 0, fmt.Errorf("%s must be a positive integer", key) }
+	return n, nil
 }

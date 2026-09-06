@@ -4,17 +4,21 @@ import (
 	"context"
 	"encoding/json"
 	"log/slog"
+	"net"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/account"
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/identifier"
+	"github.com/vbdondarenko-cell/qweqwe/backend/internal/ratelimit"
 )
 
 type Dependencies struct {
-	Accounts *account.Service
-	Ready    func(context.Context) error
+	Accounts    *account.Service
+	Ready       func(context.Context) error
+	AuthLimiter *ratelimit.Limiter
 }
 
 type Server struct { handler http.Handler; deps Dependencies }
@@ -31,8 +35,8 @@ func New(deps Dependencies) *Server {
 	mux:=http.NewServeMux()
 	mux.HandleFunc("GET /livez",s.livez)
 	mux.HandleFunc("GET /healthz",s.healthz)
-	mux.HandleFunc("POST /v1/auth/register",s.register)
-	mux.HandleFunc("POST /v1/auth/login",s.login)
+	mux.Handle("POST /v1/auth/register",s.authRateLimit(http.HandlerFunc(s.register)))
+	mux.Handle("POST /v1/auth/login",s.authRateLimit(http.HandlerFunc(s.login)))
 	mux.Handle("POST /v1/auth/logout",s.requireAuth(http.HandlerFunc(s.logout)))
 	mux.Handle("GET /v1/me",s.requireAuth(http.HandlerFunc(s.getMe)))
 	mux.Handle("PATCH /v1/me",s.requireAuth(http.HandlerFunc(s.patchMe)))
@@ -53,6 +57,27 @@ func (s *Server) requireAuth(next http.Handler) http.Handler {
 		ctx:=context.WithValue(r.Context(),authKey,authContext{User:u,SessionID:sid,RawToken:raw})
 		next.ServeHTTP(w,r.WithContext(ctx))
 	})
+}
+
+func (s *Server) authRateLimit(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if s.deps.AuthLimiter == nil { next.ServeHTTP(w, r); return }
+		key := remoteIP(r.RemoteAddr) + ":" + r.URL.Path
+		allowed, retry := s.deps.AuthLimiter.Allow(key)
+		if !allowed {
+			seconds := int((retry + time.Second - 1) / time.Second)
+			if seconds < 1 { seconds = 1 }
+			w.Header().Set("Retry-After", strconv.Itoa(seconds))
+			writeProblem(w, r, http.StatusTooManyRequests, "rate_limited", "too many authentication attempts")
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+func remoteIP(remoteAddr string) string {
+	if host, _, err := net.SplitHostPort(strings.TrimSpace(remoteAddr)); err == nil && host != "" { return host }
+	return strings.TrimSpace(remoteAddr)
 }
 
 func bearerToken(v string)(string,bool){ parts:=strings.Fields(v); returnValue:=""; if len(parts)==2 && strings.EqualFold(parts[0],"Bearer") { returnValue=parts[1] }; return returnValue,returnValue!="" }
