@@ -5,38 +5,52 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 )
 
 type Config struct {
-	HTTPAddr          string
-	DatabaseURL       string
-	SessionTTL        time.Duration
-	PasswordResetTTL  time.Duration
-	MigrationDir      string
-	ArgonMemoryKiB    uint32
-	ArgonIterations   uint32
-	ArgonParallel     uint8
-	AuthRateLimit     int
-	AuthRateWindow    time.Duration
-	AuthRateIdleTTL   time.Duration
-	AuthRateMaxEntries int
+	HTTPAddr             string
+	DatabaseURL          string
+	SessionTTL           time.Duration
+	PasswordResetTTL     time.Duration
+	MigrationDir         string
+	ArgonMemoryKiB       uint32
+	ArgonIterations      uint32
+	ArgonParallel        uint8
+	AuthRateLimit        int
+	AuthRateWindow       time.Duration
+	AuthRateIdleTTL      time.Duration
+	AuthRateMaxEntries   int
+	RecoverySMTPAddress  string
+	RecoverySMTPHost     string
+	RecoverySMTPUsername string
+	RecoverySMTPPassword string
+	RecoveryFrom         string
+	RecoveryResetURL     string
+	RecoveryImplicitTLS  bool
 }
 
 func Load() (Config, error) {
 	cfg := Config{
-		HTTPAddr:           envOr("LINKUP_HTTP_ADDR", ":8080"),
-		DatabaseURL:        os.Getenv("DATABASE_URL"),
-		SessionTTL:         30 * 24 * time.Hour,
-		PasswordResetTTL:   30 * time.Minute,
-		MigrationDir:       envOr("LINKUP_MIGRATIONS_DIR", "../db/migrations"),
-		ArgonMemoryKiB:     19 * 1024,
-		ArgonIterations:    2,
-		ArgonParallel:      1,
-		AuthRateLimit:      10,
-		AuthRateWindow:     time.Minute,
-		AuthRateIdleTTL:    10 * time.Minute,
-		AuthRateMaxEntries: 20_000,
+		HTTPAddr:             envOr("LINKUP_HTTP_ADDR", ":8080"),
+		DatabaseURL:          os.Getenv("DATABASE_URL"),
+		SessionTTL:           30 * 24 * time.Hour,
+		PasswordResetTTL:     30 * time.Minute,
+		MigrationDir:         envOr("LINKUP_MIGRATIONS_DIR", "../db/migrations"),
+		ArgonMemoryKiB:       19 * 1024,
+		ArgonIterations:      2,
+		ArgonParallel:        1,
+		AuthRateLimit:        10,
+		AuthRateWindow:       time.Minute,
+		AuthRateIdleTTL:      10 * time.Minute,
+		AuthRateMaxEntries:   20_000,
+		RecoverySMTPAddress:  strings.TrimSpace(os.Getenv("LINKUP_RECOVERY_SMTP_ADDR")),
+		RecoverySMTPHost:     strings.TrimSpace(os.Getenv("LINKUP_RECOVERY_SMTP_HOST")),
+		RecoverySMTPUsername: strings.TrimSpace(os.Getenv("LINKUP_RECOVERY_SMTP_USERNAME")),
+		RecoverySMTPPassword: os.Getenv("LINKUP_RECOVERY_SMTP_PASSWORD"),
+		RecoveryFrom:         strings.TrimSpace(os.Getenv("LINKUP_RECOVERY_FROM")),
+		RecoveryResetURL:     strings.TrimSpace(os.Getenv("LINKUP_RECOVERY_RESET_URL")),
 	}
 	if cfg.DatabaseURL == "" { return Config{}, errors.New("DATABASE_URL is required") }
 	var err error
@@ -51,7 +65,13 @@ func Load() (Config, error) {
 	if cfg.AuthRateIdleTTL, err = durationEnv("LINKUP_AUTH_RATE_IDLE_TTL", cfg.AuthRateIdleTTL); err != nil { return Config{}, err }
 	if cfg.AuthRateMaxEntries, err = positiveIntEnv("LINKUP_AUTH_RATE_MAX_ENTRIES", cfg.AuthRateMaxEntries); err != nil { return Config{}, err }
 	if cfg.AuthRateIdleTTL < cfg.AuthRateWindow { return Config{}, errors.New("LINKUP_AUTH_RATE_IDLE_TTL must be >= LINKUP_AUTH_RATE_WINDOW") }
+	if cfg.RecoveryImplicitTLS, err = boolEnv("LINKUP_RECOVERY_SMTP_IMPLICIT_TLS", false); err != nil { return Config{}, err }
+	if recoveryFieldsPresent(cfg) && cfg.RecoverySMTPAddress == "" { return Config{}, errors.New("LINKUP_RECOVERY_SMTP_ADDR is required when recovery SMTP is configured") }
 	return cfg, nil
+}
+
+func recoveryFieldsPresent(cfg Config) bool {
+	return cfg.RecoverySMTPAddress != "" || cfg.RecoverySMTPHost != "" || cfg.RecoverySMTPUsername != "" || cfg.RecoverySMTPPassword != "" || cfg.RecoveryFrom != "" || cfg.RecoveryResetURL != ""
 }
 
 func envOr(key, fallback string) string { if v:=os.Getenv(key); v!="" { return v }; return fallback }
@@ -73,4 +93,10 @@ func positiveIntEnv(key string, fallback int) (int, error) {
 	v := os.Getenv(key); if v == "" { return fallback, nil }
 	n, err := strconv.Atoi(v); if err != nil || n <= 0 { return 0, fmt.Errorf("%s must be a positive integer", key) }
 	return n, nil
+}
+
+func boolEnv(key string, fallback bool) (bool, error) {
+	v := strings.TrimSpace(os.Getenv(key)); if v == "" { return fallback, nil }
+	b, err := strconv.ParseBool(v); if err != nil { return false, fmt.Errorf("%s must be a boolean", key) }
+	return b, nil
 }
