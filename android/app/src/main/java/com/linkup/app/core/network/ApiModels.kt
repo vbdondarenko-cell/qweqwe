@@ -10,6 +10,13 @@ data class UserProfile(
     val language: String,
 )
 
+data class BlockedUser(
+    val id: String,
+    val username: String,
+    val displayName: String,
+    val avatarUrl: String?,
+)
+
 data class AuthSession(
     val user: UserProfile,
     val token: String,

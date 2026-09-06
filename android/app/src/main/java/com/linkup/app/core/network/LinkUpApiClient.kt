@@ -4,6 +4,7 @@ import com.linkup.app.core.session.SecureSessionStore
 import java.net.HttpURLConnection
 import java.net.URL
 import java.time.Instant
+import java.util.UUID
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
@@ -47,21 +48,15 @@ class LinkUpApiClient(
     }
 
     suspend fun requestPasswordRecovery(email: String) {
-        val body = JSONObject().put("email", email)
-        request("POST", "/v1/auth/recovery/request", body, false)
+        request("POST", "/v1/auth/recovery/request", JSONObject().put("email", email), false)
     }
 
     suspend fun resetPassword(token: String, newPassword: String) {
-        val body = JSONObject().put("token", token).put("newPassword", newPassword)
-        request("POST", "/v1/auth/recovery/reset", body, false)
+        request("POST", "/v1/auth/recovery/reset", JSONObject().put("token", token).put("newPassword", newPassword), false)
     }
 
     suspend fun logout() {
-        try {
-            request("POST", "/v1/auth/logout", null, true)
-        } finally {
-            sessions.clear()
-        }
+        try { request("POST", "/v1/auth/logout", null, true) } finally { sessions.clear() }
     }
 
     suspend fun me(): UserProfile = parseUser(request("GET", "/v1/me", null, true)!!)
@@ -78,6 +73,34 @@ class LinkUpApiClient(
         profileVisibility?.let { body.put("profileVisibility", it) }
         language?.let { body.put("language", it) }
         return parseUser(request("PATCH", "/v1/me", body, true)!!)
+    }
+
+    suspend fun blockedUsers(): List<BlockedUser> {
+        val json = request("GET", "/v1/me/blocks", null, true)!!
+        val items = json.getJSONArray("items")
+        return buildList(items.length()) {
+            for (index in 0 until items.length()) {
+                val item = items.getJSONObject(index)
+                add(
+                    BlockedUser(
+                        id = item.getString("id"),
+                        username = item.getString("username"),
+                        displayName = item.getString("displayName"),
+                        avatarUrl = if (item.isNull("avatarUrl")) null else item.optString("avatarUrl").ifBlank { null },
+                    ),
+                )
+            }
+        }
+    }
+
+    suspend fun blockUser(userId: String) {
+        val normalized = UUID.fromString(userId).toString()
+        request("PUT", "/v1/me/blocks/$normalized", null, true)
+    }
+
+    suspend fun unblockUser(userId: String) {
+        val normalized = UUID.fromString(userId).toString()
+        request("DELETE", "/v1/me/blocks/$normalized", null, true)
     }
 
     private fun persistAuth(json: JSONObject): AuthSession {

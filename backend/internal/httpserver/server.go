@@ -11,12 +11,14 @@ import (
 	"time"
 
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/account"
+	"github.com/vbdondarenko-cell/qweqwe/backend/internal/blocklist"
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/identifier"
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/ratelimit"
 )
 
 type Dependencies struct {
 	Accounts    *account.Service
+	Blocks      *blocklist.Service
 	Ready       func(context.Context) error
 	AuthLimiter *ratelimit.Limiter
 }
@@ -42,6 +44,9 @@ func New(deps Dependencies) *Server {
 	mux.Handle("POST /v1/auth/logout",s.requireAuth(http.HandlerFunc(s.logout)))
 	mux.Handle("GET /v1/me",s.requireAuth(http.HandlerFunc(s.getMe)))
 	mux.Handle("PATCH /v1/me",s.requireAuth(http.HandlerFunc(s.patchMe)))
+	mux.Handle("GET /v1/me/blocks",s.requireAuth(http.HandlerFunc(s.listBlocks)))
+	mux.Handle("PUT /v1/me/blocks/{userID}",s.requireAuth(http.HandlerFunc(s.blockUser)))
+	mux.Handle("DELETE /v1/me/blocks/{userID}",s.requireAuth(http.HandlerFunc(s.unblockUser)))
 	s.handler=s.requestMeta(mux)
 	return s
 }

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/account"
+	"github.com/vbdondarenko-cell/qweqwe/backend/internal/blocklist"
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/config"
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/httpserver"
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/password"
@@ -29,8 +30,9 @@ func main(){
 		if err:=accountService.ConfigureRecovery(notifier,cfg.PasswordResetTTL); err!=nil { slog.Error("password recovery service init failed","error",err); os.Exit(1) }
 		slog.Info("password recovery enabled","smtp_host",cfg.RecoverySMTPHost)
 	}
+	blockService,err:=blocklist.NewService(postgres.NewBlockStore(pool));if err!=nil{slog.Error("block service init failed","error",err);os.Exit(1)}
 	authLimiter,err:=ratelimit.New(ratelimit.Config{Limit:cfg.AuthRateLimit,Window:cfg.AuthRateWindow,IdleTTL:cfg.AuthRateIdleTTL,MaxEntries:cfg.AuthRateMaxEntries}); if err!=nil { slog.Error("auth rate limiter init failed","error",err); os.Exit(1) }
-	app:=httpserver.New(httpserver.Dependencies{Accounts:accountService,Ready:pool.Ping,AuthLimiter:authLimiter})
+	app:=httpserver.New(httpserver.Dependencies{Accounts:accountService,Blocks:blockService,Ready:pool.Ping,AuthLimiter:authLimiter})
 	srv:=&http.Server{Addr:cfg.HTTPAddr,Handler:app.Handler(),ReadHeaderTimeout:5*time.Second,ReadTimeout:15*time.Second,WriteTimeout:15*time.Second,IdleTimeout:60*time.Second}
 	ctx,stop:=signal.NotifyContext(context.Background(),syscall.SIGINT,syscall.SIGTERM); defer stop()
 	errCh:=make(chan error,1); go func(){ slog.Info("linkup api listening","addr",cfg.HTTPAddr); if err:=srv.ListenAndServe(); err!=nil && !errors.Is(err,http.ErrServerClosed){ errCh<-err } }()
