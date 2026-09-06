@@ -46,6 +46,16 @@ class LinkUpApiClient(
         return persistAuth(request("POST", "/v1/auth/login", body, false)!!)
     }
 
+    suspend fun requestPasswordRecovery(email: String) {
+        val body = JSONObject().put("email", email)
+        request("POST", "/v1/auth/recovery/request", body, false)
+    }
+
+    suspend fun resetPassword(token: String, newPassword: String) {
+        val body = JSONObject().put("token", token).put("newPassword", newPassword)
+        request("POST", "/v1/auth/recovery/reset", body, false)
+    }
+
     suspend fun logout() {
         try {
             request("POST", "/v1/auth/logout", null, true)
