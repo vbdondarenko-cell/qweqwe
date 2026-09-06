@@ -8,8 +8,12 @@
 - LinkUp створюється **з нуля (greenfield)** у цьому репозиторії.
 - Старі версії, старі репозиторії, старий код і попередня архітектура LinkUp **не є джерелом правди та не повинні враховуватися**.
 - Єдине джерело правди для продукту — **поточні файли цього репозиторію**, з урахуванням правил нижче.
-- LinkUp — **повноцінна робоча соціальна мережа для Android та iOS**.
-- Mobile architecture: **Kotlin Multiplatform (KMP)** для спільної бізнес-/domain-/data-логіки; **Jetpack Compose** для Android UI; **Swift/SwiftUI** для iOS UI та platform-specific API.
+- **Поточний активний product target — Android. iOS залишається майбутньою платформою, але повністю заморожений до окремої прямої команди користувача.**
+- **Поточний дизайн, уже записаний у репозиторії, є canonical visual/UI contract. Його не переробляти, не редизайнити, не замінювати іншою дизайн-системою і не використовувати архітектурний refactor як причину змінювати його зовнішній вигляд або UX.**
+- Увесь новий production functionality після цього правила реалізується **Kotlin для Android/client-side logic** та **Go для backend/server-side logic**. Нову product/domain functionality на React/TypeScript не переносити і не будувати там як альтернативну production implementation.
+- Android UI та Android platform integration реалізуються на **Kotlin + Jetpack Compose** там, де потрібна production Android implementation, із збереженням уже затвердженого дизайну без самовільного redesign.
+- **iOS/Swift/SwiftUI код, конфігурацію, проєктні файли, signing, build settings, тести та platform integrations не створювати, не змінювати, не видаляти і не рефакторити до прямої команди користувача “працювати над iOS” або еквівалентної.**
+- Kotlin Multiplatform допускається лише там, де це не потребує змін iOS target і не створює iOS work block. До активації iOS Android-first Kotlin implementation має пріоритет.
 - **Render.com НЕ ВИКОРИСТОВУЄТЬСЯ.** Заборонено додавати Render-specific hosting, deployment configuration, URLs, documentation assumptions або runtime dependencies.
 - **Google Cloud compute/build/deployment infrastructure НЕ ВИКОРИСТОВУЄТЬСЯ.** Заборонені Cloud Run, Cloud Deploy, Cloud Build, Artifact Registry, Google Cloud Logging/Monitoring, Secret Manager, Pub/Sub та інші GCP services як canonical LinkUp infrastructure, якщо користувач прямо не змінить це рішення пізніше. Firebase залишається дозволеним окремим platform service layer відповідно до правил нижче.
 - **Canonical infrastructure stack: GitHub + Supabase + Firebase + окремий Ubuntu server.** GitHub є source-control authority; Supabase project `oavnrlwsfiiehluubwjk` є managed PostgreSQL/PostGIS infrastructure; Firebase дозволений для явно інтегрованих mobile/platform capabilities; окремий Ubuntu server є цільовим runtime/deployment environment для Go API після прямої команди користувача на deployment.
@@ -18,29 +22,30 @@
 
 ## RULE 1 — EVERYTHING IN THE REPOSITORY MUST EXIST IN ITS TARGET RELEASE
 
-Усе, що описано у файлах репозиторію як функція, поведінка, продуктова можливість, UX/UI-вимога, дизайн, анімація, архітектурна вимога, safety/privacy правило, тестова вимога або користувацький сценарій, **обов'язково має бути реально реалізовано в LinkUp у тій версії, до якої це віднесено canonical README roadmap**.
+Усе, що описано у файлах репозиторію як функція, поведінка, продуктова можливість, UX/UI-вимога, дизайн, анімація, архітектурна вимога, safety/privacy правило, тестова вимога або користувацький сценарій, **обов'язково має бути реально реалізовано в LinkUp у тій версії, до якої це віднесено canonical README roadmap**, з урахуванням тимчасового Android-only platform gate цього файла.
 
 - Документація не є списком необов'язкових ідей.
 - Не можна мовчки пропускати складні вимоги.
-- Не можна замінювати вимоги декоративними макетами, fake/mock-даними або нефункціональними екранами.
-- Якщо файли суперечать один одному, застосовуються ці NON-NEGOTIABLE PROJECT RULES; інший конфлікт має бути явно виправлений у репозиторії.
-- Текст документації не обов'язково має відображатися в UI, але **вся продуктова поведінка, яку він вимагає для активної версії, повинна існувати та працювати до завершення цієї версії**.
-- Вимоги майбутніх версій залишаються обов'язковим roadmap, але **не блокують Done попередньої версії**, якщо не є її прямою dependency.
+- Не можна замінювати production functionality декоративними макетами, fake/mock-даними або нефункціональними екранами.
+- **Наявний дизайн не вважається “mock, який треба переписати”: він є canonical design contract. Заборона fake/mock behavior стосується production data/domain behavior, а не дозволу на redesign існуючого UI.**
+- Якщо файли суперечать один одному, застосовуються ці NON-NEGOTIABLE PROJECT RULES; інший конфлікт має трактуватися відповідно до цих правил.
+- Якщо README вимагає iOS parity або iOS implementation, ця вимога **не активується і не блокує Android development/readiness**, доки користувач прямо не розблокує iOS.
+- Текст документації не обов'язково має відображатися в UI, але вся продуктова поведінка активного Android/Go scope повинна існувати та працювати до завершення відповідного scope.
 
 ## RULE 2 — ONLY A REAL WORKING SOCIAL NETWORK
 
-Мета — не prototype, demo, showcase, skeleton або набір заготовок. Результат — **реально працююча end-to-end соціальна мережа LinkUp**.
+Мета — не prototype, demo, showcase, skeleton або набір заготовок. Результат активної реалізації — **реально працююча end-to-end соціальна мережа LinkUp на Android із Go backend**.
 
-Заборонено вважати функцію завершеною, якщо в ній є:
+Заборонено вважати production functionality завершеною, якщо в ній є:
 
 - `TODO`, `FIXME` або еквівалент незавершеної критичної роботи;
 - fake/mock дані замість реального product flow;
-- кнопки або екрани без робочої поведінки;
+- кнопки або екрани без робочої поведінки там, де вони є частиною production flow;
 - hardcoded успішні відповіді замість реальної state/domain логіки;
 - декоративні realtime/chat/map/auth/social interactions без функціонального end-to-end flow;
-- формулювання на кшталт «зробимо потім», «закомітимо основу», «тимчасова заглушка» як спосіб оголосити роботу готовою.
+- формулювання на кшталт «зробимо потім», «закомітимо основу», «тимчасова заглушка» як спосіб оголосити production functionality готовою.
 
-Кожна завершена функція повинна мати необхідну domain/data/platform реалізацію, коректні стани помилок, реальну взаємодію та перевірки/тести відповідно до її ризику.
+Кожна завершена функція повинна мати необхідну Kotlin/Go domain/data/platform реалізацію, коректні стани помилок, реальну взаємодію та перевірки/тести відповідно до її ризику.
 
 ## RULE 3 — MANDATORY REPORT AFTER EVERY CHANGE
 
@@ -55,22 +60,22 @@
 
 ### Треба ще:
 
-- що реально залишилося незавершеним у **поточній активній версії**;
+- що реально залишилося незавершеним у **поточному активному Android/Go scope**;
 - який наступний обов'язковий крок;
 - які є відомі блокери, ризики або залежності.
 
-Заборонено писати лише «готово», якщо scope активної версії не завершений повністю.
+Заборонено писати лише «готово», якщо активний scope не завершений повністю.
 
-## RULE 4 — ANDROID + IOS ARE FIRST-CLASS TARGETS; NO RENDER.COM
+## RULE 4 — ANDROID IS ACTIVE; IOS IS FROZEN UNTIL DIRECT USER COMMAND
 
-LinkUp розробляється як мобільна соціальна мережа для **Android та iOS**.
-
-- Обидві платформи є first-class product targets.
-- Shared business logic повинна використовувати KMP там, де це технічно доцільно та не погіршує native UX.
-- Android UI: native **Jetpack Compose**.
-- iOS UI: native **Swift/SwiftUI**.
-- Platform-specific sensors, location, haptics, notifications, Live Activities, shaders та інші системні API реалізуються нативно для відповідної платформи.
-- Не будувати WebView-first, web-first або desktop-first продукт замість Android/iOS застосунків.
+- **Android є єдиною активною mobile platform для поточної розробки.**
+- Новий Android/client functionality пишеться на **Kotlin**; Android UI/platform code — **Kotlin + Jetpack Compose**.
+- Backend/domain authority та server-side functionality пишуться на **Go** відповідно до canonical backend contract.
+- Існуючий дизайн зберігається як є; Android implementation повинна відтворювати/використовувати цей design contract, а не замінювати його новим дизайном.
+- **iOS повністю frozen. Без прямої команди користувача заборонено:** створювати або змінювати Swift/SwiftUI; створювати або змінювати Xcode project/workspace; змінювати iOS resources/assets; додавати iOS-specific dependencies; змінювати signing/provisioning; писати або міняти iOS tests; виконувати iOS build/migration/refactor/parity work.
+- README або інший документ не може самостійно розблокувати iOS. Розблокування можливе тільки прямою командою користувача.
+- До такого розблокування відсутність iOS implementation, iOS parity або iOS tests **не є blocker-ом Android Version 1 development/readiness**.
+- Не будувати WebView-first, web-first або desktop-first production product замість Android застосунку. Існуючий React/TypeScript design layer може залишатися design reference, але новий production functionality не реалізується там як окрема authority.
 - **Не використовувати Render.com ні для backend hosting, ні для deployment, ні як приховане припущення в документації чи коді.**
 
 ## RULE 5 — README MUST BE RE-READ BEFORE EVERY MAJOR WORK BLOCK
@@ -86,24 +91,27 @@ LinkUp розробляється як мобільна соціальна ме�
 - product behavior та domain contracts;
 - privacy / anti-stalking / safety non-negotiables;
 - API contract principles;
-- required test matrix для цієї версії;
+- required test matrix для активного Android/Go scope;
 - Definition of Done;
-- Android та iOS вимоги;
+- Android вимоги;
 - realtime/offline/reconnect вимоги, якщо вони стосуються scope;
 - design/product вимоги з інших актуальних файлів репозиторію.
 
-Не можна покладатися лише на пам'ять про README або на старе прочитання. Якщо `README.md` змінився, для наступної роботи використовується **актуальна версія з `main`**.
+**iOS-вимоги в README перечитуються лише для розуміння майбутнього compatibility contract, але не виконуються, не змінюють поточний work block і не є blocking requirement, доки користувач прямо не активує iOS.**
 
-Якщо active version вимагає фундаментальний dependency перед UI/feature scope, не можна перескакувати dependency лише заради швидшого видимого UI.
+Не можна покладатися лише на пам'ять про README або на старе прочитання. Якщо `README.md` змінився, для наступної роботи використовується актуальна версія з `main`.
+
+Якщо active Android/Go scope вимагає фундаментальний dependency перед feature scope, не можна перескакувати dependency лише заради швидшого видимого результату.
 
 ## RULE 6 — ALWAYS REPORT PRODUCTION READINESS
 
-У кожному підсумковому статусі роботи по LinkUp потрібно вказувати **готовність активної цільової версії до production від 0% до 100%**.
+У кожному підсумковому статусі роботи по LinkUp потрібно вказувати **готовність активного Android + Go target до production від 0% до 100%**.
 
-- **0%** — фактично немає робочого scope активної версії.
-- **100%** — весь scope активної версії реалізований, перевірений і реально готовий до production-релізу на Android та iOS.
+- **0%** — фактично немає робочого active Android/Go scope.
+- **100%** — весь активний Android/Go scope Version 1 реалізований, перевірений і реально готовий до production-релізу на Android із production Go backend.
 - Відсоток не можна штучно підвищувати за документацію, scaffolding або декоративний UI; він зростає тільки за реально інтегровані та перевірені production capabilities.
-- Ще не завершені capability-блоки README знижують readiness єдиної Version 1 пропорційно їхньому реальному production scope; readiness не можна рахувати лише за social foundation.
+- **iOS readiness, parity, build або tests не враховуються в поточний readiness і не знижують його, доки iOS frozen.**
+- Ще не завершені Android/Go capability-блоки README знижують readiness єдиної Version 1 пропорційно їхньому реальному production scope; readiness не можна рахувати лише за social foundation.
 
 ## RULE 7 — ALL DEVELOPMENT GOES DIRECTLY TO MAIN
 
@@ -119,27 +127,28 @@ LinkUp розробляється як мобільна соціальна ме�
 
 Активна і єдина product version зараз: **LinkUp Version 1 (`1.0.0`)**.
 
-- Увесь product scope, описаний у поточному `README.md`, входить до **Version 1** і є обов'язковим до її production Done.
+- Увесь product scope, описаний у поточному `README.md`, залишається частиною **Version 1**; однак platform implementation зараз gated цими правилами: Android + Go активні, iOS frozen.
 - Історичні semver-заголовки `1.0.0` → `2.12.0` у `README.md` зберігаються тільки як стабільні traceability IDs для capability-блоків; вони більше не означають окремі product releases.
 - Вже реалізований social baseline не видаляється й залишається фундаментом Version 1: account → profile → PUBLIC + APPROVAL Slot → Pulse → REQUEST → APPROVE/REJECT → accepted-only temporary chat → START/COMPLETE або CANCEL → terminal chat purge → safety/privacy.
 - Existing Instant access engine, realtime, City Context, outbox, locality та інші foundations зберігаються й розвиваються до повного scope Version 1.
-- Об'єднання scope не дозволяє декоративні заглушки, fake/mock flows або передчасне оголошення Version 1 готовою.
-- Реалізація виконується dependency-safe capability-блоками у порядку, визначеному `README.md`; складний unified scope не є причиною перескакувати фундаментальні backend/privacy dependencies.
-- Кожний завершений блок має бути інтегрований і перевірений на Android та iOS у межах заявленої поведінки.
-- Version 1 стає production-ready тільки після реалізації та перевірки **всього** README scope; частково завершені capability-блоки відображаються у звітах і readiness, але не створюють нових product version numbers.
+- Об'єднання scope не дозволяє декоративні заглушки, fake/mock production flows або передчасне оголошення Version 1 готовою.
+- Реалізація виконується dependency-safe capability-блоками у порядку, визначеному `README.md`, але тільки для активного Android/Go scope.
+- Кожний завершений блок має бути інтегрований і перевірений на Android та backend у межах заявленої поведінки.
+- **iOS implementation/parity не виконується і не є gate для поточного Version 1 readiness, доки користувач прямо не розблокує iOS.**
+- Version 1 Android target стає production-ready тільки після реалізації та перевірки всього активного Android/Go README scope; частково завершені capability-блоки відображаються у звітах і readiness, але не створюють нових product version numbers.
 
 ## RULE 9 — PRESERVE EXISTING PRODUCT SCOPE
 
-**Не прибирати наявний код, файли, migrations, тести, документацію, roadmap requirements або вже реалізовані/частково реалізовані feature blocks без прямої команди користувача.**
+**Не прибирати наявний код, дизайн, файли, migrations, тести, документацію, roadmap requirements або вже реалізовані/частково реалізовані feature blocks без прямої команди користувача.**
 
-Якщо feature перенесена у майбутню version:
-
-- вона залишається частиною LinkUp roadmap;
+- **Особливо заборонено “очищати”, переписувати, переносити або замінювати поточний дизайн лише тому, що production functionality реалізується на Kotlin/Go.**
+- Існуючий React/TypeScript design code може залишатися в репозиторії як canonical design source/reference і не є підставою для redesign.
+- Якщо capability тимчасово неактивна через platform gate, її product requirement залишається частиною LinkUp roadmap.
 - уже написана реалізація зберігається;
-- за потреби вона просто не входить у current release surface або контролюється feature flag;
-- перенесення по версіях не є підставою для destructive cleanup;
+- за потреби неактивна capability просто не входить у current release surface або контролюється feature flag;
+- platform deferral не є підставою для destructive cleanup;
 - applied migrations залишаються forward-only;
-- refactor/rename/move допускаються лише зі збереженням потрібної поведінки та даних.
+- refactor/rename/move допускаються лише зі збереженням потрібної поведінки та даних і **не повинні змінювати затверджений дизайн без прямої команди користувача**.
 
 Якщо колись виникне ситуація, де видалення справді необхідне, спочатку потрібно отримати **пряму команду користувача** на це конкретне видалення.
 
@@ -167,19 +176,33 @@ Canonical infrastructure LinkUp обмежується **GitHub + Supabase + Fir
 - **Окремий Ubuntu server** є canonical target runtime для Go API та server-side processes. Deployment на нього виконується лише після прямої команди користувача; до цього моменту сервер не чіпати.
 - **Google Cloud compute/build/deployment services заборонені:** не використовувати Cloud Run, Cloud Deploy, Cloud Build, Artifact Registry, Google Cloud Logging/Monitoring, Secret Manager, Pub/Sub або інші GCP services як LinkUp infrastructure, CI/CD, runtime чи artifact transport, якщо користувач прямо не скасує цю заборону.
 - Firebase дозволений цим правилом окремо; факт його належності Google не означає дозвіл на інші Google Cloud services.
-- Release evidence та production readiness мають спиратися на реальні repository checks/tests, production Supabase, дозволені Firebase integrations, Ubuntu runtime після deployment та реальні Android/iOS/platform/device перевірки.
+- Release evidence та production readiness мають спиратися на реальні repository checks/tests, production Supabase, дозволені Firebase integrations, Ubuntu runtime після deployment та реальні **Android** platform/device перевірки.
 - Інший CI/CD, hosting або managed database provider не додається без прямої команди користувача.
+
+## RULE 12 — DESIGN IS FROZEN; NEW FUNCTIONALITY IS KOTLIN + GO
+
+Це правило має пріоритет над будь-яким старим формулюванням у README або інших файлах, яке можна трактувати як вимогу переписати чи замінити поточний дизайн.
+
+- **Поточний дизайн LinkUp у репозиторії затверджений і залишається таким, як написаний.**
+- Не робити redesign, facelift, visual cleanup, component-system replacement, UX rewrite або “native reinterpretation” без прямої команди користувача.
+- Не переносити нову production business/domain functionality у React/TypeScript. React/TypeScript design implementation не є новим domain authority.
+- Новий Android/client functionality: **Kotlin**.
+- Новий backend/server functionality: **Go**.
+- Database changes виконуються через canonical PostgreSQL/PostGIS migration flow відповідно до README та цих правил.
+- Якщо для підключення production functionality до затвердженого UI потрібно створити Kotlin/Compose representation, вона повинна зберігати дизайн, структуру, semantics і поведінку UI настільки точно, наскільки дозволяє Android platform, без самовільного redesign.
+- **iOS не чіпати ні під приводом parity, ні під приводом shared architecture, ні під приводом майбутньої сумісності.** Чекати прямої команди користувача.
 
 ## DEFINITION OF "DONE"
 
-Слово «готово» дозволено тільки коли відповідний scope **активної версії**:
+Слово «готово» дозволено тільки коли відповідний **активний Android/Go scope**:
 
 1. Реально реалізований.
 2. Інтегрований у LinkUp.
 3. Не залежить від fake/mock behavior для production flow.
-4. Має коректні loading/content/empty/error/offline/reconnect стани там, де вони потрібні саме цій версії.
-5. Перевірений відповідними unit/integration/platform/end-to-end тестами.
+4. Має коректні loading/content/empty/error/offline/reconnect стани там, де вони потрібні саме цьому scope.
+5. Перевірений відповідними unit/integration/Android/end-to-end тестами.
 6. Не порушує privacy, safety та security правила репозиторію.
-7. Працює на всіх заявлених для цього scope цільових платформах.
-8. Відображений у звіті «Я зробив / Треба ще».
-9. Відповідає Definition of Done відповідної версії в `README.md`.
+7. Працює на всіх **активних** для цього scope цільових платформах; до окремого розблокування єдиною активною mobile platform є Android.
+8. Не змінює затверджений дизайн без прямої команди користувача.
+9. Відображений у звіті «Я зробив / Треба ще».
+10. Відповідає Definition of Done відповідної capability в `README.md`, крім iOS-specific gates, які frozen цими правилами до прямої команди користувача.
