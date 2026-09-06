@@ -12,7 +12,7 @@ import org.json.JSONObject
 class LinkUpApiClient(
     baseUrl: String,
     private val sessions: SecureSessionStore,
-) {
+) : SocialApi {
     private val root = baseUrl.trimEnd('/')
 
     init {
@@ -76,32 +76,128 @@ class LinkUpApiClient(
     }
 
     suspend fun blockedUsers(): List<BlockedUser> {
-        val json = request("GET", "/v1/me/blocks", null, true)!!
-        val items = json.getJSONArray("items")
+        val items = request("GET", "/v1/me/blocks", null, true)!!.getJSONArray("items")
         return buildList(items.length()) {
             for (index in 0 until items.length()) {
                 val item = items.getJSONObject(index)
-                add(
-                    BlockedUser(
-                        id = item.getString("id"),
-                        username = item.getString("username"),
-                        displayName = item.getString("displayName"),
-                        avatarUrl = if (item.isNull("avatarUrl")) null else item.optString("avatarUrl").ifBlank { null },
-                    ),
-                )
+                add(BlockedUser(
+                    id = item.getString("id"),
+                    username = item.getString("username"),
+                    displayName = item.getString("displayName"),
+                    avatarUrl = nullableString(item, "avatarUrl"),
+                ))
             }
         }
     }
 
     suspend fun blockUser(userId: String) {
-        val normalized = UUID.fromString(userId).toString()
-        request("PUT", "/v1/me/blocks/$normalized", null, true)
+        request("PUT", "/v1/me/blocks/${uuid(userId)}", null, true)
     }
 
     suspend fun unblockUser(userId: String) {
-        val normalized = UUID.fromString(userId).toString()
-        request("DELETE", "/v1/me/blocks/$normalized", null, true)
+        request("DELETE", "/v1/me/blocks/${uuid(userId)}", null, true)
     }
+
+    override suspend fun pulse(): List<SlotModel> {
+        val items = request("GET", "/v1/pulse", null, true)!!.getJSONArray("items")
+        return buildList(items.length()) { for (index in 0 until items.length()) add(parseSlot(items.getJSONObject(index))) }
+    }
+
+    override suspend fun createSlot(input: CreateSlotInput): SlotModel {
+        val body = JSONObject()
+            .put("title", input.title)
+            .put("activity", input.activity)
+            .put("placeText", input.placeText)
+            .put("capacity", input.capacity)
+        input.details?.let { body.put("details", it) }
+        input.zoneText?.let { body.put("zoneText", it) }
+        input.startAtEpochMillis?.let { body.put("startAt", Instant.ofEpochMilli(it).toString()) }
+        return parseSlot(request("POST", "/v1/slots", body, true, mutationHeaders())!!)
+    }
+
+    override suspend fun getSlot(slotId: String): SlotModel =
+        parseSlot(request("GET", "/v1/slots/${uuid(slotId)}", null, true)!!)
+
+    override suspend fun editSlot(slotId: String, input: EditSlotInput): SlotModel {
+        require(input.expectedVersion > 0)
+        val body = JSONObject().put("expectedVersion", input.expectedVersion)
+        input.title?.let { body.put("title", it) }
+        input.details?.let { body.put("details", it) }
+        input.placeText?.let { body.put("placeText", it) }
+        input.zoneText?.let { body.put("zoneText", it) }
+        input.startAtEpochMillis?.let { body.put("startAt", Instant.ofEpochMilli(it).toString()) }
+        if (input.clearStartAt) body.put("clearStartAt", true)
+        input.capacity?.let { body.put("capacity", it) }
+        return parseSlot(request("PATCH", "/v1/slots/${uuid(slotId)}", body, true, mutationHeaders())!!)
+    }
+
+    override suspend fun cancelSlot(slotId: String, expectedVersion: Long): SlotModel {
+        require(expectedVersion > 0)
+        return parseSlot(request(
+            "POST",
+            "/v1/slots/${uuid(slotId)}/cancel",
+            JSONObject().put("expectedVersion", expectedVersion),
+            true,
+            mutationHeaders(),
+        )!!)
+    }
+
+    override suspend fun requestSlot(slotId: String): SlotModel =
+        parseSlot(request("POST", "/v1/slots/${uuid(slotId)}/request", null, true, mutationHeaders())!!)
+
+    override suspend fun leaveSlot(slotId: String): SlotModel =
+        parseSlot(request("POST", "/v1/slots/${uuid(slotId)}/leave", null, true, mutationHeaders())!!)
+
+    override suspend fun pendingRequests(slotId: String): List<PendingSlotRequest> {
+        val items = request("GET", "/v1/slots/${uuid(slotId)}/requests", null, true)!!.getJSONArray("items")
+        return buildList(items.length()) {
+            for (index in 0 until items.length()) {
+                val item = items.getJSONObject(index)
+                add(PendingSlotRequest(
+                    user = parseOrganizer(item.getJSONObject("user")),
+                    requestedAtEpochMillis = Instant.parse(item.getString("requestedAt")).toEpochMilli(),
+                ))
+            }
+        }
+    }
+
+    override suspend fun approveRequest(slotId: String, userId: String): SlotModel =
+        parseSlot(request(
+            "POST",
+            "/v1/slots/${uuid(slotId)}/requests/${uuid(userId)}/approve",
+            null,
+            true,
+            mutationHeaders(),
+        )!!)
+
+    override suspend fun rejectRequest(slotId: String, userId: String): SlotModel =
+        parseSlot(request(
+            "POST",
+            "/v1/slots/${uuid(slotId)}/requests/${uuid(userId)}/reject",
+            null,
+            true,
+            mutationHeaders(),
+        )!!)
+
+    override suspend fun startSlot(slotId: String): SlotModel =
+        parseSlot(request("POST", "/v1/slots/${uuid(slotId)}/start", null, true, mutationHeaders())!!)
+
+    override suspend fun completeSlot(slotId: String): SlotModel =
+        parseSlot(request("POST", "/v1/slots/${uuid(slotId)}/complete", null, true, mutationHeaders())!!)
+
+    override suspend fun chatMessages(slotId: String, limit: Int): List<ChatMessage> {
+        require(limit in 1..100)
+        val items = request("GET", "/v1/slots/${uuid(slotId)}/chat/messages?limit=$limit", null, true)!!.getJSONArray("items")
+        return buildList(items.length()) { for (index in 0 until items.length()) add(parseChatMessage(items.getJSONObject(index))) }
+    }
+
+    override suspend fun sendChatMessage(slotId: String, text: String): ChatMessage =
+        parseChatMessage(request(
+            "POST",
+            "/v1/slots/${uuid(slotId)}/chat/messages",
+            JSONObject().put("text", text),
+            true,
+        )!!)
 
     private fun persistAuth(json: JSONObject): AuthSession {
         val token = json.getString("token")
@@ -116,45 +212,103 @@ class LinkUpApiClient(
         email = json.getString("email"),
         username = json.getString("username"),
         displayName = json.getString("displayName"),
-        avatarUrl = if (json.isNull("avatarUrl")) null else json.optString("avatarUrl").ifBlank { null },
+        avatarUrl = nullableString(json, "avatarUrl"),
         profileVisibility = json.getString("profileVisibility"),
         language = json.getString("language"),
     )
 
-    private suspend fun request(method: String, path: String, body: JSONObject?, authenticated: Boolean): JSONObject? =
-        withContext(Dispatchers.IO) {
-            val connection = URL(root + path).openConnection() as HttpURLConnection
-            try {
-                connection.requestMethod = method
-                connection.connectTimeout = 10_000
-                connection.readTimeout = 15_000
-                connection.setRequestProperty("Accept", "application/json")
-                if (authenticated) {
-                    val token = sessions.load()?.token ?: throw ApiException(401, "unauthorized", "Authentication required")
-                    connection.setRequestProperty("Authorization", "Bearer $token")
-                }
-                if (body != null) {
-                    connection.doOutput = true
-                    connection.setRequestProperty("Content-Type", "application/json; charset=utf-8")
-                    connection.outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) }
-                }
+    private fun parseOrganizer(json: JSONObject): SlotOrganizer = SlotOrganizer(
+        id = json.getString("id"),
+        username = json.getString("username"),
+        displayName = json.getString("displayName"),
+        avatarUrl = nullableString(json, "avatarUrl"),
+    )
 
-                val status = connection.responseCode
-                if (status == HttpURLConnection.HTTP_NO_CONTENT) return@withContext null
-                val stream = if (status in 200..299) connection.inputStream else connection.errorStream
-                val text = stream?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }.orEmpty()
-                val json = if (text.isBlank()) JSONObject() else JSONObject(text)
-                if (status !in 200..299) {
-                    throw ApiException(
-                        status = status,
-                        code = json.optString("code", "http_error"),
-                        message = json.optString("message", "Request failed"),
-                        requestId = json.optString("requestId").ifBlank { null },
-                    )
-                }
-                json
-            } finally {
-                connection.disconnect()
+    private fun parseSlot(json: JSONObject): SlotModel = SlotModel(
+        id = json.getString("id"),
+        organizer = parseOrganizer(json.getJSONObject("organizer")),
+        title = json.getString("title"),
+        activity = json.getString("activity"),
+        details = nullableString(json, "details"),
+        placeText = json.getString("placeText"),
+        zoneText = nullableString(json, "zoneText"),
+        startAtEpochMillis = nullableInstant(json, "startAt"),
+        capacity = json.getInt("capacity"),
+        acceptedCount = json.getInt("acceptedCount"),
+        state = SlotState.valueOf(json.getString("state")),
+        accessMode = SlotAccessMode.valueOf(json.getString("accessMode")),
+        visibility = SlotVisibility.valueOf(json.getString("visibility")),
+        viewerState = SlotViewerState.valueOf(json.getString("viewerState")),
+        version = json.getLong("version"),
+        createdAtEpochMillis = Instant.parse(json.getString("createdAt")).toEpochMilli(),
+        updatedAtEpochMillis = Instant.parse(json.getString("updatedAt")).toEpochMilli(),
+    )
+
+    private fun parseChatMessage(json: JSONObject): ChatMessage {
+        val author = json.getJSONObject("author")
+        return ChatMessage(
+            id = json.getString("id"),
+            slotId = json.getString("slotId"),
+            author = ChatAuthor(
+                id = author.getString("id"),
+                username = author.getString("username"),
+                displayName = author.getString("displayName"),
+                avatarUrl = nullableString(author, "avatarUrl"),
+            ),
+            text = json.getString("text"),
+            createdAtEpochMillis = Instant.parse(json.getString("createdAt")).toEpochMilli(),
+        )
+    }
+
+    private fun nullableString(json: JSONObject, key: String): String? =
+        if (!json.has(key) || json.isNull(key)) null else json.getString(key)
+
+    private fun nullableInstant(json: JSONObject, key: String): Long? =
+        nullableString(json, key)?.let { Instant.parse(it).toEpochMilli() }
+
+    private fun uuid(raw: String): String = UUID.fromString(raw).toString()
+    private fun mutationHeaders(): Map<String, String> = mapOf("Idempotency-Key" to UUID.randomUUID().toString())
+
+    private suspend fun request(
+        method: String,
+        path: String,
+        body: JSONObject?,
+        authenticated: Boolean,
+        headers: Map<String, String> = emptyMap(),
+    ): JSONObject? = withContext(Dispatchers.IO) {
+        val connection = URL(root + path).openConnection() as HttpURLConnection
+        try {
+            connection.requestMethod = method
+            connection.connectTimeout = 10_000
+            connection.readTimeout = 15_000
+            connection.setRequestProperty("Accept", "application/json")
+            headers.forEach { (name, value) -> connection.setRequestProperty(name, value) }
+            if (authenticated) {
+                val token = sessions.load()?.token ?: throw ApiException(401, "unauthorized", "Authentication required")
+                connection.setRequestProperty("Authorization", "Bearer $token")
             }
+            if (body != null) {
+                connection.doOutput = true
+                connection.setRequestProperty("Content-Type", "application/json; charset=utf-8")
+                connection.outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) }
+            }
+
+            val status = connection.responseCode
+            if (status == HttpURLConnection.HTTP_NO_CONTENT) return@withContext null
+            val stream = if (status in 200..299) connection.inputStream else connection.errorStream
+            val text = stream?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }.orEmpty()
+            val json = if (text.isBlank()) JSONObject() else JSONObject(text)
+            if (status !in 200..299) {
+                throw ApiException(
+                    status = status,
+                    code = json.optString("code", "http_error"),
+                    message = json.optString("message", "Request failed"),
+                    requestId = json.optString("requestId").ifBlank { null },
+                )
+            }
+            json
+        } finally {
+            connection.disconnect()
         }
+    }
 }
