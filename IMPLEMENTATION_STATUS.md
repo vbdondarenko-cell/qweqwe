@@ -86,9 +86,17 @@ Commit: `12f211971413468ac82d2dca4cee5a4865c4b3d5`
 Created:
 
 - `backend/go.mod`
+- `backend/.env.example`
 - `backend/cmd/api/main.go`
 - `backend/internal/httpserver/server.go`
 - `backend/internal/httpserver/server_test.go`
+- `backend/internal/session/token.go`
+- `backend/internal/session/token_test.go`
+
+Current Go target:
+
+- module language version: Go `1.27`;
+- pinned toolchain: `go1.27.1`.
 
 Currently implemented:
 
@@ -98,7 +106,18 @@ Currently implemented:
 - JSON health responses;
 - HTTP timeouts;
 - SIGINT/SIGTERM graceful shutdown;
-- unit test coverage for both health endpoints.
+- unit test coverage for both health endpoints;
+- 256-bit cryptographically-random opaque bearer session token generation;
+- server-side SHA-256 token digest boundary so raw bearer tokens do not need to be persisted;
+- encoded token shape validation before lookup;
+- safe `.env.example` contract for HTTP address and `DATABASE_URL` without real credentials.
+
+Verification evidence:
+
+- health endpoint tests passed under the available Go 1.23.2 verification environment before the module was raised to the current supported Go 1.27 toolchain;
+- session token `Generate/Hash` tests and malformed-token rejection passed under the same environment;
+- the source used in those tests is compatible with the pinned Go 1.27 target;
+- full Go 1.27.1 toolchain execution still has to be run in an allowed build environment before release evidence can be claimed.
 
 Commits:
 
@@ -106,14 +125,19 @@ Commits:
 - `42103a74de256afc12c89e1942976a8e287359ef`
 - `d71b10029e70cec71ae1ec85da86050179478391`
 - `37de5689157c6320c32b7f2c8b477411f9fe3db6`
+- `40677ae1555df781d5677b56b879e7e801552242`
+- `afa422f1a9a585d2af31c9ceff2e25ab452d3aa4`
+- `4fa8aebdbf1d7b4985648a4cb27adb96e03b56c6`
+- `e29de245ed6572c281b553ae91c32ba79f5766b3`
 
 Not yet implemented in backend:
 
 - PostgreSQL connection/pool;
 - migration runner;
-- auth/session endpoints;
+- auth/session HTTP endpoints;
 - `/v1/me`;
 - password hashing/recovery;
+- persisted session creation/revocation;
 - Slot domain/API;
 - Approval/Waitlist;
 - chat;
@@ -131,6 +155,7 @@ Created:
 - `android/settings.gradle.kts`
 - `android/build.gradle.kts`
 - `android/gradle.properties`
+- `android/gradle/wrapper/gradle-wrapper.properties`
 - `android/app/build.gradle.kts`
 - `android/app/src/main/AndroidManifest.xml`
 - `android/app/src/main/res/values/themes.xml`
@@ -141,6 +166,7 @@ Created:
 Toolchain baseline:
 
 - Android Gradle Plugin `9.4.0`;
+- Gradle distribution pinned to `9.6.0`;
 - Kotlin `2.4.10`;
 - compile/target SDK 37;
 - Java/JVM toolchain 17;
@@ -162,6 +188,13 @@ Frozen design tokens transferred 1:1 into Kotlin for:
 
 The current `MainActivity` is intentionally only an empty production shell. Existing screens have **not** been redesigned or replaced. Real screens will be wired dependency-first to the approved visual contract.
 
+Build verification status:
+
+- Gradle wrapper distribution metadata is pinned;
+- wrapper scripts/JAR are not yet present;
+- Android compile has **not** been claimed green because the available verification environment does not contain Gradle and cannot fetch Android dependencies from the network;
+- this remains an explicit build gate, not a hidden assumption.
+
 Commits:
 
 - `c0bf43e01027face9ca12d9daf2685558e56544c`
@@ -173,10 +206,11 @@ Commits:
 - `2c4f56a0f33fe58f56973574c8b7c254b393ad2b`
 - `7499ef0748474996944cbc5b6013cac57ebffa69`
 - `0fd7cf6671585adff53aa76c788ac7463dc1ce01`
+- `561f5e4a309e7a921067c201920d21dc91c372a4`
 
 Not yet implemented in Android:
 
-- Gradle wrapper/build verification;
+- complete Gradle wrapper (`gradlew`, `gradlew.bat`, wrapper JAR) and build verification;
 - bundled Outfit/Inter/JetBrains Mono font resources;
 - navigation implementation;
 - auth/register/recovery;
@@ -339,13 +373,13 @@ Reason: production foundations now exist, but the minimum real end-to-end social
 
 ## 8. Next exact work block
 
-Continue with **Account/session foundation**, after build verification:
+Continue with **Account/session foundation**, while keeping the Android build gate explicit:
 
-1. verify Go toolchain/tests;
-2. make Android project reproducibly buildable (Gradle wrapper) and compile shell;
-3. add backend PostgreSQL config/pool;
-4. add migration execution mechanism;
-5. implement password hashing + opaque session token hashing;
+1. finish reproducible Android wrapper/build verification in an allowed build environment;
+2. add backend PostgreSQL config/pool;
+3. add migration execution mechanism;
+4. implement password hashing and credential validation;
+5. persist opaque session token digests and implement expiry/revocation;
 6. implement register/login/logout + `/v1/me`;
 7. add auth/unit/integration tests;
-8. wire Android auth/session client without changing the approved visual design.
+8. wire Android auth/session client and secure local storage without changing the approved visual design.
