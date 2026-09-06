@@ -6,7 +6,8 @@
         android:allowBackup="false"
         android:label="LinkUp"
         android:supportsRtl="true"
-        android:theme="@style/Theme.LinkUp">
+        android:theme="@style/Theme.LinkUp"
+        android:usesCleartextTraffic="${usesCleartextTraffic}">
         <activity
             android:name=".MainActivity"
             android:exported="true">

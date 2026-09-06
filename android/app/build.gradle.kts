@@ -4,6 +4,8 @@ plugins {
     id("org.jetbrains.kotlin.plugin.compose")
 }
 
+val releaseApiBaseUrl = providers.gradleProperty("LINKUP_API_BASE_URL").orElse("").get()
+
 android {
     namespace = "com.linkup.app"
     compileSdk = 37
@@ -14,11 +16,22 @@ android {
         targetSdk = 37
         versionCode = 1
         versionName = "1.0.0-dev"
+        manifestPlaceholders["usesCleartextTraffic"] = "false"
     }
 
     buildTypes {
+        debug {
+            buildConfigField("String", "LINKUP_API_BASE_URL", "\"http://10.0.2.2:8080\"")
+            manifestPlaceholders["usesCleartextTraffic"] = "true"
+        }
         release {
             isMinifyEnabled = false
+            buildConfigField(
+                "String",
+                "LINKUP_API_BASE_URL",
+                "\"${releaseApiBaseUrl.replace("\\", "\\\\").replace("\"", "\\\"")}\"",
+            )
+            manifestPlaceholders["usesCleartextTraffic"] = "false"
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
