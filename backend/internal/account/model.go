@@ -38,6 +38,14 @@ type Session struct {
 	DeviceLabel string
 }
 
+type PasswordReset struct {
+	ID        string
+	UserID    string
+	TokenHash []byte
+	CreatedAt time.Time
+	ExpiresAt time.Time
+}
+
 type UserWithPassword struct {
 	User
 	PasswordHash string

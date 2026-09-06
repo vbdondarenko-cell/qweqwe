@@ -37,6 +37,8 @@ func New(deps Dependencies) *Server {
 	mux.HandleFunc("GET /healthz",s.healthz)
 	mux.Handle("POST /v1/auth/register",s.authRateLimit(http.HandlerFunc(s.register)))
 	mux.Handle("POST /v1/auth/login",s.authRateLimit(http.HandlerFunc(s.login)))
+	mux.Handle("POST /v1/auth/recovery/request",s.authRateLimit(http.HandlerFunc(s.requestPasswordRecovery)))
+	mux.Handle("POST /v1/auth/recovery/reset",s.authRateLimit(http.HandlerFunc(s.resetPassword)))
 	mux.Handle("POST /v1/auth/logout",s.requireAuth(http.HandlerFunc(s.logout)))
 	mux.Handle("GET /v1/me",s.requireAuth(http.HandlerFunc(s.getMe)))
 	mux.Handle("PATCH /v1/me",s.requireAuth(http.HandlerFunc(s.patchMe)))

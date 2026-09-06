@@ -15,6 +15,8 @@ type Service struct {
 	store      Store
 	password   password.Params
 	sessionTTL time.Duration
+	recoveryTTL time.Duration
+	notifier   RecoveryNotifier
 	now        func() time.Time
 }
 
@@ -22,6 +24,13 @@ func NewService(store Store, passwordParams password.Params, sessionTTL time.Dur
 	if store == nil || sessionTTL <= 0 { return nil, errors.New("invalid account service dependencies") }
 	if err := passwordParams.Validate(); err != nil { return nil, err }
 	return &Service{store: store, password: passwordParams, sessionTTL: sessionTTL, now: time.Now}, nil
+}
+
+func (s *Service) ConfigureRecovery(notifier RecoveryNotifier, ttl time.Duration) error {
+	if notifier == nil || ttl <= 0 { return errors.New("invalid password recovery dependencies") }
+	s.notifier = notifier
+	s.recoveryTTL = ttl
+	return nil
 }
 
 func (s *Service) Register(ctx context.Context, in Registration) (AuthResult, error) {
@@ -78,6 +87,37 @@ func (s *Service) UpdateProfile(ctx context.Context, userID string, patch Profil
 	if patch.ProfileVisibility != nil && *patch.ProfileVisibility != "PUBLIC" && *patch.ProfileVisibility != "HIDDEN" { return User{}, ErrInvalidInput }
 	if patch.Language != nil && *patch.Language != "uk" && *patch.Language != "en" { return User{}, ErrInvalidInput }
 	return s.store.UpdateProfile(ctx, userID, patch, s.now().UTC())
+}
+
+func (s *Service) BeginPasswordReset(ctx context.Context, email string) error {
+	if s.notifier == nil || s.recoveryTTL <= 0 { return ErrRecoveryUnavailable }
+	email = strings.ToLower(strings.TrimSpace(email))
+	if !validEmail(email) { return ErrInvalidInput }
+
+	found, err := s.store.FindByLogin(ctx, email)
+	if errors.Is(err, ErrNotFound) { return nil }
+	if err != nil { return err }
+	if !strings.EqualFold(found.Email, email) { return nil }
+
+	resetID, err := identifier.NewUUID(); if err != nil { return err }
+	raw, digest, err := session.Generate(); if err != nil { return err }
+	now := s.now().UTC()
+	reset := PasswordReset{ID: resetID, UserID: found.ID, TokenHash: digest[:], CreatedAt: now, ExpiresAt: now.Add(s.recoveryTTL)}
+	if err := s.store.CreatePasswordReset(ctx, reset, now); err != nil { return err }
+	if err := s.notifier.SendPasswordReset(ctx, found.Email, raw, reset.ExpiresAt); err != nil { return ErrRecoveryUnavailable }
+	return nil
+}
+
+func (s *Service) ResetPassword(ctx context.Context, rawToken, newPassword string) error {
+	digest, err := session.Hash(strings.TrimSpace(rawToken))
+	if err != nil { return ErrUnauthorized }
+	hash, err := password.Hash(newPassword, s.password)
+	if err != nil { return ErrInvalidInput }
+	if err := s.store.ResetPassword(ctx, digest[:], hash, s.now().UTC()); err != nil {
+		if errors.Is(err, ErrNotFound) || errors.Is(err, ErrUnauthorized) { return ErrUnauthorized }
+		return err
+	}
+	return nil
 }
 
 func validEmail(v string) bool {

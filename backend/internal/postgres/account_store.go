@@ -64,6 +64,29 @@ func (s *AccountStore) UpdateProfile(ctx context.Context, userID string, p accou
 	return out, err
 }
 
+func (s *AccountStore) CreatePasswordReset(ctx context.Context, reset account.PasswordReset, now time.Time) error {
+	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.ReadCommitted})
+	if err != nil { return err }
+	defer func(){ _ = tx.Rollback(ctx) }()
+	if _, err = tx.Exec(ctx, `UPDATE password_reset_tokens SET used_at=$2 WHERE user_id=$1 AND used_at IS NULL`, reset.UserID, now); err != nil { return err }
+	if _, err = tx.Exec(ctx, `INSERT INTO password_reset_tokens (id,user_id,token_hash,created_at,expires_at) VALUES ($1,$2,$3,$4,$5)`, reset.ID, reset.UserID, reset.TokenHash, reset.CreatedAt, reset.ExpiresAt); err != nil { return mapError(err) }
+	return tx.Commit(ctx)
+}
+
+func (s *AccountStore) ResetPassword(ctx context.Context, tokenHash []byte, newPasswordHash string, now time.Time) error {
+	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.ReadCommitted})
+	if err != nil { return err }
+	defer func(){ _ = tx.Rollback(ctx) }()
+
+	var userID string
+	err = tx.QueryRow(ctx, `UPDATE password_reset_tokens SET used_at=$2 WHERE token_hash=$1 AND used_at IS NULL AND expires_at>$2 RETURNING user_id`, tokenHash, now).Scan(&userID)
+	if errors.Is(err, pgx.ErrNoRows) { return account.ErrUnauthorized }
+	if err != nil { return err }
+	if _, err = tx.Exec(ctx, `UPDATE app_users SET password_hash=$2,updated_at=$3 WHERE id=$1`, userID, newPasswordHash, now); err != nil { return err }
+	if _, err = tx.Exec(ctx, `UPDATE user_sessions SET revoked_at=$2 WHERE user_id=$1 AND revoked_at IS NULL`, userID, now); err != nil { return err }
+	return tx.Commit(ctx)
+}
+
 func mapError(err error) error {
 	if err == nil { return nil }
 	var pgErr *pgconn.PgError
