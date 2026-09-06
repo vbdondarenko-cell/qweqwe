@@ -65,6 +65,15 @@ class SessionCoordinator(
         return auth.user
     }
 
+    suspend fun updateProfile(displayName: String, avatarUrl: String, visibility: String, language: String): Boolean {
+        val userId = (mutableState.value as? SessionState.SignedIn)?.user?.id ?: return false
+        val updated = api.updateMe(displayName, avatarUrl, visibility, language)
+        // Accept only the canonical response for the account that opened the form.
+        if ((mutableState.value as? SessionState.SignedIn)?.user?.id != userId || updated.id != userId) return false
+        mutableState.value = SessionState.SignedIn(updated)
+        return true
+    }
+
     suspend fun logout() {
         try {
             api.logout()

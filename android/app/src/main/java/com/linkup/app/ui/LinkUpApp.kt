@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -36,6 +37,7 @@ import com.linkup.app.core.network.ApiException
 import com.linkup.app.core.network.BlockedUser
 import com.linkup.app.core.network.LinkUpApiClient
 import com.linkup.app.core.network.SlotModel
+import com.linkup.app.core.network.SlotOrganizer
 import com.linkup.app.core.network.SlotViewerState
 import com.linkup.app.core.session.SessionCoordinator
 import com.linkup.app.core.session.SessionState
@@ -45,6 +47,7 @@ import com.linkup.app.core.social.SocialCoordinator
 import com.linkup.app.core.social.SocialError
 import com.linkup.app.ui.auth.AuthScreen
 import com.linkup.app.ui.me.MeScreen
+import com.linkup.app.ui.me.EditProfileScreen
 import com.linkup.app.ui.social.ChatScreen
 import com.linkup.app.ui.social.CreateLinkScreen
 import com.linkup.app.ui.social.EditSlotScreen
@@ -148,6 +151,12 @@ private fun SignedInRoot(
     var editTarget by remember { mutableStateOf<SlotModel?>(null) }
     var blockedState by remember { mutableStateOf<LoadState<List<BlockedUser>>>(LoadState.Idle) }
     var meError by remember { mutableStateOf<String?>(null) }
+    var profileOpen by remember { mutableStateOf(false) }
+    var profileBusy by remember { mutableStateOf(false) }
+    var profileError by remember { mutableStateOf<String?>(null) }
+    var blockTarget by remember { mutableStateOf<SlotOrganizer?>(null) }
+    var blockBusy by remember { mutableStateOf(false) }
+    var blockError by remember { mutableStateOf<String?>(null) }
 
     fun refreshBlocks() {
         scope.launch {
@@ -170,6 +179,24 @@ private fun SignedInRoot(
 
     Box(Modifier.fillMaxSize()) {
         when {
+            profileOpen -> EditProfileScreen(
+                user = user,
+                busy = profileBusy,
+                error = profileError,
+                onBack = { profileOpen = false },
+                onSave = { name, avatar, visibility, language ->
+                    if (!profileBusy) scope.launch {
+                        profileBusy = true; profileError = null
+                        try {
+                            if (sessions.updateProfile(name, avatar, visibility, language)) {
+                                profileOpen = false
+                                social.refreshPulse()
+                            }
+                        } catch (error: Exception) { profileError = error.userMessage() }
+                        finally { profileBusy = false }
+                    }
+                },
+            )
             editTarget != null -> {
                 val target = editTarget!!
                 EditSlotScreen(
@@ -206,6 +233,7 @@ private fun SignedInRoot(
                 onComplete = { id -> scope.launch { social.completeSlot(id) } },
                 onCancel = { id, version -> scope.launch { social.cancelSlot(id, version) } },
                 onEdit = { editTarget = it },
+                onBlockUser = { target -> blockError = null; blockTarget = target },
                 onOpenChat = { id ->
                     chatSlotId = id
                     scope.launch { social.refreshChat(id, 100) }
@@ -248,6 +276,7 @@ private fun SignedInRoot(
                                 blocked = blockedState,
                                 actionError = meError,
                                 onRefreshBlocks = ::refreshBlocks,
+                                onEditProfile = { profileError = null; profileOpen = true },
                                 onUnblock = { userId ->
                                     scope.launch {
                                         try { api.unblockUser(userId); meError = null; refreshBlocks() }
@@ -272,6 +301,37 @@ private fun SignedInRoot(
                     }
                 }
             }
+        }
+        blockTarget?.let { target ->
+            AlertDialog(
+                onDismissRequest = { if (!blockBusy) blockTarget = null },
+                title = { Text("Block @${target.username}?") },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("Your requests or participation in each other's LINKs will be removed. You can unblock this person in Me.")
+                        blockError?.let { Text(it, color = LinkUpRed) }
+                    }
+                },
+                confirmButton = {
+                    TextButton(enabled = !blockBusy, onClick = {
+                        if (!blockBusy) scope.launch {
+                            blockBusy = true; blockError = null
+                            try {
+                                api.blockUser(target.id)
+                                social.clearAll()
+                                detailOpen = false; chatSlotId = null; editTarget = null
+                                blockTarget = null; tab = MainTab.PULSE
+                                blockedState = LoadState.Idle
+                                social.refreshPulse()
+                            } catch (error: Exception) { blockError = error.userMessage() }
+                            finally { blockBusy = false }
+                        }
+                    }) { Text(if (blockBusy) "Blocking…" else "Block", color = LinkUpRed) }
+                },
+                dismissButton = {
+                    TextButton(enabled = !blockBusy, onClick = { blockTarget = null }) { Text("Cancel") }
+                },
+            )
         }
     }
 }

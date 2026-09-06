@@ -452,3 +452,21 @@ Production readiness remains **0%** under this ledger's verified end-to-end crit
 - `REPOSITORY_AUDIT.md` records audit scope, corrected defects, prioritized remaining SQL/auth/Android/build issues and precise verification limitations.
 
 Executed checks: diff whitespace/conflict check, Android XML parsing, preservation of design/iOS/existing migration files. Kotlin/Go tests remain unexecuted because toolchains are unavailable; no readiness increase or foundation-green claim.
+
+## 19. 2026-09-06 — Account/Me functionality (user-directed feature phase)
+
+Current user instruction: read all repository Markdown and add functionality now; existing audit fixes will be handled in a later phase. This supersedes the previous next-block recommendation to start with build/security fixes. Audit findings remain open; no uncommitted replay-access correction was published.
+
+Added native Android flows using existing canonical Go endpoints:
+- Me → Edit profile: display name, avatar URL (empty removes it), PUBLIC/HIDDEN preference and uk/en preferred language;
+- save calls PATCH /v1/me and updates session profile only from the same account's server response;
+- profile form has save/error states and retained draft fields across configuration recreation;
+- Slot host identity → Block user;
+- host pending requester identity → Block user;
+- confirmation uses the selected server user ID; success clears social state, reloads Pulse and invalidates the block-list snapshot; failure remains visible in the dialog.
+
+Files: EditProfileScreen.kt, MeScreen.kt, SlotDetailScreen.kt, LinkUpApp.kt, SessionCoordinator.kt. Existing React/TS visual reference, Go implementation, migrations and iOS unchanged.
+
+Validation: source/API wiring review and git diff --check passed. Android build/device verification not executed. Preferred language persistence does not claim full UI localization; avatar URL editing does not claim image upload/rendering. Existing server concurrency/replay issues remain in REPOSITORY_AUDIT.md for the later correction phase.
+
+Next feature: password-reset completion surface using existing reset endpoint. Production readiness remains 0% under the ledger's verified end-to-end criterion.

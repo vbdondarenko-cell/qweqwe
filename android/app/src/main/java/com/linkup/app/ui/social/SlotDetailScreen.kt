@@ -30,6 +30,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.linkup.app.core.network.PendingSlotRequest
 import com.linkup.app.core.network.SlotModel
+import com.linkup.app.core.network.SlotOrganizer
 import com.linkup.app.core.network.SlotState
 import com.linkup.app.core.network.SlotViewerState
 import com.linkup.app.core.social.LoadState
@@ -61,6 +62,7 @@ fun SlotDetailScreen(
     onCancel: (String, Long) -> Unit,
     onEdit: (SlotModel) -> Unit,
     onOpenChat: (String) -> Unit,
+    onBlockUser: (SlotOrganizer) -> Unit,
 ) {
     Column(Modifier.fillMaxSize()) {
         Row(
@@ -99,6 +101,11 @@ fun SlotDetailScreen(
                         Text("Host", color = LinkUpTextMuted, fontSize = 10.sp)
                         Text(slot.organizer.displayName, color = LinkUpTextPrimary, fontWeight = FontWeight.Bold)
                         Text("@${slot.organizer.username}", color = LinkUpTextMuted, fontSize = 12.sp)
+                        if (slot.viewerState != SlotViewerState.HOST) {
+                            TextButton(onClick = { onBlockUser(slot.organizer) }, enabled = mutation !is MutationState.Running) {
+                                Text("Block user", color = LinkUpWarning)
+                            }
+                        }
                         Spacer(Modifier.height(8.dp))
                         Text("${slot.acceptedCount}/${slot.capacity} going", color = LinkUpTextDimmed, fontSize = 12.sp)
                         Text("Server version ${slot.version}", color = LinkUpTextMuted, fontSize = 10.sp)
@@ -126,6 +133,7 @@ fun SlotDetailScreen(
                                 onCancel = onCancel,
                                 onEdit = onEdit,
                                 onOpenChat = onOpenChat,
+                                onBlockUser = onBlockUser,
                             )
                         }
                     }
@@ -152,6 +160,7 @@ private fun HostControls(
     onCancel: (String, Long) -> Unit,
     onEdit: (SlotModel) -> Unit,
     onOpenChat: (String) -> Unit,
+    onBlockUser: (SlotOrganizer) -> Unit,
 ) {
     Text("Host controls", color = LinkUpTextPrimary, fontWeight = FontWeight.Bold, fontSize = 15.sp)
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -172,6 +181,9 @@ private fun HostControls(
                 Column(modifier = Modifier.weight(1f)) {
                     Text(request.user.displayName, color = LinkUpTextPrimary, fontWeight = FontWeight.Bold, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     Text("@${request.user.username}", color = LinkUpTextMuted, fontSize = 11.sp)
+                    TextButton(onClick = { onBlockUser(request.user) }, enabled = !busy) {
+                        Text("Block user", color = LinkUpWarning, fontSize = 11.sp)
+                    }
                 }
                 TextButton(onClick = { onReject(slot.id, request.user.id) }, enabled = !busy) { Text("Decline", color = LinkUpTextMuted) }
                 TextButton(onClick = { onApprove(slot.id, request.user.id) }, enabled = !busy) { Text("Accept", color = LinkUpSuccess, fontWeight = FontWeight.Bold) }
