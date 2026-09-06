@@ -1,4 +1,4 @@
-BEGIN;
+-- Forward-only migration. Transaction boundaries are owned by the Go migration runner.
 
 CREATE TABLE app_users (
     id uuid PRIMARY KEY,
@@ -63,5 +63,3 @@ CREATE TABLE user_blocks (
 );
 
 CREATE INDEX user_blocks_blocked_idx ON user_blocks (blocked_id, blocker_id);
-
-COMMIT;
