@@ -66,3 +66,8 @@ Map/Fly are capability messages in Android. Realtime/outbox, City Context/PostGI
 Not run: Go compile/test/race/vet, Android compile/unit/lint/instrumentation, dependency vulnerability resolution, PostgreSQL integration, SMTP runtime tests, APK/AAB and two-user device smoke. Environment has Java 17 but no Go/Gradle/Kotlin compiler/Android SDK; Go download did not pass network approval. Tests in the repository are **test source, not green test results**.
 
 Next dependency-safe block: restore build prerequisites; run the new tests and existing suites; fix SQL access/replay and account/block concurrency with executable PostgreSQL tests; finish account safety surfaces. Foundation remains the active block.
+
+
+## Feature-phase update after the audit
+
+The user explicitly directed feature implementation first and corrections later on 2026-09-06. Profile editing, direct host/requester Block actions, and manual password reset link/code completion now have Android UI/API bindings (IMPLEMENTATION_STATUS sections 19–20). Their prior absence above is historical audit context, not the current source inventory. Device verification, verified App Links and all remaining audit defects stay open; no SQL correction or build recovery is claimed in this feature block.

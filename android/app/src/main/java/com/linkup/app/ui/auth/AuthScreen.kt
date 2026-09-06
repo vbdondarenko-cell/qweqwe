@@ -22,6 +22,9 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.activity.compose.BackHandler
+import kotlinx.coroutines.launch
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -33,6 +36,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.linkup.app.core.network.passwordResetToken
 import com.linkup.app.ui.theme.LinkUpBorder
 import com.linkup.app.ui.theme.LinkUpElevated
 import com.linkup.app.ui.theme.LinkUpRed
@@ -41,7 +45,7 @@ import com.linkup.app.ui.theme.LinkUpTextMuted
 import com.linkup.app.ui.theme.LinkUpTextPrimary
 import com.linkup.app.ui.theme.LinkUpWarning
 
-enum class AuthMode { LOGIN, REGISTER, RECOVERY }
+enum class AuthMode { LOGIN, REGISTER, RECOVERY, RESET }
 
 @Composable
 fun AuthScreen(
@@ -51,6 +55,7 @@ fun AuthScreen(
     onLogin: (String, String) -> Unit,
     onRegister: (String, String, String, String) -> Unit,
     onRecovery: (String) -> Unit,
+    onResetPassword: suspend (String, String) -> Boolean,
 ) {
     var mode by remember { mutableStateOf(AuthMode.LOGIN) }
     var email by remember { mutableStateOf("") }
@@ -58,6 +63,17 @@ fun AuthScreen(
     var displayName by remember { mutableStateOf("") }
     var identifier by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
+    // Reset credentials are intentionally memory-only, never saved instance state.
+    var resetInput by remember { mutableStateOf("") }
+    var newPassword by remember { mutableStateOf("") }
+    var confirmation by remember { mutableStateOf("") }
+    val scope = rememberCoroutineScope()
+    BackHandler(enabled = mode == AuthMode.RECOVERY || mode == AuthMode.RESET) {
+        if (!busy) {
+            mode = AuthMode.LOGIN
+            resetInput = ""; newPassword = ""; confirmation = ""
+        }
+    }
 
     Column(
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 24.dp, vertical = 36.dp),
@@ -67,7 +83,7 @@ fun AuthScreen(
         Text("Real world first.", color = LinkUpRed, fontSize = 13.sp, fontWeight = FontWeight.Bold)
         Spacer(Modifier.height(28.dp))
 
-        if (mode != AuthMode.RECOVERY) {
+        if (mode == AuthMode.LOGIN || mode == AuthMode.REGISTER) {
             Row(
                 Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(LinkUpElevated).border(1.dp, LinkUpBorder, RoundedCornerShape(12.dp)).padding(4.dp),
             ) {
@@ -108,7 +124,36 @@ fun AuthScreen(
                 AuthField("Email", email, { email = it.take(320) })
                 Spacer(Modifier.height(14.dp))
                 SubmitButton("Send reset link", busy, email.isNotBlank()) { onRecovery(email.trim()) }
-                TextButton(onClick = { mode = AuthMode.LOGIN }) { Text("Back to login", color = LinkUpRed) }
+                TextButton(enabled = !busy, onClick = { mode = AuthMode.RESET }) { Text("I have a reset link", color = LinkUpRed) }
+                TextButton(enabled = !busy, onClick = { mode = AuthMode.LOGIN }) { Text("Back to login", color = LinkUpRed) }
+            }
+            AuthMode.RESET -> {
+                Text("Set a new password", color = LinkUpTextPrimary, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                Text("Paste the reset link from your email or its reset code.", color = LinkUpTextDimmed, fontSize = 13.sp)
+                Spacer(Modifier.height(16.dp))
+                AuthField("Reset link or code", resetInput, { resetInput = it.take(4096) })
+                Spacer(Modifier.height(10.dp))
+                AuthPasswordField(newPassword, "New password") { newPassword = it.take(1024) }
+                Spacer(Modifier.height(10.dp))
+                AuthPasswordField(confirmation, "Confirm password") { confirmation = it.take(1024) }
+                Spacer(Modifier.height(14.dp))
+                val token = passwordResetToken(resetInput)
+                val valid = token != null && newPassword == confirmation && newPassword.toByteArray(Charsets.UTF_8).size in 8..1024
+                if (resetInput.isNotBlank() && token == null) Text("Paste a complete reset link or code.", color = LinkUpWarning, fontSize = 12.sp)
+                if (confirmation.isNotEmpty() && newPassword != confirmation) Text("Passwords do not match.", color = LinkUpWarning, fontSize = 12.sp)
+                Text("Use at least 8 characters for your new password.", color = LinkUpTextMuted, fontSize = 12.sp)
+                SubmitButton("Change password", busy, valid) {
+                    if (token != null) scope.launch {
+                        if (onResetPassword(token, newPassword)) {
+                            resetInput = ""; newPassword = ""; confirmation = ""; password = ""
+                            mode = AuthMode.LOGIN
+                        }
+                    }
+                }
+                TextButton(enabled = !busy, onClick = {
+                    resetInput = ""; newPassword = ""; confirmation = ""
+                    mode = AuthMode.LOGIN
+                }) { Text("Back to login", color = LinkUpRed) }
             }
         }
 
@@ -144,9 +189,9 @@ private fun AuthField(label: String, value: String, onChange: (String) -> Unit) 
 }
 
 @Composable
-private fun AuthPasswordField(value: String, onChange: (String) -> Unit) {
+private fun AuthPasswordField(value: String, label: String = "Password", onChange: (String) -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
-        Text("Password", color = LinkUpTextDimmed, fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
+        Text(label, color = LinkUpTextDimmed, fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
         OutlinedTextField(
             value = value,
             onValueChange = onChange,

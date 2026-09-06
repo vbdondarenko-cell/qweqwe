@@ -112,6 +112,19 @@ fun LinkUpApp(
                         finally { authBusy = false }
                     }
                 },
+                onResetPassword = { token, password ->
+                    if (authBusy) false else {
+                        authBusy = true; authError = null; authInfo = null
+                        try {
+                            api.resetPassword(token, password)
+                            authInfo = "Password changed. Sign in with your new password."
+                            true
+                        } catch (error: Exception) {
+                            authError = error.userMessage()
+                            false
+                        } finally { authBusy = false }
+                    }
+                },
             )
             is SessionState.SignedIn -> key(state.user.id) {
                 SignedInRoot(state.user, api, sessions, social)

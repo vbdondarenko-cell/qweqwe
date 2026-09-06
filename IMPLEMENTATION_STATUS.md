@@ -314,9 +314,9 @@ Still incomplete before foundation can be called working/green:
 - execute PostgreSQL migrations/integration/race tests;
 - compile/test Android;
 - finish reproducible Gradle wrapper/build infrastructure;
-- Android password **reset** completion surface/deep-link handling (request surface exists; API reset method exists);
-- Android direct “Block user” action from an identity surface (Me currently supports list/unblock; server/client block write already exists);
-- Basic Me profile editing UI (`PATCH /v1/me` exists in client/server);
+- verified Android App Links for password reset (manual link/code completion added in section 20);
+- device verification of direct Block user actions added in worklog section 19;
+- device verification of Basic Me profile editing added in worklog section 19;
 - verify/fix Compose compile/runtime issues found by real build;
 - real two-user Android ↔ Go ↔ PostgreSQL smoke;
 - production SMTP configuration smoke when deployment is explicitly allowed.
@@ -470,3 +470,17 @@ Files: EditProfileScreen.kt, MeScreen.kt, SlotDetailScreen.kt, LinkUpApp.kt, Ses
 Validation: source/API wiring review and git diff --check passed. Android build/device verification not executed. Preferred language persistence does not claim full UI localization; avatar URL editing does not claim image upload/rendering. Existing server concurrency/replay issues remain in REPOSITORY_AUDIT.md for the later correction phase.
 
 Next feature: password-reset completion surface using existing reset endpoint. Production readiness remains 0% under the ledger's verified end-to-end criterion.
+
+
+## 20. 2026-09-06 — Password reset completion functionality
+
+- Auth → Forgot password → I have a reset link → Change password now calls the existing POST /v1/auth/recovery/reset endpoint.
+- Accepts a pasted HTTPS reset link or canonical 32-byte base64url reset code. The pasted URL is parsed locally and never fetched; only the token goes to the configured API.
+- New password + confirmation validation, server busy/error state, success message and return to Login are connected.
+- Reset code/password fields are memory-only and cleared on success/back; no saved-state credential persistence was added.
+- PasswordResetInputTest.kt adds valid code/link and malformed/duplicate-token test cases; source tests are not claimed executed.
+- Profile/block feature block was published directly on main as 5c05a6251f5e515bc834d00dfdede1e0bdbe73c6.
+
+Validation: git diff --check and source/call-site review passed. No build/deploy was run. Automatic verified App Link opening remains unimplemented; the manual reset completion path is now present. SMTP delivery depends on existing server configuration. Android/Go Version 1 verified production readiness remains 0% pending end-to-end evidence.
+
+Next functionality in the active foundation: date/time selection for create/edit, then Hosting/Joined navigation using real server data. Existing audit fixes are reserved for the later correction phase per the user's current instruction.
