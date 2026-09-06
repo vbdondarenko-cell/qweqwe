@@ -47,7 +47,6 @@ func (s *Server) createSlot(w http.ResponseWriter, r *http.Request) {
 		writeProblem(w, r, http.StatusServiceUnavailable, "not_ready", "slot service is unavailable")
 		return
 	}
-	key := r.Header.Get("Idempotency-Key")
 	var in createSlotRequest
 	if err := decodeJSON(w, r, &in); err != nil {
 		writeProblem(w, r, http.StatusBadRequest, "invalid_request", "invalid JSON body")
@@ -61,7 +60,7 @@ func (s *Server) createSlot(w http.ResponseWriter, r *http.Request) {
 		ZoneText:  in.ZoneText,
 		StartAt:   in.StartAt,
 		Capacity:  in.Capacity,
-	}, key)
+	}, r.Header.Get("Idempotency-Key"))
 	if err != nil {
 		s.writeSlotError(w, r, err)
 		return
@@ -152,12 +151,20 @@ func (s *Server) writeSlotError(w http.ResponseWriter, r *http.Request, err erro
 		writeProblem(w, r, http.StatusForbidden, "forbidden", "operation is not allowed")
 	case errors.Is(err, slot.ErrNotFound):
 		writeProblem(w, r, http.StatusNotFound, "slot_not_found", "slot not found")
+	case errors.Is(err, slot.ErrRequestNotFound):
+		writeProblem(w, r, http.StatusNotFound, "request_not_found", "pending request not found")
 	case errors.Is(err, slot.ErrConflict):
 		writeProblem(w, r, http.StatusConflict, "slot_version_conflict", "slot version is stale")
 	case errors.Is(err, slot.ErrIdempotencyConflict):
 		writeProblem(w, r, http.StatusConflict, "idempotency_conflict", "idempotency key was already used for a different request")
 	case errors.Is(err, slot.ErrInvalidState):
 		writeProblem(w, r, http.StatusConflict, "invalid_slot_state", "slot state does not allow this operation")
+	case errors.Is(err, slot.ErrCapacityFull):
+		writeProblem(w, r, http.StatusConflict, "slot_full", "slot has no available capacity")
+	case errors.Is(err, slot.ErrDuplicateRequest):
+		writeProblem(w, r, http.StatusConflict, "request_exists", "a pending request already exists")
+	case errors.Is(err, slot.ErrAlreadyMember):
+		writeProblem(w, r, http.StatusConflict, "already_member", "user is already an accepted participant")
 	default:
 		writeProblem(w, r, http.StatusInternalServerError, "internal_error", "request failed")
 	}

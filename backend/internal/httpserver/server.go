@@ -67,11 +67,20 @@ func New(deps Dependencies) *Server {
 	mux.Handle("GET /v1/me/blocks", s.requireAuth(http.HandlerFunc(s.listBlocks)))
 	mux.Handle("PUT /v1/me/blocks/{userID}", s.requireAuth(http.HandlerFunc(s.blockUser)))
 	mux.Handle("DELETE /v1/me/blocks/{userID}", s.requireAuth(http.HandlerFunc(s.unblockUser)))
+
 	mux.Handle("POST /v1/slots", s.requireAuth(http.HandlerFunc(s.createSlot)))
 	mux.Handle("GET /v1/slots/{slotID}", s.requireAuth(http.HandlerFunc(s.getSlot)))
 	mux.Handle("PATCH /v1/slots/{slotID}", s.requireAuth(http.HandlerFunc(s.editSlot)))
 	mux.Handle("POST /v1/slots/{slotID}/cancel", s.requireAuth(http.HandlerFunc(s.cancelSlot)))
 	mux.Handle("GET /v1/pulse", s.requireAuth(http.HandlerFunc(s.listPulse)))
+	mux.Handle("POST /v1/slots/{slotID}/request", s.requireAuth(http.HandlerFunc(s.requestSlot)))
+	mux.Handle("POST /v1/slots/{slotID}/leave", s.requireAuth(http.HandlerFunc(s.leaveSlot)))
+	mux.Handle("GET /v1/slots/{slotID}/requests", s.requireAuth(http.HandlerFunc(s.listPendingRequests)))
+	mux.Handle("POST /v1/slots/{slotID}/requests/{userID}/approve", s.requireAuth(http.HandlerFunc(s.approveRequest)))
+	mux.Handle("POST /v1/slots/{slotID}/requests/{userID}/reject", s.requireAuth(http.HandlerFunc(s.rejectRequest)))
+	mux.Handle("POST /v1/slots/{slotID}/start", s.requireAuth(http.HandlerFunc(s.startSlot)))
+	mux.Handle("POST /v1/slots/{slotID}/complete", s.requireAuth(http.HandlerFunc(s.completeSlot)))
+
 	s.handler = s.requestMeta(mux)
 	return s
 }

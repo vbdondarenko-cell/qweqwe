@@ -9,6 +9,7 @@ import (
 type State string
 type AccessMode string
 type Visibility string
+type ViewerState string
 
 const (
 	StateDraft     State = "DRAFT"
@@ -26,6 +27,11 @@ const (
 	AccessWaitlist AccessMode = "WAITLIST"
 
 	VisibilityPublic Visibility = "PUBLIC"
+
+	ViewerNone     ViewerState = "NONE"
+	ViewerPending  ViewerState = "PENDING"
+	ViewerAccepted ViewerState = "ACCEPTED"
+	ViewerHost     ViewerState = "HOST"
 )
 
 var (
@@ -35,6 +41,10 @@ var (
 	ErrInvalidInput        = errors.New("invalid slot input")
 	ErrInvalidState        = errors.New("invalid slot state")
 	ErrIdempotencyConflict = errors.New("idempotency key conflict")
+	ErrCapacityFull        = errors.New("slot capacity full")
+	ErrDuplicateRequest    = errors.New("duplicate slot request")
+	ErrAlreadyMember       = errors.New("already accepted member")
+	ErrRequestNotFound     = errors.New("slot request not found")
 )
 
 type Organizer struct {
@@ -58,9 +68,15 @@ type Slot struct {
 	State         State       `json:"state"`
 	AccessMode    AccessMode  `json:"accessMode"`
 	Visibility    Visibility  `json:"visibility"`
+	ViewerState   ViewerState `json:"viewerState"`
 	Version       int64       `json:"version"`
 	CreatedAt     time.Time   `json:"createdAt"`
 	UpdatedAt     time.Time   `json:"updatedAt"`
+}
+
+type PendingRequest struct {
+	User        Organizer `json:"user"`
+	RequestedAt time.Time `json:"requestedAt"`
 }
 
 type CreateInput struct {
@@ -90,4 +106,11 @@ type Store interface {
 	ListPulse(ctx context.Context, actorID string, limit int) ([]Slot, error)
 	Edit(ctx context.Context, actorID, slotID string, patch EditInput, idempotencyKey string, requestHash []byte, now time.Time) (Slot, error)
 	Cancel(ctx context.Context, actorID, slotID string, expectedVersion int64, idempotencyKey string, requestHash []byte, now time.Time) (Slot, error)
+	Request(ctx context.Context, actorID, slotID, idempotencyKey string, requestHash []byte, now time.Time) (Slot, error)
+	Leave(ctx context.Context, actorID, slotID, idempotencyKey string, requestHash []byte, now time.Time) (Slot, error)
+	ListPending(ctx context.Context, actorID, slotID string) ([]PendingRequest, error)
+	Approve(ctx context.Context, actorID, slotID, requesterID, idempotencyKey string, requestHash []byte, now time.Time) (Slot, error)
+	Reject(ctx context.Context, actorID, slotID, requesterID, idempotencyKey string, requestHash []byte, now time.Time) (Slot, error)
+	Start(ctx context.Context, actorID, slotID, idempotencyKey string, requestHash []byte, now time.Time) (Slot, error)
+	Complete(ctx context.Context, actorID, slotID, idempotencyKey string, requestHash []byte, now time.Time) (Slot, error)
 }
