@@ -30,11 +30,11 @@ type Login struct {
 }
 
 type Session struct {
-	ID        string
-	UserID    string
-	TokenHash []byte
-	CreatedAt time.Time
-	ExpiresAt time.Time
+	ID          string
+	UserID      string
+	TokenHash   []byte
+	CreatedAt   time.Time
+	ExpiresAt   time.Time
 	DeviceLabel string
 }
 
@@ -45,7 +45,7 @@ type UserWithPassword struct {
 
 type ProfilePatch struct {
 	DisplayName       *string
-	AvatarURL         **string
+	AvatarURL         *string
 	ProfileVisibility *string
 	Language          *string
 }

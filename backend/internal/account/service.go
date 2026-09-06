@@ -74,6 +74,7 @@ func (s *Service) Logout(ctx context.Context, raw string) error {
 
 func (s *Service) UpdateProfile(ctx context.Context, userID string, patch ProfilePatch) (User, error) {
 	if patch.DisplayName != nil { v := strings.TrimSpace(*patch.DisplayName); if len([]rune(v)) < 1 || len([]rune(v)) > 80 { return User{}, ErrInvalidInput }; patch.DisplayName = &v }
+	if patch.AvatarURL != nil { v := strings.TrimSpace(*patch.AvatarURL); if len(v) > 2048 { return User{}, ErrInvalidInput }; patch.AvatarURL = &v }
 	if patch.ProfileVisibility != nil && *patch.ProfileVisibility != "PUBLIC" && *patch.ProfileVisibility != "HIDDEN" { return User{}, ErrInvalidInput }
 	if patch.Language != nil && *patch.Language != "uk" && *patch.Language != "en" { return User{}, ErrInvalidInput }
 	return s.store.UpdateProfile(ctx, userID, patch, s.now().UTC())
