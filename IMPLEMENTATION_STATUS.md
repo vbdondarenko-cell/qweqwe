@@ -29,15 +29,13 @@
 | Ubuntu deployment | ⛔ | Do not touch until direct deployment/server command. |
 | GitHub Actions / Google Cloud Build | ⛔ | Not part of canonical delivery flow. |
 
-## 3. Approved frozen design reference — ✅ design / 🟡 functionality
+## 3. Frozen design reference — ✅ design
 
-Existing files include `App.tsx`, `PulseScreen.tsx`, `MapScreen.tsx`, `CreateLinkScreen.tsx`, `FlyScreen.tsx`, `MeScreen.tsx`, `NotificationsPanel.tsx`, `SlotCard.tsx`, `BottomNav.tsx`, shared UI primitives and `tailwind.config.js`.
+The original React/TypeScript files remain untouched and are the canonical visual reference: `App.tsx`, `PulseScreen.tsx`, `MapScreen.tsx`, `CreateLinkScreen.tsx`, `FlyScreen.tsx`, `MeScreen.tsx`, `NotificationsPanel.tsx`, `SlotCard.tsx`, `BottomNav.tsx`, shared UI primitives and `tailwind.config.js`.
 
-Represented surfaces include Pulse, Map, LINK/Create, Fly, Me, Notifications, Slot cards/details, Reliability/BUMP/Passport/settings concepts.
+Production Android now uses the same black/red token language and the same core Pulse/LINK/card/detail interaction structure where that capability is active. Fake prototype values such as hardcoded city/BPM/reliability/demo online data are **not** copied into production Kotlin before their server capabilities exist.
 
-**These files are not production-functionality evidence. They use local demo/prototype state and remain untouched as the visual contract.**
-
-## 4. Repository/build/security foundation — 🟠
+## 4. Repository / build / process foundation — 🟠
 
 Exists:
 
@@ -58,7 +56,9 @@ Relevant commits:
 - migration runner: `fea9929a8a72efbb86c6cbe156e44537aad6bfd7`
 - Android project/token layer: `c0bf43e01027face9ca12d9daf2685558e56544c` → `0fd7cf6671585adff53aa76c788ac7463dc1ce01`
 
-## 5. Account/session/security foundation — 🟠
+Open build-infrastructure issues are recorded in Verification below. Do not assume Android is reproducibly buildable only because Gradle metadata exists.
+
+## 5. Account / session / security foundation — 🟠
 
 ### PostgreSQL
 
@@ -81,7 +81,7 @@ Implemented:
 
 ### Auth abuse protection
 
-Commit `5f430737fac07e84aea765e113d2ed5e9b0f1937`: bounded fixed-window auth limiter, direct peer IP + route key, `429` + `Retry-After`, bounded memory and configurable limits.
+Commit `5f430737fac07e84aea765e113d2ed5e9b0f1937` adds bounded fixed-window auth limiting, direct peer IP + route keys, `429` + `Retry-After`, bounded memory and configurable limits.
 
 ### Password recovery/reset
 
@@ -96,7 +96,7 @@ Endpoints:
 - `POST /v1/auth/recovery/request`;
 - `POST /v1/auth/recovery/reset`.
 
-Security behavior includes one-time hashed reset tokens, expiry, previous-token invalidation, all-session revocation after password reset, TLS-only SMTP, no plaintext fallback, URL-encoded token and fail-closed behavior when delivery is not configured.
+Security behavior includes one-time hashed reset tokens, expiry, previous-token invalidation, all-session revocation after password reset, TLS-only SMTP, no plaintext fallback, URL-encoded reset token and fail-closed behavior when delivery is not configured.
 
 ### Server-authoritative block controls
 
@@ -106,35 +106,31 @@ Base block API in `6f11f02b3f1f742851e38f76feff97db69d6f861`:
 - `PUT /v1/me/blocks/{userID}`;
 - `DELETE /v1/me/blocks/{userID}`;
 - bearer authorization;
-- self-block rejected;
-- duplicate block idempotent at DB level.
+- self-block rejection;
+- duplicate block idempotency at DB level.
 
-Approval hardening in `054b223c65bb5e98147d7eb227b88b426553c32b` makes Block transactional with social state: pending host/requester relation is removed, accepted host/member relation is revoked, and affected Slot `accepted_count/state/version` are corrected atomically.
+Approval hardening in `054b223c65bb5e98147d7eb227b88b426553c32b` makes host/member/requester block effects transactional with social state: relevant pending/accepted relationship is revoked and affected Slot `accepted_count/state/version` is corrected atomically.
 
 ### Android account/session client
 
 Implemented:
 
-- Android Keystore AES-256-GCM encrypted bearer persistence;
+- Android Keystore AES-256-GCM bearer persistence;
 - local expiry/decryption/key-loss clearing;
-- register/login/logout/Me/recovery API calls;
-- HTTPS requirement outside emulator/loopback;
+- register/login/logout/Me/recovery calls;
+- HTTPS required outside emulator/loopback;
 - process-death bootstrap with `Checking`, `SignedOut`, `SignedIn`, `OfflineSession`, `RecoverableError`;
-- 401 clears revoked local session while temporary network loss preserves a still-valid bearer.
+- `401` clears revoked local session while temporary transport loss can retain an unexpired local bearer.
 
 Relevant commits: `8c852bf446943b8e83c4954d007b6eebaa72d080`, `2bea65b4c19e5125270adf9fd769e741ec3f8989`.
 
 ## 6. Canonical Slot foundation — 🟠
 
-Implemented in commit `2a1fb50728dd47a35f118a1f42d39d70428aca11`.
-
-### Database
+Implemented in `2a1fb50728dd47a35f118a1f42d39d70428aca11`.
 
 `db/migrations/000002_slots.sql` defines canonical `slots`, full lifecycle states, access modes `INSTANT / APPROVAL / WAITLIST`, visibility foundation, capacity + `accepted_count`, server version, Pulse indexes and generic `mutation_idempotency` with finite TTL.
 
 Current foundation create surface creates **PUBLIC + APPROVAL + FILLING** Slots. Instant/Waitlist remain in canonical domain/data for later capability blocks.
-
-### Go Slot API
 
 Endpoints:
 
@@ -150,17 +146,9 @@ Implemented: mandatory mutation `Idempotency-Key`, SHA-256 request fingerprint, 
 
 ## 7. Approval social loop — 🟠
 
-Implemented in commit `054b223c65bb5e98147d7eb227b88b426553c32b`.
+Implemented in `054b223c65bb5e98147d7eb227b88b426553c32b`.
 
-### Database
-
-`db/migrations/000003_approval.sql` adds:
-
-- `slot_requests` with unique `(slot_id,user_id)` pending invariant;
-- `slot_memberships` with unique `(slot_id,user_id)` accepted invariant;
-- lookup indexes.
-
-### Server behavior
+`db/migrations/000003_approval.sql` adds unique pending `slot_requests`, unique accepted `slot_memberships` and lookup indexes.
 
 Viewer relationship states: `NONE / PENDING / ACCEPTED / HOST`.
 
@@ -187,35 +175,17 @@ Implemented invariants:
 - pending LEAVE withdraws; accepted LEAVE decrements count and reopens `FULL → FILLING`;
 - START requires accepted participant, clears pending requests and moves to `ACTIVE`;
 - COMPLETE requires `ACTIVE`;
-- all critical mutations use idempotency boundary;
+- critical mutations use the idempotency boundary;
 - Pulse/Get expose viewer relationship;
-- Block revokes host/member/requester relationship transactionally.
+- Block revokes the relevant host/member/requester relationship transactionally.
 
 Source tests cover pending/withdrawal, approve-to-FULL, full rejection, LEAVE reopen, START/COMPLETE and Store/HTTP compatibility.
 
 ## 8. Basic Zero-Trace Coordination Chat — 🟠
 
-Implemented in commit `b9ea7481c78f8f9a61ae3b8cb06cc6449a6feb9b`.
+Implemented in `b9ea7481c78f8f9a61ae3b8cb06cc6449a6feb9b`.
 
-### Database
-
-Created `db/migrations/000004_chat.sql`:
-
-- `slot_messages` with UUID message id, Slot FK, author FK, text, server timestamp;
-- DB `CHECK` keeps trimmed body length between 1 and 2000 chars;
-- recent-thread index `(slot_id, created_at DESC, id DESC)`;
-- PostgreSQL trigger `slots_terminal_message_purge` physically deletes all Slot message rows whenever state transitions to `COMPLETED`, `CANCELLED`, `EXPIRED` or `MODERATED`.
-
-### Go domain/API
-
-Created:
-
-- `backend/internal/chat/model.go`;
-- `backend/internal/chat/service.go`;
-- `backend/internal/chat/service_test.go`;
-- `backend/internal/postgres/chat_store.go`;
-- `backend/internal/httpserver/chat_handlers.go`;
-- `backend/internal/httpserver/chat_handlers_test.go`.
+`db/migrations/000004_chat.sql` adds `slot_messages`, a 1..2000 trimmed-body DB check, recent-thread index and PostgreSQL terminal purge trigger.
 
 Endpoints:
 
@@ -224,95 +194,165 @@ Endpoints:
 
 Implemented behavior:
 
-- max message size: 2000 Unicode code points;
-- max recent response: 100 messages;
-- server generates message UUID and timestamp comes from PostgreSQL;
-- author response includes id, username, display name and avatar;
-- read returns a bounded recent slice in chronological order;
-- authorization is re-evaluated server-side for every read/send;
-- host or current accepted participant only;
-- pending requester, stranger/non-member and user after LEAVE are denied even with a known `slotId`;
-- terminal/non-chat Slot states return explicit closed state;
-- accepted participant authorization checks host/member block relation;
-- recent thread filters messages authored by identities with a block relation to the current viewer in either direction;
-- host/member LEAVE/block revocation therefore removes future chat authorization;
-- terminal state transition physically purges ephemeral rows in canonical PostgreSQL, not merely hides them;
-- no realtime/offline-send semantics are falsely claimed for this basic chat block.
+- max message size 2000 Unicode code points;
+- max recent response 100;
+- PostgreSQL-created timestamp and server-generated UUID;
+- author id/username/displayName/avatar response;
+- bounded recent messages returned chronologically;
+- every read/send reauthorizes host/current accepted membership;
+- pending/stranger/left denied even with known `slotId`;
+- terminal states close chat;
+- block relation is checked for accepted participant vs host and blocked-author messages are filtered for the current viewer;
+- terminal transition to `COMPLETED/CANCELLED/EXPIRED/MODERATED` physically deletes canonical PostgreSQL chat rows.
 
-Source tests cover service text/limit bounds and HTTP success/forbidden/closed/error mapping. PostgreSQL authorization/purge still requires integration execution before it can be marked verified.
+Realtime/offline retry/system messages are **not** falsely claimed here; they remain Chat V2 work.
 
-## 9. Verification state
+## 9. Android production social binding — 🟠
 
-### Actually verified in the available local environment
+### Canonical Kotlin data/API layer
+
+Implemented in `375f087d7b038bf1e2bdefe322938330217b0358`.
+
+Created:
+
+- `core/network/SocialModels.kt`;
+- `core/network/SocialApi.kt`;
+- expanded `LinkUpApiClient.kt`;
+- `core/social/SocialCoordinator.kt`;
+- `SocialCoordinatorTest.kt` source tests.
+
+Kotlin now models the server contract directly:
+
+- Slot lifecycle `DRAFT/PUBLISHED/FILLING/FULL/ACTIVE/COMPLETED/CANCELLED/EXPIRED/MODERATED`;
+- `INSTANT/APPROVAL/WAITLIST` access enums;
+- `NONE/PENDING/ACCEPTED/HOST` viewer relationship;
+- server `version`, organizer, capacity/count, PendingRequest and Chat models.
+
+`LinkUpApiClient` now implements:
+
+- Pulse;
+- create/get/edit/cancel Slot;
+- request/leave;
+- host pending request list;
+- approve/reject;
+- start/complete;
+- chat read/send.
+
+Every critical Android mutation creates a cryptographically strong UUID-shaped `Idempotency-Key`. Kotlin does not locally invent Slot state/version; it accepts the canonical server response. No blind mutation retry was added.
+
+`SocialCoordinator` owns explicit `Idle/Loading/Empty/Content/Failure` read states plus mutation state, serializes UI double-tap mutations locally with a Mutex, reconciles Pulse from server-returned state and clears chat/pending local state after relationship/terminal changes.
+
+### Native foundation UI / routing
+
+Implemented in `3c686fda1c438f10b2819cac46b931687ea04d0a`.
+
+Added Kotlin/Compose surfaces:
+
+- `AuthScreen` — real Login/Register/Recovery request;
+- `PulseScreen` — real server list, search/category filtering, loading/empty/error/manual refresh;
+- native `SlotCard` matching frozen dark/elevated/status/progress/action structure;
+- `CreateLinkScreen` — 3-step real PUBLIC + APPROVAL foundation creation flow;
+- `SlotDetailScreen` — viewer-state actions + host pending/Accept/Decline/START/COMPLETE/CANCEL controls;
+- `EditSlotScreen` — host edit with canonical `expectedVersion` and accepted-count capacity floor;
+- `ChatScreen` — bounded real chat load/send/manual refresh;
+- `MeScreen` — real account data, block list/unblock, logout;
+- `LinkUpApp` — session bootstrap routing and Pulse/Map/LINK/Fly/Me navigation shell;
+- `MainActivity` — real dependency wiring.
+
+Important design/data rule:
+
+- existing React/TS design files were not modified;
+- production Kotlin uses frozen LinkUp colors/card geometry/interaction language;
+- hardcoded prototype city/BPM/reliability/demo online values were deliberately not copied as production data;
+- Map/Fly navigation positions remain visible but clearly report that their required production capability blocks are not active yet, rather than pretending with fake behavior.
+
+### Android network/build safety added with UI block
+
+- debug uses `http://10.0.2.2:8080` only for emulator development;
+- cleartext traffic is enabled only for debug manifest placeholder;
+- release has cleartext disabled;
+- release API URL comes from Gradle property `LINKUP_API_BASE_URL`;
+- no production endpoint is hardcoded;
+- blank release API URL fails closed in `MainActivity` instead of silently using a fake server.
+
+## 10. Verification state
+
+### Actually verified in the available execution environment
 
 - earlier pure-Go liveness/session-token tests passed before external dependencies were introduced;
 - standalone standard-library rate-limiter scratch test passed;
 - standard-only block/recovery code was syntax/parse checked during development.
 
+### Source tests now present but not yet executed in final dependency graph
+
+- Go account/session/password/idempotency/Slot/Approval/Chat tests;
+- Android `SocialCoordinatorTest` for real-data/empty Pulse, server-returned PENDING+version and terminal chat-state clearing.
+
 ### NOT yet honestly verified
 
-The current local execution environment cannot resolve external hosts and does not have required external Go/Android dependencies cached. Therefore these gates remain open:
+The available execution environment has not provided the complete external Go/Android dependency/build chain. These gates remain open:
 
 - `go mod tidy` and generated/verified `backend/go.sum`;
-- full `go test ./...` after `pgx` + `x/crypto` + Slot/Approval/Chat code;
-- PostgreSQL integration tests/race execution;
-- migration execution against disposable PostgreSQL, including terminal chat purge trigger;
-- applying migrations to canonical Supabase (not requested/deployed yet);
-- Android Gradle compile/instrumentation;
+- full `go test ./...` with `pgx` + `x/crypto` + all new code;
+- PostgreSQL integration/race tests;
+- migrations `000001..000004` execution against disposable PostgreSQL, including terminal chat purge trigger;
+- applying migrations to canonical Supabase (not performed in this work block);
+- Android Gradle compile/unit tests/instrumentation;
+- complete reproducible Gradle wrapper scripts/JAR validation;
 - real Android ↔ Go ↔ PostgreSQL two-user smoke;
-- release signing/build.
+- release signing/AAB.
 
-Do **not** mark these green without real evidence.
+**Never mark these green without real execution evidence.**
 
-## 10. What still does NOT exist — active Android/Go Version 1
+## 11. Active foundation gaps
 
-### Account/UI remaining
+Server source now represents the mandatory account → Slot → REQUEST → APPROVE/REJECT → membership → LEAVE → START/COMPLETE/CANCEL → basic chat path, and Android source now binds that path.
 
-- breached/common-password blocklist integration;
-- multi-session management UI;
-- actual Compose Login/Register/Recovery surfaces in frozen visual language;
-- app navigation wired to `SessionCoordinator`;
-- production SMTP credentials/provider smoke;
-- real DB migration/account smoke.
+Still incomplete before foundation can be called working/green:
 
-### Foundation social loop remaining
-
-The server-side foundation path now exists for account → Slot → REQUEST → APPROVE/REJECT → membership → LEAVE → START/COMPLETE/CANCEL → basic chat.
-
-Still missing before this can count as a working Android social network:
-
-- Android production models/API binding for Pulse/LINK/Slot/Approval/Chat;
-- Android Compose surfaces wired to those real states without redesign;
-- loading/content/empty/error states in production Android flow;
+- compile/test the current Go graph;
+- execute PostgreSQL migrations/integration/race tests;
+- compile/test Android;
+- finish reproducible Gradle wrapper/build infrastructure;
+- Android password **reset** completion surface/deep-link handling (request surface exists; API reset method exists);
+- Android direct “Block user” action from an identity surface (Me currently supports list/unblock; server/client block write already exists);
+- Basic Me profile editing UI (`PATCH /v1/me` exists in client/server);
+- verify/fix Compose compile/runtime issues found by real build;
 - real two-user Android ↔ Go ↔ PostgreSQL smoke;
-- actual build/database/device verification.
+- production SMTP configuration smoke when deployment is explicitly allowed.
 
-### Later Version 1 blocks
+## 12. Later Version 1 blocks — ❌ unless noted design-only
+
+Still required by the full README before final Version 1 Done:
 
 - durable Android mutation outbox + transactional backend outbox;
-- realtime snapshot/ordered deltas/reconnect;
-- City Context/PostGIS locality;
+- realtime snapshot/ordered deltas/reconnect/convergence;
+- City Context/PostGIS locality and privacy-safe location;
 - real Map/viewport/Places integration;
-- Waitlist/host control V2;
-- Chat V2/realtime/system messages;
-- push notifications;
-- BUMP/Reliability, City BPM, Vibe/Lasso/Hotspots, swarms;
-- Fly production functionality;
-- Me 2.0/Squad/Guardian/Ghost production functionality;
+- Waitlist/host-control V2;
+- Chat V2/realtime/system messages/stronger revocation-retention;
+- notifications/push;
+- BUMP/Reliability (design only exists for parts);
+- City BPM/Vibe/Lasso/Hotspots/swarms;
+- Fly Now/Travel/Motion production behavior (design exists);
+- Me 2.0/Social Passport/Squad/Guardian/Ghost production behavior;
 - AR/ranking;
-- venue/BLE/media/adaptive systems;
+- venue/BLE/offline proof;
+- safety/accessibility expansion;
+- ephemeral media/translation/audio;
+- adaptive systems/weather/asset matching;
 - LinkUp+ billing/travel/host/discovery/privacy/identity/rewarded access;
-- full ecosystem hardening.
+- full ecosystem/security/restore hardening.
 
 ### iOS — ⛔
 
-All iOS work remains intentionally frozen and excluded from current Android/Go readiness.
+All iOS implementation remains intentionally frozen and excluded from current Android/Go readiness until direct user instruction.
 
-## 11. README historical claims
+## 13. README historical claims
 
-README statements saying Android Event Core, Approval, chat, BUMP or historical migrations `000012/000013/000016/000018/000020/000022` were already implemented are **not current repository evidence**. Only code/migrations physically present here and recorded in this ledger count.
+README text that says historical Android Event Core, Approval, chat, BUMP or migrations `000012/000013/000016/000018/000020/000022` were already implemented is **not current repository evidence**. Only code/migrations physically present in this repository and recorded here count.
 
-## 12. Worklog
+## 14. Worklog
 
 ### 2026-09-06 — Design/platform contract finalized
 
@@ -324,70 +364,60 @@ README statements saying Android Event Core, Approval, chat, BUMP or historical 
 
 ### 2026-09-06 — Repository/Android/Go/DB foundation
 
-- `.gitignore`, Go API health foundation, Android project/design tokens, accounts migration, bearer primitive, migration runner, initial ledger.
+- `.gitignore`, Go API health foundation, Android project/design tokens, accounts migration, bearer primitive, migration runner.
 
-### 2026-09-06 — Account/session application foundation
+### 2026-09-06 — Account/session/security
 
-- config/UUID, Argon2id, pgx account store, register/login/logout/Me API, Android secure session/API client.
-- Key commits: `3031c359388383b40d1169c045e10854209b148e`, `e72c3ceb9ea694638a55895a8293a475f86993ca`, `7e62c4779745c92ff04f10e52eca338619d8a951`, `8c852bf446943b8e83c4954d007b6eebaa72d080`.
-
-### 2026-09-06 — Account/security hardening
-
-- auth rate limit: `5f430737fac07e84aea765e113d2ed5e9b0f1937`;
-- password reset domain/HTTP: `28307b7b87e3c813a0e38aca962ad668ef9c4cdc`;
-- Android bootstrap/recovery: `2bea65b4c19e5125270adf9fd769e741ec3f8989`;
-- TLS-only SMTP: `34362616f1c197b3bbe6b1dcd22a5ab4ff3be72d`;
-- block controls: `6f11f02b3f1f742851e38f76feff97db69d6f861`.
+- account/session/Argon2/pgx/API client foundation;
+- auth rate limit `5f430737fac07e84aea765e113d2ed5e9b0f1937`;
+- password reset `28307b7b87e3c813a0e38aca962ad668ef9c4cdc`;
+- Android bootstrap/recovery `2bea65b4c19e5125270adf9fd769e741ec3f8989`;
+- TLS-only SMTP `34362616f1c197b3bbe6b1dcd22a5ab4ff3be72d`;
+- block controls `6f11f02b3f1f742851e38f76feff97db69d6f861`.
 
 ### 2026-09-06 — Canonical Slot foundation
 
-- migration `000002_slots.sql`;
-- Slot domain/service/pgx store;
-- create/read/Pulse/edit/cancel API;
-- optimistic version + idempotency + block-aware discovery;
-- source tests.
+- migration `000002_slots.sql`, Slot domain/store/API, optimistic version, idempotency, block-aware discovery.
 - Commit: `2a1fb50728dd47a35f118a1f42d39d70428aca11`.
 
 ### 2026-09-06 — Approval social loop
 
-- migration `000003_approval.sql`;
-- REQUEST / withdraw;
-- pending requester list;
-- APPROVE / REJECT;
-- atomic capacity/last seat;
-- accepted membership + LEAVE/reopen;
-- START / COMPLETE;
-- viewer relationship states;
-- block relationship revocation integrated with Slot state;
-- source tests.
+- migration `000003_approval.sql`, REQUEST/withdraw, pending list, approve/reject, atomic last seat, membership/LEAVE, START/COMPLETE, viewer state.
 - Commit: `054b223c65bb5e98147d7eb227b88b426553c32b`.
 
 ### 2026-09-06 — Basic Zero-Trace Chat
 
-- migration `000004_chat.sql`;
-- accepted/host-only bounded chat read/send;
-- PostgreSQL-authored timestamp;
-- blocked-identity thread filtering;
-- terminal physical purge trigger;
-- chat HTTP/service tests in source.
+- migration `000004_chat.sql`, host/accepted bounded chat, blocked-author filtering, terminal physical purge trigger.
 - Commit: `b9ea7481c78f8f9a61ae3b8cb06cc6449a6feb9b`.
 
-## 13. Current production readiness
+### 2026-09-06 — Android social API binding
+
+- canonical Kotlin social models/API/coordinator/tests.
+- Commit: `375f087d7b038bf1e2bdefe322938330217b0358`.
+
+### 2026-09-06 — Android foundation social UI
+
+- Auth/Pulse/LINK/Create/Detail/Edit/Chat/Me/app routing;
+- debug/release network boundary;
+- no React/TS design modifications.
+- Commit: `3c686fda1c438f10b2819cac46b931687ea04d0a`.
+
+## 15. Current production readiness
 
 **Android + Go Version 1 production readiness: 0%.**
 
-Reason: the server-side mandatory foundation social loop is now represented in source, but external dependency/build/DB verification remains open and Android still does not expose the real flow. Until Kotlin production binding and a real two-user Android/Go/PostgreSQL smoke exist, this is not a production-ready social network.
+Reason: substantial real source now exists on both server and Android for the mandatory foundation path, but the current dependency graph, PostgreSQL migrations, Android build and real two-user device/server flow have not yet been executed successfully. Source implementation without build/DB/device evidence is not production readiness.
 
-## 14. Next exact work block
+## 16. Next exact work block
 
-**Android production social-flow binding without redesign:**
+**Foundation verification/build-completeness + remaining Account/Me safety surfaces:**
 
-1. add Kotlin canonical Slot/Viewer/PendingRequest/Chat models matching Go JSON;
-2. extend `LinkUpApiClient` with Pulse/create/get/edit/cancel/request/leave/pending/approve/reject/start/complete/chat methods;
-3. generate strong random `Idempotency-Key` values for every critical mutation;
-4. parse server state/version/viewer relationship without client authority;
-5. add repository/coordinator state for Pulse/Slot detail/request/host controls/chat;
-6. preserve existing frozen React/TS visual contract when adding Compose surfaces;
-7. implement loading/content/empty/error and manual refresh baseline;
-8. wire session bootstrap into Android app navigation;
-9. then run build/device/API verification when an environment with dependencies/database is available.
+1. audit/fix Gradle wrapper/scripts/JAR so Android build is reproducible without GitHub Actions;
+2. obtain/generate `backend/go.sum` and run full Go tests when dependency access is available;
+3. add Android reset-password completion/deep-link path;
+4. add Android block action from Slot identity and profile edit UI;
+5. add targeted Android unit tests for routing/action-state behavior;
+6. run Android compile/test and fix all compiler findings;
+7. run migrations/integration/race tests in allowed PostgreSQL environment;
+8. run real two-user foundation smoke;
+9. only after foundation is green move to transactional outbox/realtime/offline/City Context dependency block.
