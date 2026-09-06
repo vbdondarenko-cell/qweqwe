@@ -1,507 +1,357 @@
 # LinkUp — IMPLEMENTATION STATUS / WORKLOG
 
-> **Purpose:** factual implementation ledger for the repository. This file exists to prevent repeating work, trusting stale README implementation claims, or confusing the frozen React/TypeScript design with production functionality.
+> **Purpose:** factual implementation ledger for this repository. Read this file together with `PROJECT_RULES.md` and `README.md` before every implementation block so completed work is not repeated and README historical claims are not confused with current repository fact.
 >
-> **Mandatory workflow:** before every implementation block, read `PROJECT_RULES.md`, `README.md`, and this file. After every work block, update this file with: files changed, behavior actually implemented, test/build evidence, commit SHA(s), and remaining work.
+> **Mandatory workflow:** after every work block record files/capabilities actually added, evidence actually obtained, commit SHA(s), remaining work, and the next dependency-safe block.
 >
-> `PROJECT_RULES.md` has highest priority. Current design is frozen. Android + Go are active. iOS is frozen until a direct user command.
+> `PROJECT_RULES.md` has highest priority. **Existing design is frozen. Android + Go are active. iOS is frozen until direct user command.**
 
 ## 1. Status legend
 
 - ✅ **EXISTS** — physically present in current `main`.
-- ✅ **VERIFIED** — present and actually tested/validated with stated evidence.
-- 🟡 **DESIGN ONLY** — approved visual/UI contract exists, but production Kotlin/Go/data flow does not.
-- 🟠 **FOUNDATION ONLY** — production-oriented implementation exists, but capability is not end-to-end production-complete.
+- ✅ **VERIFIED** — present and tested/validated with stated evidence.
+- 🟡 **DESIGN ONLY** — approved visual contract exists; production Kotlin/Go/data flow does not.
+- 🟠 **FOUNDATION ONLY** — production-oriented implementation exists but is not yet end-to-end production-complete.
 - ❌ **DOES NOT EXIST** — no production implementation in current `main`.
-- ⛔ **FROZEN** — intentionally not worked on until direct user command.
+- ⛔ **FROZEN** — intentionally untouched until direct user command.
 
 ## 2. Canonical constraints
 
 | Area | Status | Rule |
 |---|---:|---|
-| Existing LinkUp visual design | ✅ | Frozen. Do not redesign, replace, reinterpret, or visually clean up without direct user instruction. |
-| Android production client | 🟠 | Kotlin + Jetpack Compose. |
-| Backend | 🟠 | Go is server/domain authority. |
+| Existing React/TS LinkUp design | ✅ | Frozen visual/UI contract. No redesign, cleanup, replacement or reinterpretation. |
+| Android production client | 🟠 | Kotlin + Jetpack Compose only. |
+| Backend/domain authority | 🟠 | Go. |
 | Database | 🟠 | PostgreSQL/PostGIS via forward-only migrations. |
-| React/TypeScript | 🟡 | Canonical design reference only. Do not add new production business/domain authority here. |
-| iOS | ⛔ | Do not create/change Swift, SwiftUI, Xcode, iOS assets, signing, tests, builds, or parity work. |
-| Git branch | ✅ | Work directly in `main`; no PR/feature branch unless user explicitly requests it. |
+| React/TypeScript | 🟡 | Design reference only; no new production domain authority. |
+| iOS | ⛔ | No Swift/SwiftUI/Xcode/assets/signing/tests/build/parity work. |
+| Git | ✅ | Work directly in `main`; no PR/feature branch unless explicitly requested. |
 | Ubuntu deployment | ⛔ | Do not touch until direct deployment/server command. |
 | GitHub Actions / Google Cloud Build | ⛔ | Not part of canonical delivery flow. |
 
-## 3. What already exists
+## 3. Approved frozen design reference — ✅ design / 🟡 functionality
 
-### 3.1 Documentation / product contract — ✅
+Existing files include `App.tsx`, `PulseScreen.tsx`, `MapScreen.tsx`, `CreateLinkScreen.tsx`, `FlyScreen.tsx`, `MeScreen.tsx`, `NotificationsPanel.tsx`, `SlotCard.tsx`, `BottomNav.tsx`, shared UI primitives and `tailwind.config.js`.
 
-- `README.md` — Unified Version 1 product/engineering contract.
-- `PROJECT_RULES.md` — Android active, iOS frozen, design frozen, Kotlin + Go for new production functionality.
-- `IMPLEMENTATION_STATUS.md` — this anti-duplication ledger.
+Represented surfaces include Pulse, Map, LINK/Create, Fly, Me, Notifications, Slot cards/details, Reliability/BUMP/Passport/settings concepts.
 
-### 3.2 Frozen design reference — ✅ design / 🟡 functionality
+**These files are not production-functionality evidence. They use local demo/prototype state and remain untouched as the visual contract.**
 
-Existing React/TypeScript design files include:
+## 4. Repository/build/security foundation — 🟠
 
-- `App.tsx`
-- `PulseScreen.tsx`
-- `MapScreen.tsx`
-- `CreateLinkScreen.tsx`
-- `FlyScreen.tsx`
-- `MeScreen.tsx`
-- `NotificationsPanel.tsx`
-- `SlotCard.tsx`
-- `BottomNav.tsx`
-- shared UI primitives (`Button`, `Chip`, `Sheet`, `Avatar`, `Skeleton`, `StatusBadge`, `ProgressBar`, etc.)
-- frozen design tokens in `tailwind.config.js`
+### Exists
 
-Represented design surfaces:
+- real `.gitignore` excluding `.env`, signing keys/keystores, APK/AAB, build outputs, logs/temp/IDE files;
+- Go module/API process foundation;
+- `/livez` and DB-aware `/healthz`;
+- HTTP timeouts + graceful shutdown;
+- request IDs and structured method/path/status/latency logging without bearer headers/request bodies;
+- environment config;
+- forward-only migration runner with `linkup_schema_migrations` checksum ledger and checksum-drift rejection;
+- Android Kotlin/Compose project shell;
+- frozen design colors transferred 1:1 to Kotlin.
 
-- Pulse
-- Map
-- LINK/Create
-- Fly
-- Me
-- Notifications
-- Slot cards/details
-- Reliability/BUMP/Passport/settings concepts
+### Relevant commits
 
-**Important:** these are approved design/prototype surfaces using local demo data. They are not evidence that the corresponding production capability works.
+- `.gitignore`: `12f211971413468ac82d2dca4cee5a4865c4b3d5`
+- Go process foundation: `fce37365716fefcab2cf28b421607eb7e833ba93` → `9047a558e3916b87442512869082244c248e400a`
+- migration runner: `fea9929a8a72efbb86c6cbe156e44537aad6bfd7`
+- Android project/token layer: `c0bf43e01027face9ca12d9daf2685558e56544c` → `0fd7cf6671585adff53aa76c788ac7463dc1ce01`
 
-### 3.3 Repository security hygiene — ✅
+## 5. Account/session/security foundation — 🟠
 
-Created real `.gitignore` excluding:
+### PostgreSQL
 
-- `.env` / local env files;
-- keystores/signing material;
-- APK/AAB;
-- Gradle/build outputs;
-- Node outputs;
-- logs/temp files;
-- IDE-local files.
-
-Historical file `download` was not deleted or repurposed.
-
-Commit: `12f211971413468ac82d2dca4cee5a4865c4b3d5`
-
-### 3.4 Go backend process foundation — 🟠
-
-Created:
-
-- `backend/go.mod`
-- `backend/cmd/api/main.go`
-- `backend/internal/httpserver/server.go`
-- `backend/internal/httpserver/server_test.go`
-- `backend/internal/config/config.go`
-- `backend/internal/identifier/uuid.go`
-
-Implemented:
-
-- standalone API entrypoint;
-- `GET /livez`;
-- DB-aware `GET /healthz`;
-- HTTP timeouts;
-- SIGINT/SIGTERM graceful shutdown;
-- request ID response header;
-- structured request metadata logging: request id, method, URL path, status, latency;
-- request logs do **not** include bearer Authorization headers or request bodies;
-- configuration from environment;
-- cryptographically-random RFC4122-style UUIDv4 generation.
-
-Relevant commits:
-
-- `fce37365716fefcab2cf28b421607eb7e833ba93`
-- `42103a74de256afc12c89e1942976a8e287359ef`
-- `d71b10029e70cec71ae1ec85da86050179478391`
-- `37de5689157c6320c32b7f2c8b477411f9fe3db6`
-- `9047a558e3916b87442512869082244c248e400a`
-- `7e62c4779745c92ff04f10e52eca338619d8a951`
-
-### 3.5 Password/session security foundation — 🟠
-
-Created:
-
-- `backend/internal/password/argon2id.go`
-- `backend/internal/password/argon2id_test.go`
-- `backend/internal/session/token.go`
-- `backend/internal/session/token_test.go`
-
-Implemented:
-
-- Argon2id password hashing;
-- parameters encoded into the password hash;
-- current security floor: 19 MiB memory, 2 iterations, parallelism 1;
-- floor is configurable through environment and must be benchmark-calibrated on the target Ubuntu server before production;
-- 16-byte random salt minimum;
-- 32-byte derived key minimum;
-- constant-time password hash comparison;
-- 256-bit opaque bearer session tokens;
-- only SHA-256 bearer digest is intended for PostgreSQL persistence;
-- malformed bearer token rejection;
-- raw bearer token must not be logged or stored server-side.
-
-Relevant commits:
-
-- `afa422f1a9a585d2af31c9ceff2e25ab452d3aa4`
-- `4fa8aebdbf1d7b4985648a4cb27adb96e03b56c6`
-- `3031c359388383b40d1169c045e10854209b148e`
-
-### 3.6 PostgreSQL connection/account store — 🟠
-
-Created:
-
-- `backend/internal/postgres/pool.go`
-- `backend/internal/postgres/account_store.go`
-
-Implemented against PostgreSQL via `pgx/v5`:
-
-- connection pool + startup ping;
-- atomic user + first-session registration transaction;
-- case-insensitive lookup by email or username;
-- session creation;
-- session authentication with revoked/expiry checks;
-- session revoke;
-- profile update;
-- PostgreSQL unique-constraint conflict mapping to domain `ErrConflict`.
-
-Dependency baseline:
-
-- `github.com/jackc/pgx/v5 v5.10.0`
-- `golang.org/x/crypto v0.56.0`
-
-Commit: `e72c3ceb9ea694638a55895a8293a475f86993ca`
-
-### 3.7 Account/session service + HTTP API — 🟠
-
-Created:
-
-- `backend/internal/account/model.go`
-- `backend/internal/account/store.go`
-- `backend/internal/account/service.go`
-- `backend/internal/account/service_test.go`
-- `backend/internal/httpserver/auth_handlers.go`
-- `backend/internal/httpserver/auth_handlers_test.go`
-
-Implemented endpoints:
-
-- `POST /v1/auth/register`
-- `POST /v1/auth/login`
-- authenticated `POST /v1/auth/logout`
-- authenticated `GET /v1/me`
-- authenticated `PATCH /v1/me`
-
-Implemented behavior:
-
-- normalized lowercase email/username;
-- basic email/username/display-name/language validation;
-- no arbitrary password composition rules;
-- registration creates user + first bearer session;
-- login accepts email or username;
-- wrong credentials return generic auth failure;
-- bearer middleware resolves user/session server-side;
-- logout revokes current token;
-- profile update supports display name, avatar URL, PUBLIC/HIDDEN visibility, uk/en language;
-- JSON request body limit + unknown-field rejection;
-- generic internal errors rather than leaking DB errors.
-
-Tests present in repository:
-
-- password hash/verify;
-- weak Argon2 parameter rejection;
-- register → authenticate → logout;
-- wrong-password rejection;
-- HTTP register → `/v1/me` → logout → revoked token becomes 401.
-
-Relevant commits:
-
-- `3031c359388383b40d1169c045e10854209b148e`
-- `7e62c4779745c92ff04f10e52eca338619d8a951`
-- `fea9929a8a72efbb86c6cbe156e44537aad6bfd7`
-- `b083a9d8866a7404ae04bb088dcb039a269b6400`
-
-### 3.8 Forward-only migration system — 🟠
-
-Created:
-
-- `db/migrations/000001_accounts.sql`
-- `backend/internal/migrate/migrate.go`
-- `backend/internal/migrate/migrate_test.go`
-- `backend/cmd/migrate/main.go`
-
-`000001_accounts.sql` defines:
+`db/migrations/000001_accounts.sql` defines:
 
 - `app_users`;
-- case-insensitive unique email index;
-- case-insensitive unique username index;
-- `user_sessions` with hashed token storage;
+- case-insensitive unique email/username indexes;
+- `user_sessions` with hashed opaque-token boundary;
 - `password_reset_tokens`;
 - `user_blocks`;
 - PUBLIC/HIDDEN profile visibility;
-- Ukrainian/English language baseline;
-- FK/unique/check/index constraints.
+- uk/en language baseline;
+- FK/check/index constraints.
 
-Migration runner implements:
-
-- ordered `.sql` discovery;
-- transaction per migration;
-- `linkup_schema_migrations` ledger;
-- SHA-256 checksum persistence;
-- checksum-drift rejection;
-- no silent re-running of an already recorded migration.
-
-Important: `000001_accounts.sql` has **not** been applied to Supabase in this work session. It was modified before first deployment so transaction ownership belongs to the migration runner.
-
-Relevant commits:
-
-- `1847cbf4250c40614540c3145293c385e577fd45`
-- `fea9929a8a72efbb86c6cbe156e44537aad6bfd7`
-
-### 3.9 Android/Kotlin foundation — 🟠
-
-Existing production project:
-
-- `android/settings.gradle.kts`
-- `android/build.gradle.kts`
-- `android/gradle.properties`
-- `android/app/build.gradle.kts`
-- `android/app/src/main/AndroidManifest.xml`
-- `android/app/src/main/res/values/themes.xml`
-- `android/app/src/main/java/com/linkup/app/MainActivity.kt`
-- `android/app/src/main/java/com/linkup/app/ui/theme/LinkUpTheme.kt`
-- `android/app/proguard-rules.pro`
-
-Toolchain baseline:
-
-- Android Gradle Plugin `9.4.0`;
-- Kotlin `2.4.10`;
-- compile/target SDK 37;
-- Java/JVM 17;
-- Compose BOM `2026.08.00`;
-- `activity-compose 1.13.0`;
-- `kotlinx-coroutines-android 1.11.0`.
-
-Frozen design tokens transferred 1:1 into Kotlin:
-
-- background `#050506`;
-- surface `#0D0E10`;
-- elevated `#141518`;
-- zone `#1A1C20`;
-- primary red `#FF2D35`;
-- signal/deep/semantic colors;
-- primary/dimmed/muted text;
-- border.
-
-No existing visual screen was redesigned or replaced.
-
-### 3.10 Android secure session + account API client — 🟠
-
-Created:
-
-- `android/app/src/main/java/com/linkup/app/core/session/SecureSessionStore.kt`
-- `android/app/src/main/java/com/linkup/app/core/network/ApiModels.kt`
-- `android/app/src/main/java/com/linkup/app/core/network/LinkUpApiClient.kt`
+### Go account/session API
 
 Implemented:
 
-- Android Keystore AES-256-GCM key;
-- encrypted bearer token persistence;
-- token expiry handling;
-- automatic local clear on expiry/decryption/key failure;
-- Kotlin calls for register/login/logout/`GET /v1/me`/`PATCH /v1/me`;
-- bearer Authorization injection only for authenticated calls;
-- session persistence after register/login;
-- session clear on logout;
-- mutation requests are not blindly transport-retried;
-- HTTPS enforced except local emulator/loopback development endpoints.
+- `POST /v1/auth/register`;
+- `POST /v1/auth/login`;
+- `POST /v1/auth/logout`;
+- `GET /v1/me`;
+- `PATCH /v1/me`;
+- Argon2id password hashing with encoded parameters and configurable production calibration floor;
+- cryptographically random 256-bit opaque bearer tokens; only SHA-256 bearer digest is persisted server-side;
+- session expiry/revocation checks;
+- normalized account identifiers and generic wrong-credential response;
+- bounded JSON request bodies + unknown-field rejection;
+- server-side current-session logout.
 
-Commit: `8c852bf446943b8e83c4954d007b6eebaa72d080`
+### Auth abuse protection
 
-## 4. Verification state
+Implemented in commit `5f430737fac07e84aea765e113d2ed5e9b0f1937`:
 
-### Verified earlier before new external dependencies
+- bounded fixed-window auth rate limiter;
+- key = direct peer IP + auth route;
+- `429` + `Retry-After`;
+- bounded map with idle pruning;
+- fail-closed behavior when bounded storage is saturated;
+- configurable limit/window/idle TTL/max entries.
 
-Earlier pure-Go health/session-token tests were run successfully before the account/pgx/x-crypto expansion.
+Config documentation: `a440536eee634220ade555835b3bca875052d5f1`.
 
-### Not yet honestly verified after this block
+### Password recovery/reset
 
-The current session environment cannot resolve external hosts from the local container, so after adding `pgx` and `x/crypto` the following have **not** yet been executed successfully here:
+Implemented in commits:
 
-- `go mod tidy`;
-- final `go test ./...` with downloaded dependencies;
-- real PostgreSQL integration tests;
-- migration execution against a disposable PostgreSQL database;
+- domain/HTTP/reset transaction: `28307b7b87e3c813a0e38aca962ad668ef9c4cdc`;
+- TLS-only SMTP adapter: `34362616f1c197b3bbe6b1dcd22a5ab4ff3be72d`;
+- SMTP env contract: `07c8a8e2535ec863f16c29297ade47883af75878`.
+
+Endpoints:
+
+- `POST /v1/auth/recovery/request`;
+- `POST /v1/auth/recovery/reset`.
+
+Security behavior:
+
+- opaque one-time reset tokens, hash persisted only;
+- finite expiry;
+- newer reset request invalidates previous unused reset token;
+- unknown account does not create a different successful-domain response;
+- successful reset changes password and revokes all active sessions transactionally;
+- TLS required for SMTP: STARTTLS or implicit TLS, minimum TLS 1.2;
+- no plaintext SMTP fallback;
+- reset link token is URL-encoded;
+- header injection rejected;
+- recovery fails closed when delivery is not configured.
+
+### Server-authoritative block controls
+
+Implemented in commit `6f11f02b3f1f742851e38f76feff97db69d6f861`:
+
+- `GET /v1/me/blocks`;
+- `PUT /v1/me/blocks/{userID}`;
+- `DELETE /v1/me/blocks/{userID}`;
+- bearer authorization;
+- self-block rejected;
+- duplicate block idempotent at DB level;
+- block-list summaries returned from server;
+- block relationship is ready to be enforced by subsequent social queries.
+
+### Android account/session client
+
+Implemented:
+
+- Keystore-backed AES-256-GCM encrypted bearer persistence;
+- local expiry/decryption/key-loss clearing;
+- register/login/logout/Me API client;
+- HTTPS requirement outside emulator/loopback development;
+- recovery/reset API calls;
+- process-death/session bootstrap coordinator with `Checking`, `SignedOut`, `SignedIn`, `OfflineSession`, `RecoverableError` states;
+- 401 clears revoked local session; temporary network loss preserves still-valid local bearer.
+
+Relevant commits:
+
+- secure session/API client: `8c852bf446943b8e83c4954d007b6eebaa72d080`;
+- session bootstrap/recovery client: `2bea65b4c19e5125270adf9fd769e741ec3f8989`.
+
+## 6. Canonical Slot foundation — 🟠
+
+Implemented in commit `2a1fb50728dd47a35f118a1f42d39d70428aca11`.
+
+### Database
+
+Created `db/migrations/000002_slots.sql`:
+
+- canonical `slots` table;
+- lifecycle states `DRAFT / PUBLISHED / FILLING / FULL / ACTIVE / COMPLETED / CANCELLED / EXPIRED / MODERATED`;
+- access modes `INSTANT / APPROVAL / WAITLIST`;
+- visibility enum foundation;
+- capacity + `accepted_count` invariant;
+- server `version`;
+- host/public Pulse indexes;
+- generic `mutation_idempotency` table with request SHA-256 and finite TTL/index.
+
+The current foundation create surface creates **PUBLIC + APPROVAL + FILLING** Slots as required by the README foundation flow. Instant/Waitlist stay in the canonical data model for later capability blocks.
+
+### Go Slot domain/API
+
+Created:
+
+- `backend/internal/slot/model.go`;
+- `backend/internal/slot/service.go`;
+- `backend/internal/slot/service_test.go`;
+- `backend/internal/postgres/slot_store.go`;
+- `backend/internal/httpserver/slot_handlers.go`;
+- `backend/internal/httpserver/slot_handlers_test.go`.
+
+Endpoints:
+
+- `POST /v1/slots`;
+- `GET /v1/slots/{slotID}`;
+- `PATCH /v1/slots/{slotID}`;
+- `POST /v1/slots/{slotID}/cancel`;
+- `GET /v1/pulse`.
+
+Implemented behavior:
+
+- authenticated host create;
+- mandatory mutation `Idempotency-Key` (printable 16–128 chars);
+- canonical SHA-256 request fingerprint;
+- idempotency conflict if a key is reused for a different operation/request;
+- configurable idempotency retention (`LINKUP_IDEMPOTENCY_TTL`, default 24h);
+- real server-generated Slot UUID/version/state;
+- host-only edit/cancel authorization;
+- optimistic `expectedVersion` conflict handling;
+- edit capacity cannot fall below current `accepted_count`;
+- `FILLING ↔ FULL` normalization when capacity changes;
+- terminal-state cancellation rejection;
+- CANCEL is a state transition, not hard delete;
+- PUBLIC Pulse excludes cancelled/terminal/non-public Slots;
+- Pulse/Get apply block relationship filter in **both directions**;
+- explicit HTTP error mapping for invalid input, authorization, missing Slot, stale version, invalid state, and idempotency conflict.
+
+Tests are present in source for:
+
+- PUBLIC+APPROVAL+FILLING create contract;
+- create idempotency-key requirement;
+- edit normalization/version requirement;
+- stale version conflict;
+- cancel version transition;
+- HTTP create → Pulse → edit → stale-edit `409` → cancel flow.
+
+**Important:** at this foundation stage a replayed mutation is effect-idempotent and returns the current canonical resource. Exact historical response replay is still part of the later durable-offline/realtime hardening block.
+
+## 7. Verification state
+
+### Actually verified in the available local environment
+
+- earlier pure-Go liveness/session-token tests passed before external dependencies were introduced;
+- standalone standard-library rate-limiter scratch test passed;
+- standard-only block/recovery code was syntax/parse checked during development.
+
+### NOT yet honestly verified
+
+The current local execution environment cannot resolve external hosts and does not have the required external Go/Android dependencies cached. Therefore the following gates remain open:
+
+- `go mod tidy` and generated/verified `backend/go.sum`;
+- full `go test ./...` after `pgx` + `x/crypto` + new Slot code;
+- PostgreSQL integration tests;
+- migration execution against disposable PostgreSQL;
+- applying migrations to canonical Supabase (not requested/deployed yet);
 - Android Gradle compile;
-- Android secure-session instrumentation test;
-- real Android ↔ Go ↔ PostgreSQL smoke.
+- Android instrumentation tests;
+- real Android ↔ Go ↔ PostgreSQL smoke;
+- release signing/build.
 
-Therefore the account capability remains **FOUNDATION ONLY**, not Done.
+Do **not** mark the above green without real evidence.
 
-Also still missing:
+## 8. What still does NOT exist — active Android/Go Version 1
 
-- generated/verified `backend/go.sum`;
-- complete reproducible Gradle wrapper binary/scripts validation;
-- real release signing configuration.
+### Account/UI remaining
 
-## 5. What does NOT exist yet — active Android/Go Version 1
-
-### Account foundation still missing — ❌/partial
-
-- password recovery delivery provider and complete recovery/reset flow;
 - breached/common-password blocklist integration;
-- auth rate limiting / credential-stuffing controls;
-- session-management UI beyond current-session logout;
-- Android auth/register/recovery Compose surfaces in the frozen design language;
-- process-death boot/session routing wired into app navigation;
-- real DB/applied migration smoke.
+- multi-session management UI;
+- actual Compose Login/Register/Recovery screens in the frozen visual language;
+- application navigation wired to `SessionCoordinator`;
+- production SMTP credentials/provider smoke;
+- real DB migration/account smoke.
 
-### Foundation social loop — ❌
+### Foundation social loop remaining
 
-- real PUBLIC + APPROVAL Slot creation;
-- canonical Slot lifecycle state machine;
-- host edit with optimistic version check;
-- CANCEL semantics;
-- Pulse backed by real server data;
-- REQUEST;
-- APPROVE / REJECT;
-- atomic last-seat allocation;
+- REQUEST / withdraw;
+- host APPROVE / REJECT;
 - accepted membership;
+- atomic last-seat allocation under concurrency;
 - LEAVE;
 - START / COMPLETE;
+- pending/accepted/host roster summaries;
 - accepted-only ephemeral chat;
-- terminal chat physical purge;
-- real block enforcement across social/chat queries;
-- two-user end-to-end smoke.
+- terminal physical chat purge;
+- Android production Pulse/LINK/host-control binding;
+- real two-user end-to-end smoke.
 
-### Stabilization / realtime / city / map — ❌
+### Later Version 1 blocks
 
-- bounded GET retry/error model;
-- durable Android mutation outbox;
-- transactional backend outbox;
-- snapshot + ordered realtime deltas;
-- reconnect/convergence;
-- process-death pending mutation recovery;
-- City Context / PostGIS locality;
-- privacy-safe location policy implementation;
-- real native Map/viewport query integration.
-
-### Advanced Version 1 capabilities — ❌ unless explicitly design-only
-
-- Waitlist/host-control V2;
-- Chat V2/realtime/system messages;
-- notifications/push;
-- BUMP verification and Reliability (**design only exists**);
-- City BPM (**design only exists**);
-- Vibe Topology / Lasso / Hotspots;
-- Auto-Swarms;
-- Fly Now/Travel/Motion (**design only exists**);
-- Me 2.0/Social Passport/Squad Radar (**design only exists**);
+- durable mutation outbox + transactional outbox;
+- realtime snapshot/ordered deltas/reconnect;
+- City Context/PostGIS locality;
+- real Map/viewport/Places integration;
+- Waitlist/host control V2;
+- Chat V2;
+- push notifications;
+- BUMP/Reliability, City BPM, Vibe/Lasso/Hotspots, swarms;
+- Fly production functionality;
+- Me 2.0/Squad/Guardian/Ghost production functionality;
 - AR/ranking;
-- venue ecosystem;
-- BLE offline proof;
-- Guardian/Ghost/accessibility expansion (**some design labels only**);
-- ephemeral media/translation/audio;
-- adaptive systems/weather/asset match;
-- LinkUp+ billing/travel/host/discovery/privacy/identity;
-- rewarded Free Day (**design label only exists**);
-- ecosystem hardening.
+- venue/BLE/media/adaptive systems;
+- LinkUp+ billing/travel/host/discovery/privacy/identity/rewarded access;
+- full ecosystem hardening.
 
 ### iOS — ⛔
 
-All iOS work is frozen and excluded from current readiness until direct user instruction.
+All iOS implementation remains intentionally frozen and excluded from current Android/Go readiness.
 
-## 6. README claims that are NOT current implementation evidence
+## 9. README historical claims
 
-`README.md` contains historical text claiming already-added Android Event Core, Approval, temporary chat, BUMP and migrations such as `000012`, `000013`, `000016`, `000018`, `000020`, `000022`.
+README sections that say Android Event Core, Approval, chat, BUMP or historical migrations `000012/000013/000016/000018/000020/000022` were already implemented are **not current repository evidence**. Only code/migrations physically present in this repository and recorded here count.
 
-**Current repository fact:** those historical implementation files/migrations are not present in this new repository. Treat those README statements as target/history only until equivalent implementation is physically added and recorded here.
+## 10. Worklog
 
-Never skip work because README says a component was previously added. Verify current `main` and this ledger first.
+### 2026-09-06 — Design/platform contract finalized
 
-## 7. Worklog
-
-### 2026-09-06 — Design/platform rules finalized
-
-- Existing design frozen.
-- Android active.
-- Kotlin + Go mandated for new production functionality.
+- design frozen;
+- Android active;
+- Kotlin + Go mandated;
 - iOS frozen.
 - Commit: `ce12cbf075f2b911ac1c73577efffb79c20a0a55`.
 
-### 2026-09-06 — Repository / Android / Go / DB foundation
+### 2026-09-06 — Repository/Android/Go/DB foundation
 
-- Added real `.gitignore`.
-- Added Go API/health foundation.
-- Added Android Kotlin/Compose project and frozen design tokens.
-- Added accounts/session/block migration.
-- Added bearer token primitive.
-- Added initial ledger.
-- Commits recorded in sections above.
+- `.gitignore`, Go API health foundation, Android project/design tokens, accounts migration, bearer primitive, migration runner, initial ledger.
 
 ### 2026-09-06 — Account/session application foundation
 
-- Added configuration + UUID primitive.
-- Added Argon2id hashing.
-- Added account service.
-- Added pgx PostgreSQL account store.
-- Added register/login/logout/`/v1/me` HTTP API.
-- Added DB-aware readiness.
-- Added forward-only migration runner with checksum drift protection.
-- Added account/HTTP lifecycle tests to source tree.
-- Added Android Keystore session storage and Kotlin auth API client.
-- No design changes.
-- No iOS work.
-- No Supabase deployment/migration execution.
-- No Ubuntu deployment.
-- Commits: `9047a558e3916b87442512869082244c248e400a`, `3031c359388383b40d1169c045e10854209b148e`, `e72c3ceb9ea694638a55895a8293a475f86993ca`, `7e62c4779745c92ff04f10e52eca338619d8a951`, `fea9929a8a72efbb86c6cbe156e44537aad6bfd7`, `8c852bf446943b8e83c4954d007b6eebaa72d080`, `b083a9d8866a7404ae04bb088dcb039a269b6400`.
+- config/UUID, Argon2id, pgx account store, register/login/logout/Me API, Android secure session/API client.
+- Key commits: `3031c359388383b40d1169c045e10854209b148e`, `e72c3ceb9ea694638a55895a8293a475f86993ca`, `7e62c4779745c92ff04f10e52eca338619d8a951`, `8c852bf446943b8e83c4954d007b6eebaa72d080`.
 
-## 8. Dependency-safe work plan
+### 2026-09-06 — Account/security hardening
 
-1. **Finish Account/session foundation**
-   - dependency download / `go.sum` / compile tests;
-   - PostgreSQL integration tests;
-   - migration dry-run on disposable DB when allowed environment exists;
-   - auth rate-limit foundation;
-   - recovery provider decision + reset flow;
-   - Android auth/session state wiring and Compose surfaces without redesign.
-2. **Canonical Slot engine**
-   - schema/state/access model;
-   - create/read/edit/version/CANCEL;
-   - idempotency;
-   - authorization/block checks.
-3. **Approval social loop**
-   - REQUEST/withdraw;
-   - APPROVE/REJECT;
-   - atomic capacity;
-   - LEAVE;
-   - START/COMPLETE.
-4. **Real Android Pulse/LINK/host controls**
-   - bind approved design to production APIs;
-   - remove demo data only from production flow, not from frozen reference files.
-5. **Ephemeral chat**
-   - accepted-only read/send;
-   - revocation;
-   - terminal physical purge.
-6. **Two-user E2E + stabilization**.
-7. **Realtime/offline + City Context**.
-8. **Map + expanded hosting + Waitlist + Chat V2 + notifications**.
-9. **BUMP/Reliability + City intelligence + swarms**.
-10. **Fly + Me/Squad + AR/ranking**.
-11. **Venue/offline/safety/media/adaptive systems**.
-12. **LinkUp+ Android billing/travel/host/discovery/privacy/identity + rewarded access**.
-13. **Full Android/Go security/privacy/abuse/restore/ecosystem hardening**.
+- bounded auth rate limit: `5f430737fac07e84aea765e113d2ed5e9b0f1937`;
+- password reset domain/HTTP: `28307b7b87e3c813a0e38aca962ad668ef9c4cdc`;
+- Android bootstrap/recovery client: `2bea65b4c19e5125270adf9fd769e741ec3f8989`;
+- TLS-only SMTP adapter: `34362616f1c197b3bbe6b1dcd22a5ab4ff3be72d`;
+- block controls: `6f11f02b3f1f742851e38f76feff97db69d6f861`.
 
-## 9. Current production readiness
+### 2026-09-06 — Canonical Slot foundation
+
+- migration `000002_slots.sql`;
+- Slot domain/service/pgx store;
+- create/read/Pulse/edit/cancel API;
+- optimistic version + idempotency + block-aware discovery;
+- source tests for service/HTTP flow.
+- Commit: `2a1fb50728dd47a35f118a1f42d39d70428aca11`.
+
+## 11. Current production readiness
 
 **Android + Go Version 1 production readiness: 0%.**
 
-Reason: substantial production-oriented account foundations now exist, but they have not yet passed full dependency/build/DB/device verification and the minimum required end-to-end social capability (`register → create Slot → REQUEST → APPROVE → chat → START/COMPLETE/CANCEL`) does not exist. Scaffolding, documentation and design do not count as production readiness.
+Reason: production-oriented account/security/Slot foundations now exist, but external dependency build/DB/device verification is still open and the mandatory real social loop (`register → create Slot → REQUEST → APPROVE → chat → START/COMPLETE/CANCEL`) is not yet end-to-end. Documentation/scaffolding/design do not count toward readiness.
 
-## 10. Next exact work block
+## 12. Next exact work block
 
-Continue Account/session until it is genuinely green:
+**Approval social loop:**
 
-1. obtain dependencies and generate/commit `go.sum` in an environment with network access;
-2. run `go test ./...`;
-3. add PostgreSQL integration tests for register/session/profile and migration checksum behavior;
-4. add bounded auth rate limiting;
-5. define password-reset delivery adapter and complete recovery flow after provider decision;
-6. wire Android app boot/session state and auth Compose surfaces using the frozen design system;
-7. only after account/session is green, start canonical Slot schema/state machine.
+1. add request/membership schema and unique invariants;
+2. implement REQUEST + withdraw via LEAVE semantics;
+3. host pending-request list with identity summary;
+4. implement APPROVE/REJECT;
+5. make last-seat approval atomic and update `accepted_count/state` under transaction lock;
+6. accepted participant LEAVE + `FULL → FILLING` reopen;
+7. implement host START/COMPLETE;
+8. enforce block checks on every transition;
+9. add idempotency/version/race-oriented tests;
+10. then bind these server states to Android production models/API without changing the approved design.
