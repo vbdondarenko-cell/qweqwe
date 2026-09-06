@@ -1,0 +1,83 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  html {
+    font-family: 'Inter', sans-serif;
+    background-color: #050506;
+    color: #F7F8FA;
+  }
+
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background-color: #050506;
+    overscroll-behavior: none;
+  }
+
+  ::-webkit-scrollbar {
+    width: 0;
+    height: 0;
+    display: none;
+  }
+
+  * {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+}
+
+@layer utilities {
+  .glass {
+    background: rgba(13, 14, 16, 0.72);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+  }
+
+  .glass-elevated {
+    background: rgba(20, 21, 24, 0.78);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+  }
+
+  .skeleton-shimmer {
+    background: linear-gradient(
+      90deg,
+      rgba(36, 38, 43, 0.4) 0%,
+      rgba(36, 38, 43, 0.8) 50%,
+      rgba(36, 38, 43, 0.4) 100%
+    );
+    background-size: 200% 100%;
+  }
+
+  .tabular-nums {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: 'tnum';
+  }
+
+  .no-select {
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  .safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+}
+
+@layer components {
+  .mobile-frame {
+    width: 100%;
+    max-width: 420px;
+    min-height: 100vh;
+    margin: 0 auto;
+    background-color: #050506;
+    position: relative;
+    overflow: hidden;
+  }
+}
