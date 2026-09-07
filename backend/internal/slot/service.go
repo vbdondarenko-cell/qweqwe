@@ -225,7 +225,7 @@ func normalizeCreate(in *CreateInput) error {
 	in.Title = strings.TrimSpace(in.Title)
 	in.Activity = strings.ToLower(strings.TrimSpace(in.Activity))
 	in.PlaceText = strings.TrimSpace(in.PlaceText)
-	if len([]rune(in.Title)) < 1 || len([]rune(in.Title)) > 120 || len([]rune(in.Activity)) < 1 || len([]rune(in.Activity)) > 64 || len([]rune(in.PlaceText)) < 1 || len([]rune(in.PlaceText)) > 240 || in.Capacity < 2 || in.Capacity > 10000 {
+	if len([]rune(in.Title)) < 1 || len([]rune(in.Title)) > 120 || len([]rune(in.Activity)) < 1 || len([]rune(in.Activity)) > 64 || len([]rune(in.PlaceText)) < 1 || len([]rune(in.PlaceText)) > 240 || in.Capacity < 2 || in.Capacity > MaxV1Capacity {
 		return ErrInvalidInput
 	}
 	if in.Details != nil {
@@ -296,7 +296,7 @@ func normalizeEdit(in *EditInput) error {
 		v := in.StartAt.UTC()
 		in.StartAt = &v
 	}
-	if in.Capacity != nil && (*in.Capacity < 2 || *in.Capacity > 10000) {
+	if in.Capacity != nil && (*in.Capacity < 2 || *in.Capacity > MaxV1Capacity) {
 		return ErrInvalidInput
 	}
 	return nil
