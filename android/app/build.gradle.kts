@@ -1,3 +1,5 @@
+import java.net.URI
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.plugin.compose")
@@ -9,7 +11,7 @@ fun quotedBuildConfig(value: String): String =
 fun validHttpsHostOnly(value: String): Boolean {
     if (value.isBlank() || value.contains('/') || value.contains('@') || value.contains(':')) return false
     return runCatching {
-        val uri = java.net.URI("https://$value")
+        val uri = URI("https://$value")
         uri.scheme == "https" && uri.host == value && uri.userInfo == null && uri.port == -1 &&
             uri.rawPath.isNullOrEmpty() && uri.rawQuery == null && uri.rawFragment == null
     }.getOrDefault(false)
