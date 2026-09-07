@@ -16,18 +16,20 @@ import (
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/blocklist"
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/chat"
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/identifier"
+	"github.com/vbdondarenko-cell/qweqwe/backend/internal/monetization"
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/ratelimit"
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/slot"
 )
 
 type Dependencies struct {
-	Accounts    *account.Service
-	Blocks      *blocklist.Service
-	Slots       *slot.Service
-	Chats       *chat.Service
-	Ready       func(context.Context) error
-	AuthLimiter *ratelimit.Limiter
-	UserLimiter *ratelimit.Limiter
+	Accounts     *account.Service
+	Blocks       *blocklist.Service
+	Slots        *slot.Service
+	Chats        *chat.Service
+	Monetization *monetization.Service
+	Ready        func(context.Context) error
+	AuthLimiter  *ratelimit.Limiter
+	UserLimiter  *ratelimit.Limiter
 }
 
 type Server struct {
@@ -72,6 +74,7 @@ func New(deps Dependencies) *Server {
 	mux.Handle("GET /v1/me/blocks", s.requireAuth(http.HandlerFunc(s.listBlocks)))
 	mux.Handle("PUT /v1/me/blocks/{userID}", s.requireAuth(http.HandlerFunc(s.blockUser)))
 	mux.Handle("DELETE /v1/me/blocks/{userID}", s.requireAuth(http.HandlerFunc(s.unblockUser)))
+	mux.Handle("GET /v1/me/monetization", s.requireAuth(http.HandlerFunc(s.getMonetization)))
 
 	mux.Handle("POST /v1/slots", s.requireAuth(http.HandlerFunc(s.createSlot)))
 	mux.Handle("GET /v1/slots/{slotID}", s.requireAuth(http.HandlerFunc(s.getSlot)))
