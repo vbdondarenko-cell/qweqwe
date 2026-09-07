@@ -703,6 +703,9 @@ func (s *SlotStore) claimIdempotency(ctx context.Context, tx pgx.Tx, actorID, ke
 	if existingOperation != operation || !bytes.Equal(existingHash, requestHash) {
 		return false, "", slot.ErrIdempotencyConflict
 	}
+	if err := authorizeIdempotencyReplayTx(ctx, tx, actorID, existingResource, existingOperation); err != nil {
+		return false, "", err
+	}
 	return true, existingResource, nil
 }
 
