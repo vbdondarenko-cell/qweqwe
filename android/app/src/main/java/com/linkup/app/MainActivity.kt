@@ -7,7 +7,6 @@ import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -47,7 +46,6 @@ class MainActivity : ComponentActivity() {
     // Password reset credentials are intentionally process-memory only.
     private var pendingResetToken by mutableStateOf<String?>(null)
     private val activityScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
-    private val notificationPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -83,7 +81,7 @@ class MainActivity : ComponentActivity() {
         val pushConfigured = pushCoordinator.configure()
 
         if (pushConfigured && Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
-            notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+            requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), REQUEST_NOTIFICATIONS)
         }
         if (pushConfigured) {
             activityScope.launch {
@@ -133,5 +131,9 @@ class MainActivity : ComponentActivity() {
         pendingResetToken = token
         // Drop the URI reference after extracting the credential so it is not retained by Activity intent state.
         intent.data = null
+    }
+
+    private companion object {
+        const val REQUEST_NOTIFICATIONS = 1001
     }
 }
