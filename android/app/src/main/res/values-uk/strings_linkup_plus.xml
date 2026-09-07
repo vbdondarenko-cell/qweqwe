@@ -23,6 +23,12 @@
     <string name="plus_next_claim_format">Наступна видача бонусного дня після %1$s</string>
     <string name="plus_rewarded_weekly_limit">Ліміт: 1 раз на 7 днів (~4 дні преміуму/місяць).</string>
     <string name="plus_referral_title">Реферальна програма</string>
+    <string name="plus_your_referral_code">Твій реферальний код</string>
+    <string name="plus_enter_referral_code">Реферальний код</string>
+    <string name="plus_apply_referral_code">Застосувати код</string>
+    <string name="plus_referral_binding">Застосування…</string>
+    <string name="plus_bound_referral_format">Запрошено за кодом %1$s</string>
+    <string name="plus_referral_qualify_by_format">Перевірена підписка має бути оплачена до %1$s</string>
     <string name="plus_referral_count_format">Кваліфікованих платних рефералів: %1$d</string>
     <string name="plus_referral_deadline_format">Реферал зараховується лише після перевіреної оплати в межах %1$d днів від реєстрації.</string>
     <string name="plus_milestone_format">%1$d рефералів → рефереру %2$d днів · запрошеному, що закрив поріг, %3$d днів</string>
