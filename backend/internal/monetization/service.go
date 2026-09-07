@@ -2,20 +2,30 @@ package monetization
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
+	"strings"
 	"time"
 )
 
 const (
-	MonthlyPriceUAHMinor      = 14999
-	AnnualEffectiveUAHMinor   = 9999
-	AnnualTotalUAHMinor       = 119988
-	AnnualSavingsUAHMinor     = 60000
-	RewardedVideosRequired    = 5
-	RewardedNominalHours      = 20
+	MonthlyPriceUAHMinor    = 14999
+	AnnualEffectiveUAHMinor = 9999
+	AnnualTotalUAHMinor     = 119988
+	AnnualSavingsUAHMinor   = 60000
+	RewardedVideosRequired  = 5
+	RewardedNominalHours    = 20
+	ReferralDeadlineDays    = 14
 )
 
-var ErrUnavailable = errors.New("monetization unavailable")
+var (
+	ErrUnavailable         = errors.New("monetization unavailable")
+	ErrInvalidReferralCode = errors.New("invalid referral code")
+	ErrReferralAlreadyBound = errors.New("referral already bound")
+	ErrSelfReferral        = errors.New("self referral is not allowed")
+	ErrReferralExpired     = errors.New("referral deadline expired")
+)
 
 type Plan struct {
 	ID                       string `json:"id"`
@@ -26,28 +36,28 @@ type Plan struct {
 }
 
 type RewardedPolicy struct {
-	VideoIntervalSeconds int64 `json:"videoIntervalSeconds"`
-	VideosRequired       int   `json:"videosRequired"`
-	NominalCompletionHours int `json:"nominalCompletionHours"`
-	RewardSeconds        int64 `json:"rewardSeconds"`
-	ClaimCooldownSeconds int64 `json:"claimCooldownSeconds"`
+	VideoIntervalSeconds   int64 `json:"videoIntervalSeconds"`
+	VideosRequired         int   `json:"videosRequired"`
+	NominalCompletionHours int   `json:"nominalCompletionHours"`
+	RewardSeconds          int64 `json:"rewardSeconds"`
+	ClaimCooldownSeconds   int64 `json:"claimCooldownSeconds"`
 }
 
 type ReferralMilestone struct {
-	QualifiedReferrals int `json:"qualifiedReferrals"`
-	InviterRewardDays  int `json:"inviterRewardDays"`
-	InviteeRewardDays  int `json:"inviteeRewardDays"`
+	QualifiedReferrals int  `json:"qualifiedReferrals"`
+	InviterRewardDays  int  `json:"inviterRewardDays"`
+	InviteeRewardDays  int  `json:"inviteeRewardDays"`
 	Badge              bool `json:"badge"`
 }
 
 type Catalog struct {
-	Currency         string              `json:"currency"`
-	Plans            []Plan              `json:"plans"`
-	AnnualSavingsUAHMinor int             `json:"annualSavingsUahMinor"`
-	AnnualSavingsPercent  float64         `json:"annualSavingsPercent"`
-	Rewarded         RewardedPolicy       `json:"rewarded"`
-	ReferralDeadlineDays int              `json:"referralDeadlineDays"`
-	ReferralMilestones []ReferralMilestone `json:"referralMilestones"`
+	Currency                 string              `json:"currency"`
+	Plans                    []Plan              `json:"plans"`
+	AnnualSavingsUAHMinor    int                 `json:"annualSavingsUahMinor"`
+	AnnualSavingsPercent     float64             `json:"annualSavingsPercent"`
+	Rewarded                 RewardedPolicy      `json:"rewarded"`
+	ReferralDeadlineDays     int                 `json:"referralDeadlineDays"`
+	ReferralMilestones       []ReferralMilestone `json:"referralMilestones"`
 }
 
 type StoreStatus struct {
@@ -56,16 +66,20 @@ type StoreStatus struct {
 	LastVideoWatchedAt       *time.Time
 	LastFreePremiumClaimedAt *time.Time
 	QualifiedReferrals       int
+	BoundReferralCode        *string
+	ReferralQualifyingDeadline *time.Time
 }
 
 type Store interface {
 	Status(ctx context.Context, userID string) (StoreStatus, error)
+	EnsureReferralCode(ctx context.Context, userID, code string) (string, error)
+	BindReferral(ctx context.Context, inviteeID, code string, deadlineDays int) error
 }
 
 type Capabilities struct {
-	PaidVerification     bool `json:"paidVerification"`
-	RewardedVerification bool `json:"rewardedVerification"`
-	ReferralQualification bool `json:"referralQualification"`
+	PaidVerification       bool `json:"paidVerification"`
+	RewardedVerification   bool `json:"rewardedVerification"`
+	ReferralQualification  bool `json:"referralQualification"`
 }
 
 type RewardedStatus struct {
@@ -76,8 +90,11 @@ type RewardedStatus struct {
 }
 
 type ReferralStatus struct {
-	QualifiedReferrals int                `json:"qualifiedReferrals"`
-	NextMilestone      *ReferralMilestone `json:"nextMilestone,omitempty"`
+	ReferralCode              string             `json:"referralCode"`
+	BoundReferralCode         *string            `json:"boundReferralCode,omitempty"`
+	QualifyingDeadline        *time.Time          `json:"qualifyingDeadline,omitempty"`
+	QualifiedReferrals        int                 `json:"qualifiedReferrals"`
+	NextMilestone             *ReferralMilestone  `json:"nextMilestone,omitempty"`
 }
 
 type Status struct {
@@ -88,14 +105,14 @@ type Status struct {
 }
 
 type Snapshot struct {
-	Catalog      Catalog      `json:"catalog"`
-	Status       Status       `json:"status"`
+	Catalog       Catalog      `json:"catalog"`
+	Status        Status       `json:"status"`
 	Capabilities Capabilities `json:"capabilities"`
 }
 
 type Service struct {
-	store Store
-	now   func() time.Time
+	store        Store
+	now          func() time.Time
 	capabilities Capabilities
 }
 
@@ -111,16 +128,16 @@ func (s *Service) Catalog() Catalog {
 			{ID: "annual", BillingPeriod: "YEAR", PriceUAHMinor: AnnualTotalUAHMinor, EffectiveMonthlyUAHMinor: AnnualEffectiveUAHMinor, Total12MonthsUAHMinor: AnnualTotalUAHMinor},
 		},
 		AnnualSavingsUAHMinor: AnnualSavingsUAHMinor,
-		AnnualSavingsPercent: 33.3,
+		AnnualSavingsPercent:  33.3,
 		Rewarded: RewardedPolicy{
-			VideoIntervalSeconds: int64((4 * time.Hour) / time.Second),
-			VideosRequired: RewardedVideosRequired,
+			VideoIntervalSeconds:   int64((4 * time.Hour) / time.Second),
+			VideosRequired:         RewardedVideosRequired,
 			NominalCompletionHours: RewardedNominalHours,
-			RewardSeconds: int64((24 * time.Hour) / time.Second),
-			ClaimCooldownSeconds: int64((7 * 24 * time.Hour) / time.Second),
+			RewardSeconds:          int64((24 * time.Hour) / time.Second),
+			ClaimCooldownSeconds:   int64((7 * 24 * time.Hour) / time.Second),
 		},
-		ReferralDeadlineDays: 14,
-		ReferralMilestones: referralMilestones(),
+		ReferralDeadlineDays: ReferralDeadlineDays,
+		ReferralMilestones:   referralMilestones(),
 	}
 }
 
@@ -128,21 +145,28 @@ func (s *Service) Snapshot(ctx context.Context, userID string) (Snapshot, error)
 	if s == nil || s.store == nil || userID == "" {
 		return Snapshot{}, ErrUnavailable
 	}
+	code, err := s.store.EnsureReferralCode(ctx, userID, referralCodeForUser(userID))
+	if err != nil {
+		return Snapshot{}, err
+	}
 	raw, err := s.store.Status(ctx, userID)
 	if err != nil {
 		return Snapshot{}, err
 	}
 	now := s.now().UTC()
 	status := Status{
-		PremiumUntil: raw.PremiumUntil,
+		PremiumUntil:  raw.PremiumUntil,
 		PremiumActive: raw.PremiumUntil != nil && raw.PremiumUntil.After(now),
 		Rewarded: RewardedStatus{
-			VideosWatchedCount: raw.VideosWatchedCount,
+			VideosWatchedCount:       raw.VideosWatchedCount,
 			LastFreePremiumClaimedAt: raw.LastFreePremiumClaimedAt,
 		},
 		Referral: ReferralStatus{
+			ReferralCode:       code,
+			BoundReferralCode:  raw.BoundReferralCode,
+			QualifyingDeadline: raw.ReferralQualifyingDeadline,
 			QualifiedReferrals: raw.QualifiedReferrals,
-			NextMilestone: nextMilestone(raw.QualifiedReferrals),
+			NextMilestone:      nextMilestone(raw.QualifiedReferrals),
 		},
 	}
 	if raw.LastVideoWatchedAt != nil {
@@ -154,6 +178,34 @@ func (s *Service) Snapshot(ctx context.Context, userID string) (Snapshot, error)
 		status.Rewarded.NextFreePremiumClaimAt = &next
 	}
 	return Snapshot{Catalog: s.Catalog(), Status: status, Capabilities: s.capabilities}, nil
+}
+
+func (s *Service) BindReferral(ctx context.Context, userID, rawCode string) error {
+	if s == nil || s.store == nil || userID == "" {
+		return ErrUnavailable
+	}
+	code := strings.ToUpper(strings.TrimSpace(rawCode))
+	if !validReferralCode(code) {
+		return ErrInvalidReferralCode
+	}
+	return s.store.BindReferral(ctx, userID, code, ReferralDeadlineDays)
+}
+
+func referralCodeForUser(userID string) string {
+	sum := sha256.Sum256([]byte(userID))
+	return strings.ToUpper(hex.EncodeToString(sum[:8]))
+}
+
+func validReferralCode(code string) bool {
+	if len(code) < 6 || len(code) > 20 {
+		return false
+	}
+	for _, r := range code {
+		if (r < 'A' || r > 'Z') && (r < '0' || r > '9') {
+			return false
+		}
+	}
+	return true
 }
 
 func referralMilestones() []ReferralMilestone {
