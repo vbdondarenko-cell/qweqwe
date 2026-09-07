@@ -296,3 +296,25 @@ The Supabase findings are evidence only. No live database migration or grant cha
 - production password-recovery delivery and live backup/restore must be treated as production-operation gates, not inferred from source or the local disposable drill.
 
 Do not call v1.0 100% production-ready until those external/live gates are closed with evidence. Source/build/database verification is materially ahead of the historical status notes above.
+
+
+---
+
+## 2026-09-07 — full-stack audit refresh and migration startup race fix
+
+A fresh audit was run against GitHub `main`, the Ubuntu runtime, live Supabase and the configured Firebase/Android release inputs.
+
+- Server and GitHub `main` were synchronized at `1a04c47c9c829b02791be8904b08c8db040eba96` before this correction; the worktree was clean.
+- A brand-new disposable PostgreSQL database exposed a real concurrent-startup defect in the migration runner: two callers could race on `CREATE TABLE IF NOT EXISTS linkup_schema_migrations` before the advisory lock was acquired, producing a PostgreSQL duplicate-type catalog error.
+- `migrate.Apply` now serializes migration-ledger creation under the same transaction-scoped advisory lock before any migration decision. The focused concurrent migration test passes after the correction.
+- Fresh `go test -count=1 ./...`, `go vet ./...` and `go test -race -count=1 ./...` pass after the fix.
+- Fresh Android `:app:testDebugUnitTest :app:lintDebug :app:assembleDebug` passes against the real HTTPS debug endpoint configuration. There is still no connected Android device, AVD or `androidTest` suite on the release host, so physical runtime/instrumentation remains open.
+- Live Supabase reports all canonical migrations `000001..000011` in its managed migration history. The earlier note about an absent `public.linkup_schema_migrations` table refers only to the app runner's custom ledger and must not be interpreted as missing Supabase migration history.
+- Direct grants on LinkUp application tables are restricted to `linkup_api`; `anon` and `authenticated` do not have direct application-table grants. The remaining concrete Supabase exposure is the PostGIS surface in `public`: `spatial_ref_sys` and public executable `SECURITY DEFINER` `st_estimatedextent` overloads.
+- Live data-integrity checks found zero accepted-count mismatches, request/membership overlaps, terminal chat rows, self-blocks or expired unrevoked sessions.
+- Firebase service-account project, backend Firebase project and Android Firebase project all match `linkup-4b782`; push registration/delivery configuration initializes successfully in the running API. Live `push_devices` remains empty, so device delivery is not yet end-to-end evidence.
+- Production password recovery is not configured: SMTP/reset-delivery environment fields are absent and the public recovery endpoint correctly fails closed with HTTP 503.
+- Release API/reset/Firebase/signing properties are present; Privacy Policy and Terms HTTPS properties remain absent, so the signed release AAB gate remains intentionally closed.
+- The release runbook migration chain was corrected from the stale `000001..000007` list to the actual `000001..000011` chain.
+
+No production Supabase DDL/grant mutation was performed in this audit.

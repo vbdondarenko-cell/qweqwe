@@ -29,8 +29,8 @@ func Apply(ctx context.Context, pool *pgxpool.Pool, dir string) error {
 	if pool == nil {
 		return errors.New("nil database pool")
 	}
-	if _, err := pool.Exec(ctx, `CREATE TABLE IF NOT EXISTS linkup_schema_migrations (name text PRIMARY KEY, checksum bytea NOT NULL, applied_at timestamptz NOT NULL DEFAULT now())`); err != nil {
-		return fmt.Errorf("ensure migration ledger: %w", err)
+	if err := ensureMigrationLedger(ctx, pool); err != nil {
+		return err
 	}
 	items, err := discover(dir)
 	if err != nil {
@@ -40,6 +40,25 @@ func Apply(ctx context.Context, pool *pgxpool.Pool, dir string) error {
 		if err := applyOne(ctx, pool, m); err != nil {
 			return err
 		}
+	}
+	return nil
+}
+
+func ensureMigrationLedger(ctx context.Context, pool *pgxpool.Pool) error {
+	tx, err := pool.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		return fmt.Errorf("begin migration ledger: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock($1)`, migrationAdvisoryLock); err != nil {
+		return fmt.Errorf("lock migration ledger: %w", err)
+	}
+	if _, err := tx.Exec(ctx, `CREATE TABLE IF NOT EXISTS linkup_schema_migrations (name text PRIMARY KEY, checksum bytea NOT NULL, applied_at timestamptz NOT NULL DEFAULT now())`); err != nil {
+		return fmt.Errorf("ensure migration ledger: %w", err)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("commit migration ledger: %w", err)
 	}
 	return nil
 }

@@ -581,3 +581,18 @@ Not green / requires external production evidence:
 - production recovery-delivery smoke and production backup/restore operational evidence.
 
 No percentage is assigned here: release status is gate-based. v1.0 remains **NOT DONE** until every required release gate above is closed, even though the previously unexecuted build/test/database gates are now green.
+
+
+## 27. 2026-09-07 — audited current v1.0 state
+
+Current executed state superseding older audit assumptions:
+
+- GitHub/server source parity verified before the audit correction.
+- Fresh Go unit/integration, vet and race gates are green after fixing concurrent migration-ledger creation.
+- Fresh Android debug unit/lint/assemble gate is green.
+- Supabase managed migration history contains `000001..000011`; core application-table grants are Go-API-only through `linkup_api`.
+- Live database integrity checks are green for current v1.0 invariants.
+- Ubuntu API/Caddy/HTTPS/App Links are healthy and the API systemd sandbox reports an `OK` exposure score.
+- Firebase project/config identity is consistent across service account, backend and Android build configuration; physical FCM delivery remains unverified because no device token is registered.
+
+Remaining production gates are concrete rather than source-completeness claims: physical two-user Android regression/instrumentation, a registered FCM device and delivered push, production SMTP password recovery, Privacy/Terms HTTPS endpoints, signed release AAB verification, and remediation/acceptance of the remaining Supabase PostGIS public-surface advisories.

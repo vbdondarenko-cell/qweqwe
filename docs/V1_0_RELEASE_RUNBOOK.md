@@ -125,6 +125,10 @@ Apply the complete forward chain to a fresh disposable PostgreSQL database:
 000005_api_role_boundary.sql
 000006_chat_idempotency.sql
 000007_v1_query_indexes.sql
+000008_purge_function_search_path.sql
+000009_linkup_plus_monetization.sql
+000010_v1_database_hardening.sql
+000011_android_push_devices.sql
 ```
 
 Preferred verification through the Go migration runner:
@@ -143,7 +147,7 @@ ORDER BY name;
 
 Required:
 
-- all seven migrations recorded once;
+- all eleven migrations recorded once;
 - concurrent migration startup test passes;
 - checksum drift test passes;
 - terminal chat purge test passes;
