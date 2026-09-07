@@ -127,7 +127,7 @@ private struct MainShellView: View {
         case .pulse:
             PulseView(coordinator: social, api: services.api, session: services.session)
         case .map:
-            MapView()
+            MapView(api: services.api, session: services.session)
         case .fly:
             FlyView()
         case .me:
