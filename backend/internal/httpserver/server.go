@@ -27,6 +27,7 @@ type Dependencies struct {
 	Chats       *chat.Service
 	Ready       func(context.Context) error
 	AuthLimiter *ratelimit.Limiter
+	UserLimiter *ratelimit.Limiter
 }
 
 type Server struct {
@@ -132,6 +133,14 @@ func (s *Server) requireAuth(next http.Handler) http.Handler {
 			}
 			return
 		}
+		if s.deps.UserLimiter != nil {
+			allowed, retry := s.deps.UserLimiter.Allow(u.ID)
+			if !allowed {
+				writeRetryAfter(w, retry)
+				writeProblem(w, r, http.StatusTooManyRequests, "rate_limited", "too many authenticated requests")
+				return
+			}
+		}
 		ctx := context.WithValue(r.Context(), authKey, authContext{User: u, SessionID: sid, RawToken: raw})
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
@@ -146,14 +155,20 @@ func (s *Server) authRateLimit(next http.Handler) http.Handler {
 		key := remoteIP(r.RemoteAddr) + ":" + r.URL.Path
 		allowed, retry := s.deps.AuthLimiter.Allow(key)
 		if !allowed {
-			seconds := int((retry + time.Second - 1) / time.Second)
-			if seconds < 1 { seconds = 1 }
-			w.Header().Set("Retry-After", strconv.Itoa(seconds))
+			writeRetryAfter(w, retry)
 			writeProblem(w, r, http.StatusTooManyRequests, "rate_limited", "too many authentication attempts")
 			return
 		}
 		next.ServeHTTP(w, r)
 	})
+}
+
+func writeRetryAfter(w http.ResponseWriter, retry time.Duration) {
+	seconds := int((retry + time.Second - 1) / time.Second)
+	if seconds < 1 {
+		seconds = 1
+	}
+	w.Header().Set("Retry-After", strconv.Itoa(seconds))
 }
 
 func remoteIP(remoteAddr string) string {
