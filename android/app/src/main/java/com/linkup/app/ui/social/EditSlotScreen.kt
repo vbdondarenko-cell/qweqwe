@@ -22,9 +22,14 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.linkup.app.R
 import com.linkup.app.core.network.EditSlotInput
 import com.linkup.app.core.network.SlotModel
 import com.linkup.app.ui.theme.LinkUpBorder
@@ -47,16 +52,19 @@ fun EditSlotScreen(
     var place by remember(slot.id, slot.version) { mutableStateOf(slot.placeText) }
     var capacity by remember(slot.id, slot.version) { mutableIntStateOf(slot.capacity) }
     var startAt by rememberSaveable(slot.id, slot.version) { mutableStateOf(slot.startAtEpochMillis) }
+    val closeDescription = stringResource(R.string.a11y_close)
 
     Column(Modifier.fillMaxSize()) {
         Row(
             Modifier.fillMaxWidth().border(1.dp, LinkUpBorder).padding(horizontal = 14.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            TextButton(onClick = onClose) { Text("×", color = LinkUpTextDimmed, fontSize = 24.sp) }
+            TextButton(onClick = onClose, modifier = Modifier.semantics { contentDescription = closeDescription }) {
+                Text("×", color = LinkUpTextDimmed, fontSize = 24.sp)
+            }
             Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
-                Text("Edit LINK", color = LinkUpTextPrimary, fontWeight = FontWeight.Bold)
-                Text("Server version ${slot.version}", color = LinkUpTextMuted, fontSize = 10.sp)
+                Text(stringResource(R.string.edit_link_title), color = LinkUpTextPrimary, fontWeight = FontWeight.Bold)
+                Text(stringResource(R.string.edit_server_version_format, slot.version), color = LinkUpTextMuted, fontSize = 10.sp)
             }
             TextButton(
                 onClick = {
@@ -73,25 +81,31 @@ fun EditSlotScreen(
                     )
                 },
                 enabled = !submitting && title.trim().isNotEmpty() && place.trim().isNotEmpty() && capacity >= slot.acceptedCount,
-            ) { Text(if (submitting) "Saving…" else "Save", color = LinkUpRed, fontWeight = FontWeight.Bold) }
+            ) {
+                Text(if (submitting) stringResource(R.string.common_saving) else stringResource(R.string.common_save), color = LinkUpRed, fontWeight = FontWeight.Bold)
+            }
         }
 
         Column(
             Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
-            EditField("Title", title, { title = it.take(60) })
-            EditField("Description", details, { details = it.take(1000) }, singleLine = false)
-            EditField("Location", place, { place = it.take(200) })
+            EditField(stringResource(R.string.field_title), title, { title = it.take(60) })
+            EditField(stringResource(R.string.field_details), details, { details = it.take(1000) }, singleLine = false)
+            EditField(stringResource(R.string.create_location), place, { place = it.take(200) })
             SlotScheduleField(startAt, !submitting) { startAt = it }
-            Text("Capacity", color = LinkUpTextDimmed, fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
+            Text(stringResource(R.string.field_capacity), color = LinkUpTextDimmed, fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
             Row(verticalAlignment = Alignment.CenterVertically) {
-                TextButton(onClick = { capacity = (capacity - 1).coerceAtLeast(slot.acceptedCount.coerceAtLeast(2)) }) { Text("−", color = LinkUpTextDimmed, fontSize = 22.sp) }
-                Text("$capacity", color = LinkUpTextPrimary, fontWeight = FontWeight.Bold, fontSize = 28.sp, modifier = Modifier.weight(1f), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
-                TextButton(onClick = { capacity = (capacity + 1).coerceAtMost(50) }) { Text("+", color = LinkUpTextDimmed, fontSize = 22.sp) }
+                TextButton(onClick = { capacity = (capacity - 1).coerceAtLeast(slot.acceptedCount.coerceAtLeast(2)) }) {
+                    Text("−", color = LinkUpTextDimmed, fontSize = 22.sp)
+                }
+                Text("$capacity", color = LinkUpTextPrimary, fontWeight = FontWeight.Bold, fontSize = 28.sp, modifier = Modifier.weight(1f), textAlign = TextAlign.Center)
+                TextButton(onClick = { capacity = (capacity + 1).coerceAtMost(50) }) {
+                    Text("+", color = LinkUpTextDimmed, fontSize = 22.sp)
+                }
             }
             if (capacity < slot.acceptedCount) {
-                Text("Capacity cannot be lower than ${slot.acceptedCount} accepted participants.", color = LinkUpWarning, fontSize = 12.sp)
+                Text(stringResource(R.string.edit_capacity_floor_format, slot.acceptedCount), color = LinkUpWarning, fontSize = 12.sp)
             }
             errorMessage?.let { Text(it, color = LinkUpWarning, fontSize = 12.sp) }
         }
