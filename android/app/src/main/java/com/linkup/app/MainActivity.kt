@@ -1,9 +1,13 @@
 package com.linkup.app
 
+import android.Manifest
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -19,19 +23,31 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.linkup.app.core.network.LinkUpApiClient
+import com.linkup.app.core.network.PushApiClient
 import com.linkup.app.core.network.passwordResetToken
+import com.linkup.app.core.push.PushCoordinator
 import com.linkup.app.core.session.SecureSessionStore
 import com.linkup.app.core.session.SessionCoordinator
+import com.linkup.app.core.session.SessionState
 import com.linkup.app.core.social.SocialCoordinator
 import com.linkup.app.ui.LinkUpApp
 import com.linkup.app.ui.theme.LinkUpRed
 import com.linkup.app.ui.theme.LinkUpTextDimmed
 import com.linkup.app.ui.theme.LinkUpTextPrimary
 import com.linkup.app.ui.theme.LinkUpTheme
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
     // Password reset credentials are intentionally process-memory only.
     private var pendingResetToken by mutableStateOf<String?>(null)
+    private val activityScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+    private val notificationPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -63,6 +79,28 @@ class MainActivity : ComponentActivity() {
         val api = LinkUpApiClient(apiBaseUrl, sessionStore)
         val sessionCoordinator = SessionCoordinator(api, sessionStore)
         val socialCoordinator = SocialCoordinator(api)
+        val pushCoordinator = PushCoordinator(applicationContext, PushApiClient(apiBaseUrl, sessionStore))
+        val pushConfigured = pushCoordinator.configure()
+
+        if (pushConfigured && Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+            notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
+        if (pushConfigured) {
+            activityScope.launch {
+                sessionCoordinator.state.collectLatest { state ->
+                    if (state is SessionState.SignedIn) {
+                        try {
+                            pushCoordinator.syncPendingToken()
+                        } catch (error: CancellationException) {
+                            throw error
+                        } catch (_: Exception) {
+                            // Push registration is non-critical for auth/navigation.
+                            // A later signed-in app start will retry the current FCM token.
+                        }
+                    }
+                }
+            }
+        }
 
         setContent {
             LinkUpTheme {
@@ -82,6 +120,11 @@ class MainActivity : ComponentActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         captureResetToken(intent)
+    }
+
+    override fun onDestroy() {
+        activityScope.cancel()
+        super.onDestroy()
     }
 
     private fun captureResetToken(intent: Intent?) {
