@@ -20,6 +20,13 @@ func (s *BlockStore) Block(ctx context.Context, blockerID, blockedID string, now
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 
+	if err := blockPairTx(ctx, tx, blockerID, blockedID, now); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
+}
+
+func blockPairTx(ctx context.Context, tx pgx.Tx, blockerID, blockedID string, now time.Time) error {
 	var exists bool
 	if err := tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM app_users WHERE id=$1)`, blockedID).Scan(&exists); err != nil {
 		return err
@@ -27,6 +34,16 @@ func (s *BlockStore) Block(ctx context.Context, blockerID, blockedID string, now
 	if !exists {
 		return blocklist.ErrInvalidTarget
 	}
+
+	// Social mutations lock the Slot row before checking user_blocks. Block must
+	// use the same ordering: lock every mutable Slot hosted by either side first,
+	// then publish the block and clean existing relationships. If a mutation won
+	// the Slot lock first, cleanup runs after it commits; if Block wins first, the
+	// mutation sees the committed block after waiting for the Slot lock.
+	if err := lockHostedSlotsForBlock(ctx, tx, blockerID, blockedID); err != nil {
+		return err
+	}
+
 	if _, err := tx.Exec(ctx, `
 		INSERT INTO user_blocks (blocker_id,blocked_id,created_at)
 		VALUES ($1,$2,$3)
@@ -34,38 +51,62 @@ func (s *BlockStore) Block(ctx context.Context, blockerID, blockedID string, now
 		return err
 	}
 
-	// A block immediately revokes pending requests in either host/requester direction.
+	// Pending and accepted relationships are revoked in one statement. Every
+	// affected Slot advances version exactly once, including pending-only cleanup.
+	// Membership removals also correct accepted_count and reopen FULL to FILLING.
 	if _, err := tx.Exec(ctx, `
-		DELETE FROM slot_requests r
-		USING slots s
-		WHERE r.slot_id=s.id
-		  AND ((s.host_id=$1 AND r.user_id=$2) OR (s.host_id=$2 AND r.user_id=$1))`, blockerID, blockedID); err != nil {
-		return err
-	}
-
-	// A block also revokes accepted membership. accepted_count/state/version are
-	// updated in the same transaction so authorization and capacity never diverge.
-	if _, err := tx.Exec(ctx, `
-		WITH removed AS (
+		WITH removed_requests AS (
+			DELETE FROM slot_requests r
+			USING slots s
+			WHERE r.slot_id=s.id
+			  AND ((s.host_id=$1 AND r.user_id=$2) OR (s.host_id=$2 AND r.user_id=$1))
+			RETURNING r.slot_id
+		), removed_members AS (
 			DELETE FROM slot_memberships m
 			USING slots s
 			WHERE m.slot_id=s.id
 			  AND ((s.host_id=$1 AND m.user_id=$2) OR (s.host_id=$2 AND m.user_id=$1))
 			RETURNING m.slot_id
+		), affected AS (
+			SELECT slot_id,0::int AS removed_members FROM removed_requests
+			UNION ALL
+			SELECT slot_id,1::int AS removed_members FROM removed_members
 		), counts AS (
-			SELECT slot_id,count(*)::int AS n FROM removed GROUP BY slot_id
+			SELECT slot_id,sum(removed_members)::int AS removed_members
+			FROM affected
+			GROUP BY slot_id
 		)
 		UPDATE slots s
-		SET accepted_count=GREATEST(0,s.accepted_count-counts.n),
-			state=CASE WHEN s.state='FULL' THEN 'FILLING' ELSE s.state END,
+		SET accepted_count=GREATEST(0,s.accepted_count-counts.removed_members),
+			state=CASE WHEN counts.removed_members>0 AND s.state='FULL' THEN 'FILLING' ELSE s.state END,
 			version=s.version+1,
 			updated_at=$3
 		FROM counts
 		WHERE s.id=counts.slot_id`, blockerID, blockedID, now); err != nil {
 		return err
 	}
+	return nil
+}
 
-	return tx.Commit(ctx)
+func lockHostedSlotsForBlock(ctx context.Context, tx pgx.Tx, a, b string) error {
+	rows, err := tx.Query(ctx, `
+		SELECT id
+		FROM slots
+		WHERE host_id IN ($1,$2)
+		  AND state NOT IN ('COMPLETED','CANCELLED','EXPIRED','MODERATED')
+		ORDER BY id
+		FOR UPDATE`, a, b)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return err
+		}
+	}
+	return rows.Err()
 }
 
 func (s *BlockStore) Unblock(ctx context.Context, blockerID, blockedID string) error {
