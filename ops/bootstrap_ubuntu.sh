@@ -38,11 +38,16 @@ curl -fL "https://dl.google.com/android/repository/commandlinetools-linux-${ANDR
 unzip -q "$tmp/cmdline.zip" -d "$tmp/android-cli"
 rm -rf "$ANDROID_HOME/cmdline-tools/latest"
 mv "$tmp/android-cli/cmdline-tools" "$ANDROID_HOME/cmdline-tools/latest"
+sudo chown -R ubuntu:ubuntu "$ANDROID_HOME"
 
 export ANDROID_HOME
 export ANDROID_SDK_ROOT="$ANDROID_HOME"
 export PATH="/usr/local/go/bin:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools:$PATH"
+set +o pipefail
 yes | sdkmanager --licenses >/dev/null
+license_status="${PIPESTATUS[1]}"
+set -o pipefail
+test "$license_status" -eq 0
 sdkmanager 'platform-tools' 'platforms;android-37' 'build-tools;36.0.0'
 
 sudo install -d -o ubuntu -g ubuntu -m 0755 "$ROOT" "$ROOT/bin" "$ROOT/artifacts"
