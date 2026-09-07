@@ -18,4 +18,13 @@ final class APICodingTests: XCTestCase {
         let decoded = try APICoding.decoder().decode(TimestampEnvelope.self, from: data)
         XCTAssertEqual(decoded.createdAt.timeIntervalSince1970, 1_788_825_600, accuracy: 1)
     }
+    func testEncoderUsesCanonicalSortedKeysForMutationFingerprints() throws {
+        struct Payload: Encodable {
+            let zeta: Int
+            let alpha: Int
+        }
+        let data = try APICoding.encoder().encode(Payload(zeta: 2, alpha: 1))
+        XCTAssertEqual(String(decoding: data, as: UTF8.self), #"{"alpha":1,"zeta":2}"#)
+    }
+
 }

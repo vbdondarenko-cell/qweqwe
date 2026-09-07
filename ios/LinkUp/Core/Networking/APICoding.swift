@@ -19,6 +19,7 @@ enum APICoding {
 
     static func encoder() -> JSONEncoder {
         let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
         encoder.dateEncodingStrategy = .custom { date, encoder in
             var container = encoder.singleValueContainer()
             let formatter = ISO8601DateFormatter()

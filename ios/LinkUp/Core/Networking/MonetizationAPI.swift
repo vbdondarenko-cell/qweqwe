@@ -13,11 +13,20 @@ extension LinkUpAPI {
             throw APIError.protocolViolation("Invalid referral code.")
         }
 
-        return try await client.send(APIRequest(
-            method: .put,
-            path: "/v1/me/referral",
-            body: try encodeBody(BindReferralBody(code: normalized)),
-            idempotencyKey: UUID()
-        ))
+        do {
+            return try await client.send(APIRequest(
+                method: .put,
+                path: "/v1/me/referral",
+                body: try encodeBody(BindReferralBody(code: normalized))
+            ))
+        } catch let error as APIError {
+            if case .http(_, let code, _, _) = error, code == "referral_already_bound" {
+                let snapshot = try await monetizationSnapshot()
+                if snapshot.status.referral.boundReferralCode == normalized {
+                    return snapshot
+                }
+            }
+            throw error
+        }
     }
 }

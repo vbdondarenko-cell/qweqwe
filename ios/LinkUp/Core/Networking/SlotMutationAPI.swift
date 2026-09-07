@@ -2,11 +2,10 @@ import Foundation
 
 extension LinkUpAPI {
     func createSlot(_ body: CreateSlotBody) async throws -> SlotModel {
-        try await client.send(APIRequest(
+        try await sendIdempotent(APIRequest(
             method: .post,
             path: "/v1/slots",
-            body: try encodeBody(body),
-            idempotencyKey: UUID()
+            body: try encodeBody(body)
         ))
     }
 
@@ -20,11 +19,10 @@ extension LinkUpAPI {
         guard body.startAt == nil || !body.clearStartAt else {
             throw APIError.protocolViolation("startAt cannot be set and cleared together.")
         }
-        return try await client.send(APIRequest(
+        return try await sendIdempotent(APIRequest(
             method: .patch,
             path: "/v1/slots/\(uuidPath(slotID))",
-            body: try encodeBody(body),
-            idempotencyKey: UUID()
+            body: try encodeBody(body)
         ))
     }
 
@@ -32,11 +30,10 @@ extension LinkUpAPI {
         guard expectedVersion > 0 else {
             throw APIError.protocolViolation("expectedVersion must be positive.")
         }
-        return try await client.send(APIRequest(
+        return try await sendIdempotent(APIRequest(
             method: .post,
             path: "/v1/slots/\(uuidPath(slotID))/cancel",
-            body: try encodeBody(ExpectedVersionBody(expectedVersion: expectedVersion)),
-            idempotencyKey: UUID()
+            body: try encodeBody(ExpectedVersionBody(expectedVersion: expectedVersion))
         ))
     }
 
@@ -57,10 +54,9 @@ extension LinkUpAPI {
     }
 
     private func mutation(_ slotID: UUID, suffix: String) async throws -> SlotModel {
-        try await client.send(APIRequest(
+        try await sendIdempotent(APIRequest(
             method: .post,
-            path: "/v1/slots/\(uuidPath(slotID))/\(suffix)",
-            idempotencyKey: UUID()
+            path: "/v1/slots/\(uuidPath(slotID))/\(suffix)"
         ))
     }
 }

@@ -32,6 +32,17 @@ enum APIError: Error, LocalizedError, Sendable {
         default: false
         }
     }
+
+    var isDefinitiveMutationFailure: Bool {
+        switch self {
+        case .unauthorized:
+            true
+        case .http(let status, _, _, _):
+            (400...499).contains(status) && status != 408 && status != 429
+        default:
+            false
+        }
+    }
 }
 
 enum HTTPMethod: String, Sendable {
