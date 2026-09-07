@@ -43,4 +43,9 @@ final class AppRuntime: ObservableObject {
             state = .failed(error.localizedDescription)
         }
     }
+    func applicationBecameActive() async {
+        guard case .ready(let services) = state else { return }
+        await services.session.revalidateForForeground()
+    }
+
 }
