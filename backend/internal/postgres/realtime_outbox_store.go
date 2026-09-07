@@ -108,7 +108,10 @@ func (s *RealtimeOutboxStore) Checkpoint(ctx context.Context, connector string, 
 		return realtime.ErrCursorOutOfOrder
 	}
 	if event.Sequence == current {
-		return receiptMatches(ctx, tx, connector, event.ID, outcome)
+		if err := receiptMatches(ctx, tx, connector, event.ID, outcome); err != nil {
+			return err
+		}
+		return tx.Commit(ctx)
 	}
 	if event.Sequence != current+1 {
 		return realtime.ErrCursorOutOfOrder
@@ -161,7 +164,7 @@ func receiptMatches(ctx context.Context, tx pgx.Tx, connector, eventID string, o
 	if stored != string(outcome) {
 		return realtime.ErrReceiptConflict
 	}
-	return tx.Commit(ctx)
+	return nil
 }
 
 func validConnectorName(value string) bool {
