@@ -9,12 +9,37 @@ import android.content.pm.PackageManager
 import android.os.Build
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
+import com.linkup.app.BuildConfig
 import com.linkup.app.MainActivity
 import com.linkup.app.R
+import com.linkup.app.core.network.PushApiClient
+import com.linkup.app.core.session.SecureSessionStore
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
 
 class LinkUpFirebaseMessagingService : FirebaseMessagingService() {
+    private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
     override fun onNewToken(token: String) {
-        PushInstallationStore(applicationContext).savePendingToken(token)
+        val baseUrl = BuildConfig.LINKUP_API_BASE_URL.trim()
+        if (baseUrl.isBlank() || token.isBlank()) return
+        val sessions = SecureSessionStore(applicationContext)
+        if (sessions.load() == null) return
+        val store = PushInstallationStore(applicationContext)
+        val api = PushApiClient(baseUrl, sessions)
+        serviceScope.launch {
+            try {
+                api.registerAndroid(store.installationId(), token, BuildConfig.VERSION_NAME)
+            } catch (error: CancellationException) {
+                throw error
+            } catch (_: Exception) {
+                // Current token will be fetched and re-synced on the next signed-in app start.
+            }
+        }
     }
 
     override fun onMessageReceived(message: RemoteMessage) {
@@ -44,6 +69,11 @@ class LinkUpFirebaseMessagingService : FirebaseMessagingService() {
             .setContentIntent(openApp)
             .build()
         manager.notify(message.messageId?.hashCode() ?: System.currentTimeMillis().toInt(), notification)
+    }
+
+    override fun onDestroy() {
+        serviceScope.cancel()
+        super.onDestroy()
     }
 
     private companion object {
