@@ -1,0 +1,162 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">LinkUp</string>
+    <string name="tagline_real_world_first">Real world first.</string>
+
+    <string name="common_back">Back</string>
+    <string name="common_close">Close</string>
+    <string name="common_refresh">Refresh</string>
+    <string name="common_retry">Retry</string>
+    <string name="common_save">Save</string>
+    <string name="common_cancel">Cancel</string>
+    <string name="common_remove">Remove</string>
+    <string name="common_block">Block</string>
+    <string name="common_unblock">Unblock</string>
+    <string name="common_logout">Logout</string>
+    <string name="common_open">Open</string>
+    <string name="common_manage">Manage</string>
+    <string name="common_now">Now</string>
+    <string name="common_loading">Loading…</string>
+    <string name="common_not_available">Not available</string>
+
+    <string name="a11y_back">Go back</string>
+    <string name="a11y_close">Close screen</string>
+    <string name="a11y_refresh">Refresh content</string>
+
+    <string name="config_required_title">LinkUp configuration required</string>
+    <string name="config_required_body">Release builds require the LINKUP_API_BASE_URL Gradle property. No fallback production endpoint is hardcoded.</string>
+    <string name="config_fail_closed">Fail-closed</string>
+
+    <string name="auth_login">Login</string>
+    <string name="auth_register">Register</string>
+    <string name="auth_email_or_username">Email or username</string>
+    <string name="auth_email">Email</string>
+    <string name="auth_username">Username</string>
+    <string name="auth_display_name">Display name</string>
+    <string name="auth_password">Password</string>
+    <string name="auth_forgot_password">Forgot password?</string>
+    <string name="auth_create_account">Create account</string>
+    <string name="auth_password_recovery">Password recovery</string>
+    <string name="auth_recovery_description">We’ll send a one-time reset link if recovery delivery is configured.</string>
+    <string name="auth_send_reset_link">Send reset link</string>
+    <string name="auth_have_reset_link">I have a reset link</string>
+    <string name="auth_back_to_login">Back to login</string>
+    <string name="auth_set_new_password">Set a new password</string>
+    <string name="auth_reset_description">Paste the reset link from your email or its reset code.</string>
+    <string name="auth_reset_link_or_code">Reset link or code</string>
+    <string name="auth_new_password">New password</string>
+    <string name="auth_confirm_password">Confirm password</string>
+    <string name="auth_invalid_reset">Paste a complete reset link or code.</string>
+    <string name="auth_passwords_mismatch">Passwords do not match.</string>
+    <string name="auth_password_hint">Use at least 8 characters for your new password.</string>
+    <string name="auth_change_password">Change password</string>
+
+    <string name="nav_pulse">Pulse</string>
+    <string name="nav_map">Map</string>
+    <string name="nav_link">LINK</string>
+    <string name="nav_fly">Fly</string>
+    <string name="nav_me">Me</string>
+
+    <string name="pulse_subtitle">Real nearby LinkUps</string>
+    <string name="pulse_search_hint">Search activities, places…</string>
+    <string name="pulse_load">Load Pulse</string>
+    <string name="pulse_quiet_title">Quiet around here</string>
+    <string name="pulse_quiet_body">No public LinkUps are available right now.</string>
+    <string name="pulse_error_title">Couldn’t load Pulse</string>
+    <string name="pulse_no_matches_title">No matches</string>
+    <string name="pulse_no_matches_body">Try a different filter or search term.</string>
+    <string name="filter_all">All</string>
+    <string name="filter_social">Social</string>
+    <string name="filter_active">Active</string>
+    <string name="filter_food">Food</string>
+    <string name="slot_badge_live">LIVE</string>
+    <string name="slot_badge_full">FULL</string>
+    <string name="slot_badge_approval">APPROVAL</string>
+    <string name="slot_badge_open">OPEN</string>
+    <string name="slot_request_to_join">Request to join</string>
+    <string name="slot_request_sent">Request sent</string>
+
+    <string name="slot_title">LINK</string>
+    <string name="slot_edit">Edit</string>
+    <string name="slot_cancel_link">Cancel LINK</string>
+    <string name="slot_start">Start</string>
+    <string name="slot_complete">Complete</string>
+    <string name="slot_leave">Leave</string>
+    <string name="slot_chat">Chat</string>
+    <string name="slot_pending_requests">Pending requests</string>
+    <string name="slot_accepted_participants">Accepted participants</string>
+    <string name="slot_show">Show</string>
+    <string name="slot_capacity_format">%1$d/%2$d</string>
+    <string name="slot_hosted_by_format">Hosted by %1$s</string>
+    <string name="slot_version_format">Version %1$d</string>
+    <string name="slot_state_format">State: %1$s</string>
+    <string name="slot_request">Request</string>
+    <string name="slot_withdraw_request">Withdraw request</string>
+    <string name="slot_block_user">Block user</string>
+
+    <string name="chat_title">Coordination</string>
+    <string name="chat_subtitle">Ephemeral · accepted participants only</string>
+    <string name="chat_no_messages">No messages yet</string>
+    <string name="chat_no_messages_body">Use this chat only to coordinate this LinkUp.</string>
+    <string name="chat_unavailable">Chat unavailable</string>
+    <string name="chat_message_hint">Message…</string>
+    <string name="chat_send">Send</string>
+
+    <string name="me_title">Me</string>
+    <string name="me_edit_profile">Edit profile</string>
+    <string name="me_my_links">My LINKs</string>
+    <string name="me_blocked_people">Blocked people</string>
+    <string name="me_block_list_idle">Open this section to load your server block list.</string>
+    <string name="me_no_blocked_accounts">No blocked accounts</string>
+    <string name="me_language_format">Language: %1$s</string>
+    <string name="me_version_format">LinkUp %1$s</string>
+    <string name="me_privacy_policy">Privacy Policy</string>
+    <string name="me_terms_of_service">Terms of Service</string>
+    <string name="me_legal_unavailable">Legal link is not configured in this build.</string>
+
+    <string name="profile_edit_title">Edit profile</string>
+    <string name="profile_avatar_url">Avatar URL</string>
+    <string name="profile_visibility">Profile visibility</string>
+    <string name="profile_visibility_public">PUBLIC</string>
+    <string name="profile_visibility_hidden">HIDDEN</string>
+    <string name="profile_language">Language</string>
+    <string name="profile_language_uk">Ukrainian</string>
+    <string name="profile_language_en">English</string>
+
+    <string name="my_links_title">My LINKs</string>
+    <string name="my_links_hosting">Hosting</string>
+    <string name="my_links_joined">Joined</string>
+    <string name="my_links_requests">Requests</string>
+    <string name="my_links_empty">Nothing here yet.</string>
+    <string name="my_links_error">Couldn’t load your LINKs.</string>
+
+    <string name="create_link_title">Create LINK</string>
+    <string name="edit_link_title">Edit LINK</string>
+    <string name="field_title">Title</string>
+    <string name="field_activity">Activity</string>
+    <string name="field_details">Details</string>
+    <string name="field_place">Place</string>
+    <string name="field_zone">Zone</string>
+    <string name="field_capacity">Capacity</string>
+    <string name="field_date_time">Date &amp; time</string>
+    <string name="schedule_not_set">Not set</string>
+    <string name="schedule_choose">Choose</string>
+    <string name="schedule_clear">Clear</string>
+    <string name="schedule_dst_gap">That local time does not exist because of a daylight-saving transition.</string>
+    <string name="schedule_dst_overlap">This local time occurs twice. Choose an offset.</string>
+    <string name="create_continue">Continue</string>
+    <string name="create_preview">Preview</string>
+    <string name="create_publish">Publish LINK</string>
+    <string name="create_public_approval">Public · Approval required</string>
+    <string name="create_step_format">Step %1$d of %2$d</string>
+
+    <string name="accepted_empty">No accepted participants yet.</string>
+    <string name="accepted_error">Couldn’t load accepted participants.</string>
+    <string name="accepted_remove_title">Remove @%1$s?</string>
+    <string name="accepted_remove_body">They will lose participation and chat access for this LINK. This does not block their account; they can request to join again while the LINK accepts requests.</string>
+
+    <string name="block_confirm_title">Block @%1$s?</string>
+    <string name="block_confirm_body">Blocking immediately removes current request or participation relationships between you where applicable and prevents further LinkUp interaction.</string>
+
+    <string name="capability_not_active">This capability is not active in v1.0.</string>
+</resources>
