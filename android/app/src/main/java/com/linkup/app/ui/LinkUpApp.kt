@@ -37,9 +37,13 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
 import com.linkup.app.R
 import com.linkup.app.core.city.CityNetworkCoordinator
+import com.linkup.app.core.city.mapViewportAround
 import com.linkup.app.core.network.ApiException
 import com.linkup.app.core.network.BlockedUser
+import com.linkup.app.core.network.CanonicalPlace
 import com.linkup.app.core.network.LinkUpApiClient
+import com.linkup.app.core.network.MapCluster
+import com.linkup.app.core.network.MapViewportQuery
 import com.linkup.app.core.network.MySlotsView
 import com.linkup.app.core.network.SlotModel
 import com.linkup.app.core.network.SlotOrganizer
@@ -52,10 +56,10 @@ import com.linkup.app.core.social.SocialCoordinator
 import com.linkup.app.core.social.SocialError
 import com.linkup.app.ui.auth.AuthScreen
 import com.linkup.app.ui.design.FrozenBottomNav
+import com.linkup.app.ui.design.FrozenFlyScreen
 import com.linkup.app.ui.design.FrozenMainTab
 import com.linkup.app.ui.design.FrozenMapScreen
 import com.linkup.app.ui.design.FrozenMeScreen
-import com.linkup.app.ui.design.FrozenFlyScreen
 import com.linkup.app.ui.design.FrozenPulseScreen
 import com.linkup.app.ui.design.canJoin
 import com.linkup.app.ui.me.EditProfileScreen
@@ -80,6 +84,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
 private enum class MainTab { PULSE, MAP, LINK, FLY, ME }
+private const val MAP_DISCOVERY_WINDOW_MS = 48L * 60L * 60L * 1000L
 
 @Composable
 fun LinkUpApp(
@@ -232,6 +237,8 @@ private fun SignedInRoot(
     val chat by social.chat.collectAsState()
     val mutation by social.mutation.collectAsState()
     val placeSearch by city.places.collectAsState()
+    val mapClusters by city.map.collectAsState()
+    val mapPlaceSlots by city.mapSlots.collectAsState()
     val genericError = stringResource(R.string.common_request_failed)
 
     var tab by remember { mutableStateOf(MainTab.PULSE) }
@@ -248,6 +255,9 @@ private fun SignedInRoot(
     var blockTarget by remember { mutableStateOf<SlotOrganizer?>(null) }
     var blockBusy by remember { mutableStateOf(false) }
     var blockError by remember { mutableStateOf<String?>(null) }
+    var mapCenter by remember { mutableStateOf<CanonicalPlace?>(null) }
+    var mapViewport by remember { mutableStateOf<MapViewportQuery?>(null) }
+    var selectedMapCluster by remember { mutableStateOf<MapCluster?>(null) }
 
     fun openDesignedSlot(slot: SlotModel) {
         detailOpen = true
@@ -262,6 +272,54 @@ private fun SignedInRoot(
             }
         } else {
             openDesignedSlot(slot)
+        }
+    }
+
+    fun selectMapCenter(place: CanonicalPlace) {
+        val now = System.currentTimeMillis()
+        val query = mapViewportAround(
+            center = place,
+            zoom = 13,
+            fromEpochMillis = now,
+            toEpochMillis = now + MAP_DISCOVERY_WINDOW_MS,
+        )
+        mapCenter = place
+        mapViewport = query
+        selectedMapCluster = null
+        city.clearPlaces()
+        city.clearMapSlots()
+        scope.launch { city.refreshMap(query) }
+    }
+
+    fun refreshCurrentMap() {
+        val query = mapViewport ?: return
+        selectedMapCluster = null
+        scope.launch { city.refreshMap(query) }
+    }
+
+    fun changeMapZoom(delta: Int) {
+        val center = mapCenter ?: return
+        val current = mapViewport ?: return
+        val nextZoom = (current.zoom + delta).coerceIn(1, 20)
+        if (nextZoom == current.zoom) return
+        val query = mapViewportAround(
+            center = center,
+            zoom = nextZoom,
+            fromEpochMillis = current.fromEpochMillis,
+            toEpochMillis = current.toEpochMillis,
+            limit = current.limit,
+        )
+        mapViewport = query
+        selectedMapCluster = null
+        scope.launch { city.refreshMap(query) }
+    }
+
+    fun openMapCluster(cluster: MapCluster) {
+        val placeId = cluster.placeId ?: return
+        val query = mapViewport ?: return
+        selectedMapCluster = cluster
+        scope.launch {
+            city.refreshMapPlaceSlots(placeId, query.fromEpochMillis, query.toEpochMillis)
         }
     }
 
@@ -420,6 +478,19 @@ private fun SignedInRoot(
                                 },
                             )
                             MainTab.MAP -> FrozenMapScreen(
+                                placeSearch = placeSearch,
+                                center = mapCenter,
+                                viewport = mapViewport,
+                                clusters = mapClusters,
+                                selectedCluster = selectedMapCluster,
+                                placeSlots = mapPlaceSlots,
+                                onSearchPlaces = { query -> scope.launch { city.searchPlaces(query) } },
+                                onSelectCenter = ::selectMapCenter,
+                                onRefreshMap = ::refreshCurrentMap,
+                                onZoomIn = { changeMapZoom(1) },
+                                onZoomOut = { changeMapZoom(-1) },
+                                onClusterClick = ::openMapCluster,
+                                onSlotClick = ::openDesignedSlot,
                                 onOpenPulse = {
                                     tab = MainTab.PULSE
                                     scope.launch { social.refreshPulse() }
