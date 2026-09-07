@@ -6,6 +6,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/citymap"
+	"github.com/vbdondarenko-cell/qweqwe/backend/internal/slot"
 )
 
 type CityMapStore struct{ pool *pgxpool.Pool }
@@ -88,4 +89,47 @@ func (s *CityMapStore) Viewport(ctx context.Context, viewerID string, query city
 		return nil, err
 	}
 	return out, nil
+}
+
+func (s *CityMapStore) PlaceSlots(ctx context.Context, viewerID string, query citymap.PlaceSlotsQuery) ([]slot.Slot, error) {
+	if viewerID == "" || !query.Valid() {
+		return nil, citymap.ErrInvalidViewport
+	}
+	rows, err := s.pool.Query(ctx, `SELECT `+v11SlotColumns+`,
+		CASE
+			WHEN s.host_id=$1 THEN 'HOST'
+			WHEN EXISTS(SELECT 1 FROM slot_memberships m WHERE m.slot_id=s.id AND m.user_id=$1) THEN 'ACCEPTED'
+			WHEN EXISTS(SELECT 1 FROM slot_requests r WHERE r.slot_id=s.id AND r.user_id=$1) THEN 'PENDING'
+			ELSE 'NONE'
+		END
+	FROM slots s
+	JOIN app_users u ON u.id=s.host_id
+	JOIN canonical_places p ON p.id=s.canonical_place_id
+	WHERE p.id=$2::uuid
+	  AND p.active
+	  AND s.visibility='PUBLIC'
+	  AND s.state IN ('PUBLISHED','FILLING','FULL')
+	  AND s.start_at IS NOT NULL
+	  AND s.start_at >= $3 AND s.start_at < $4
+	  AND NOT EXISTS(
+		SELECT 1 FROM user_blocks b
+		WHERE (b.blocker_id=$1 AND b.blocked_id=s.host_id)
+		   OR (b.blocker_id=s.host_id AND b.blocked_id=$1)
+	  )
+	ORDER BY s.start_at,s.id
+	LIMIT $5`, viewerID, query.PlaceID, query.From, query.To, query.Limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	items := make([]slot.Slot, 0)
+	for rows.Next() {
+		item, err := scanV11Slot(rows)
+		if err != nil {
+			return nil, err
+		}
+		items = append(items, item)
+	}
+	return items, rows.Err()
 }
