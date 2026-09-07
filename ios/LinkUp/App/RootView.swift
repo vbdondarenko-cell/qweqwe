@@ -52,7 +52,7 @@ private struct SessionRootView: View {
 
     init(services: AppServices) {
         self.services = services
-        self.session = services.session
+        _session = ObservedObject(wrappedValue: services.session)
     }
 
     var body: some View {

@@ -6,6 +6,7 @@ private struct ActivityOption: Identifiable, Equatable {
     let label: String
 }
 
+@MainActor
 struct CreateLinkView: View {
     @ObservedObject var coordinator: SocialCoordinator
     let close: () -> Void
@@ -15,6 +16,7 @@ struct CreateLinkView: View {
     @State private var title = ""
     @State private var details = ""
     @State private var place = ""
+    @State private var selectedPlace: PlaceModel?
     @State private var capacity = 6
     @State private var scheduleEnabled = false
     @State private var scheduledAt = Date().addingTimeInterval(3600)
@@ -127,7 +129,11 @@ struct CreateLinkView: View {
     private var secondStep: some View {
         VStack(alignment: .leading, spacing: 20) {
             heading("Where & when?", "Set the details for your LinkUp.")
-            field("Location", placeholder: "e.g. Green Hills Coffee, Podil", text: $place)
+            PlaceSearchField(
+                coordinator: coordinator,
+                text: $place,
+                selectedPlace: $selectedPlace
+            )
             capacityControl
             scheduleControl
             optionSection(
@@ -206,6 +212,14 @@ struct CreateLinkView: View {
                                 .foregroundStyle(LinkUpPalette.textDimmed)
                         }
                     }
+                    if let selectedPlace {
+                        HStack(spacing: 6) {
+                            Image(systemName: "checkmark.seal.fill")
+                            Text("Canonical place · \(selectedPlace.subtitle.isEmpty ? selectedPlace.name : selectedPlace.subtitle)")
+                        }
+                        .font(LinkUpTypography.body(10, weight: .semibold))
+                        .foregroundStyle(LinkUpPalette.success)
+                    }
                     if !details.isEmpty {
                         Text(details).font(LinkUpTypography.body(14)).foregroundStyle(LinkUpPalette.textDimmed)
                     }
@@ -264,7 +278,7 @@ struct CreateLinkView: View {
             details: normalizedDetails.isEmpty ? nil : normalizedDetails,
             placeText: normalizedPlace,
             zoneText: nil,
-            canonicalPlaceId: nil,
+            canonicalPlaceId: selectedPlace?.id,
             startAt: scheduleEnabled ? scheduledAt : nil,
             capacity: capacity
         )
