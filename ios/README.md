@@ -44,3 +44,19 @@ This Ubuntu server has neither `swift` nor `xcodebuild`. XML/YAML/source-diff ch
 5. Real Pulse binding.
 6. Idempotent Create/Edit/Request/Approval/Chat/lifecycle binding.
 7. iOS unit/UI tests and macOS/Xcode build evidence.
+
+## Native API/session foundation
+
+Published in `44d4073d2ea32676ce14111e7f587a9d3f0ec349`:
+
+- Codable account, Slot, request and chat models;
+- release HTTPS-only endpoint validation;
+- Apple Keychain bearer persistence;
+- ephemeral, no-redirect, no-cookie, no-cache `URLSession` transport;
+- 1 MiB streamed response bound and bounded GET retry only;
+- cancellation-aware request handling;
+- typed Pulse/My LINKs/roster/request/chat reads;
+- idempotent Slot mutations and in-process ambiguous chat-send key reuse;
+- session bootstrap states for signed-out, signed-in, temporary offline and recoverable failure.
+
+Credential-entry auth publication is still open because the current tool safety boundary rejected the wrapper containing password/reset-token fields. This is recorded as incomplete rather than worked around.

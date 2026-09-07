@@ -609,3 +609,38 @@ Current verified state after production remediation:
 - Go unit/integration, vet and race gates are green; Android debug unit/lint/assemble is green.
 
 Still not production-complete: SMTP password recovery is unconfigured, no real Android FCM token is registered, physical two-user/device runtime evidence is absent, and release legal URLs are intentionally deferred. The signed release APK/AAB must remain blocked until those release inputs/gates are closed.
+
+
+## 29. 2026-09-08 — iOS explicitly activated / native SwiftUI foundation
+
+The user's direct 2026-09-08 instruction explicitly activates iOS work. The earlier conditional iOS freeze is therefore no longer the active platform gate for the work recorded below. Existing Android, Go, PostgreSQL and frozen React/TypeScript sources remain preserved; this activation does not create a second backend/domain authority.
+
+Published directly to `main`:
+
+- `27c321b2a4617314beb9c9ff16744d39e319c639` — native iOS SwiftUI design/application foundation;
+- `44d4073d2ea32676ce14111e7f587a9d3f0ec349` — native iOS API transport/session/social-contract foundation.
+
+Current iOS source now uses Swift + SwiftUI with an iOS 17 / Swift 5.10 strict-concurrency target, an XcodeGen project manifest, frozen LinkUp visual tokens/primitives, native `Pulse · Map · LINK · Fly · Me` navigation, design-safe Pulse/Map/Fly/Me surfaces and the three-step Create LINK surface with all 16 canonical activity labels.
+
+Security/network foundation now present in source:
+
+- release HTTPS-only endpoint validation with debug loopback exception and no embedded credentials/query/fragment/base-path ambiguity;
+- Apple Keychain bearer persistence using this-device-only accessibility and local expiry cleanup;
+- ephemeral `URLSession`, redirects/cookies/cache disabled, bounded timeouts and 1 MiB streamed response limit;
+- GET-only bounded retry; mutations are never blindly transport-retried;
+- cancellation stops retry work;
+- typed Codable account/Slot/chat models matching the current Go API authority;
+- typed Pulse/My LINKs/roster/request/chat reads;
+- UUID `Idempotency-Key` on critical Slot mutations;
+- ambiguous in-process chat resend reuses the same idempotency key until acknowledged or definitively rejected;
+- session bootstrap distinguishes signed-out, server-revoked, temporary offline and recoverable secure-storage/server states.
+
+No fake production social telemetry was introduced: inactive BPM/reliability/BUMP/Passport/Map/Fly values remain unavailable/empty rather than fabricated. Create LINK publish remains disabled in the visual shell until real session/API binding is wired.
+
+Executed on the Ubuntu host: repository/source parity checks, `git diff --check`, `Info.plist` XML parsing and `project.yml` YAML parsing. The host has neither `swift` nor `xcodebuild`; therefore Swift compilation, XCTest execution, simulator/device behavior, signing and App Store artifacts are **not verified and must not be marked green**.
+
+The current tooling blocked publication of the credential-entry auth wrapper containing password/reset-token fields. No bypass was attempted. Consequently registration/login/recovery UI-to-API binding is not claimed complete even though Keychain/session/transport primitives exist.
+
+Font roles are mapped to Outfit/Inter/JetBrains Mono, but the repository does not currently contain the corresponding bundled font resources, so exact iOS typography parity is not yet verified.
+
+Next dependency-safe iOS block: compile on macOS/Xcode, fix compiler findings, add the permitted native auth binding, route RootView through canonical session state, bind real Pulse/Create/Me and Slot detail/actions to `LinkUpAPI`, then add coordinator-level stale-response/double-tap tests before any production-readiness claim.
