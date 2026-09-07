@@ -5,6 +5,7 @@ import com.linkup.app.core.network.CanonicalPlace
 import com.linkup.app.core.network.CityNetworkApi
 import com.linkup.app.core.network.MapCluster
 import com.linkup.app.core.network.MapViewportQuery
+import com.linkup.app.core.network.SlotModel
 import com.linkup.app.core.social.LoadState
 import com.linkup.app.core.social.SocialError
 import java.io.IOException
@@ -18,12 +19,16 @@ class CityNetworkCoordinator(
 ) {
     private var placeRequest = 0L
     private var mapRequest = 0L
+    private var mapSlotsRequest = 0L
 
     private val mutablePlaces = MutableStateFlow<LoadState<List<CanonicalPlace>>>(LoadState.Idle)
     val places: StateFlow<LoadState<List<CanonicalPlace>>> = mutablePlaces.asStateFlow()
 
     private val mutableMap = MutableStateFlow<LoadState<List<MapCluster>>>(LoadState.Idle)
     val map: StateFlow<LoadState<List<MapCluster>>> = mutableMap.asStateFlow()
+
+    private val mutableMapSlots = MutableStateFlow<LoadState<List<SlotModel>>>(LoadState.Idle)
+    val mapSlots: StateFlow<LoadState<List<SlotModel>>> = mutableMapSlots.asStateFlow()
 
     suspend fun searchPlaces(query: String, locality: String? = null) {
         val normalized = query.trim()
@@ -50,6 +55,7 @@ class CityNetworkCoordinator(
         val request = ++mapRequest
         val previous = mutableMap.value
         mutableMap.value = previous.asRefreshingOrLoading()
+        clearMapSlots()
         try {
             val items = api.mapViewport(query)
             if (request != mapRequest) return
@@ -62,14 +68,40 @@ class CityNetworkCoordinator(
         }
     }
 
+    suspend fun refreshMapPlaceSlots(
+        placeId: String,
+        fromEpochMillis: Long,
+        toEpochMillis: Long,
+    ) {
+        val request = ++mapSlotsRequest
+        val previous = mutableMapSlots.value
+        mutableMapSlots.value = previous.asRefreshingOrLoading()
+        try {
+            val items = api.mapPlaceSlots(placeId, fromEpochMillis, toEpochMillis, 50)
+            if (request != mapSlotsRequest) return
+            mutableMapSlots.value = if (items.isEmpty()) LoadState.Empty else LoadState.Content(items)
+        } catch (error: CancellationException) {
+            if (request == mapSlotsRequest) mutableMapSlots.value = previous
+            throw error
+        } catch (error: Exception) {
+            if (request == mapSlotsRequest) mutableMapSlots.value = previous.afterRefreshFailure(error)
+        }
+    }
+
     fun clearPlaces() {
         ++placeRequest
         mutablePlaces.value = LoadState.Idle
     }
 
+    fun clearMapSlots() {
+        ++mapSlotsRequest
+        mutableMapSlots.value = LoadState.Idle
+    }
+
     fun clearMap() {
         ++mapRequest
         mutableMap.value = LoadState.Idle
+        clearMapSlots()
     }
 
     fun clearAll() {
