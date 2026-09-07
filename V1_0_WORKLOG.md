@@ -141,31 +141,117 @@ Execution evidence: Kotlin source/tests committed. Android Gradle/JVM tests rema
 
 ---
 
+## 2026-09-07 — v1.0 idempotency replay authorization
+
+Commits:
+
+- replay policy helper: `38c5ddcb4c62646020a9677ae9176ec08074ae65`;
+- policy enforcement in `claimIdempotency`: `85ef5006442afac51979dbe61b984bcf1a9752cf`;
+- PostgreSQL query-contract tests: `db2a7a0e5cbed0212c3becab0d5f53d3a76dc9d9`.
+
+Implemented:
+
+- mutation replay re-checks current authorization before any internal Slot read;
+- old create/edit/cancel/approve/reject/start/complete/remove-member keys do not bypass current host authority;
+- REQUEST replay requires the current requester relationship and current block boundary;
+- LEAVE replay cannot act as a hidden resource read after access disappears;
+- block/rejection/revocation/terminal transitions are evaluated against current database state, not the historical authority that originally created the key.
+
+Execution evidence: source and opt-in PostgreSQL test code committed. PostgreSQL execution remains open.
+
+---
+
+## 2026-09-07 — partial Gradle wrapper recovery
+
+Commits:
+
+- official Gradle v9.6.0 Windows wrapper script: `339bea3357b6f4c40f423fbae1b0249f86fc2074`;
+- POSIX wrapper script added: `2e21a0011ef0996655c8da538fec3316bcccc357`;
+- probe cleanup + POSIX executable mode: `763a37fc1fe3537e36abb4d7f8fe5149db4d786e`.
+
+Evidence / limitation:
+
+- official upstream Gradle v9.6.0 wrapper JAR is identified as Git blob `b1b8ef56b44f16b14dc800fa8103a6d89abb526f`, 48,462 bytes;
+- the available GitHub connector rejects binary blob transfer as UTF-8 and cross-repository blob reuse is rejected by GitHub object scope;
+- therefore `android/gradle/wrapper/gradle-wrapper.jar` is still **missing** and Android wrapper/build reproducibility is **not green**;
+- temporary provenance/probe files created during the object-transfer check were removed from current main.
+
+Do not claim the wrapper complete until the exact JAR is present and verified.
+
+---
+
+## 2026-09-07 — v1.0 migration-runner concurrency
+
+Commits:
+
+- transaction-scoped advisory lock: `f030b42aa71546ccb48335424d064f0285dacf3e`;
+- concurrent/repeat/checksum-drift PostgreSQL test source: `3df32abf0ce40933c9df1f40383e08ef8e45e17c`.
+
+Implemented:
+
+- each migration decision takes a fixed `pg_advisory_xact_lock` before reading the migration ledger;
+- lock lifetime is transaction-scoped, so commit/rollback/context cancellation releases it automatically;
+- concurrent API startup cannot both decide that the same migration is unapplied;
+- opt-in PostgreSQL test starts two concurrent `Apply()` calls, verifies one migration effect/one ledger row, verifies repeat no-op and checksum-drift rejection.
+
+Execution evidence: source/test committed; test requires `LINKUP_TEST_DATABASE_URL` and has not yet run in the current environment.
+
+---
+
+## 2026-09-07 — v1.0 idempotent chat send / ambiguous outcome
+
+Commits:
+
+- migration `000006_chat_idempotency.sql`: `04d46ce950ba14dd57f30d962f9270af95a8bfdb`;
+- chat model/service contract: `7a931f8d048e26f58aa4b79defee53e21df3ed9e`, `825108593cf748dbae1603abfde6eb443cabe159`, `298b1faa50d73f85cfe74e62b3d66339b78a3d64`;
+- PostgreSQL replay implementation: `63a4bad332a785382e4e9554bbfb527bffc8efc7`;
+- HTTP contract: `af1fdce8b6cf15294e6a4ff5b08dc99144f61094`, `aa82d749c036a86cffb9252406b7222c321679dc`;
+- Android in-process retry identity: `430ae42337ec989f913b039edc92e257d2b1f741`;
+- Compose draft preservation and acknowledgement-race hardening: `f611d62dd92306edbb7e16262efab84483a12974`, `13150752553d9ff74b896744250f5b206a5cd3e1`;
+- server-internal key/privacy and stale test-double cleanup: `79823a2d25552bdac3cbfcff2b1e5b81c4b49747`, `dd2687840eaeb5ad5e08acb16208615ac8c5d1a6`, `173a13dd823d0c48b46ac00549a2d60ad0d63049`, `a7c03205fc734511ea5390b3fe66676f997f83fe`.
+
+Implemented:
+
+- every chat send requires an `Idempotency-Key` 16..128 chars;
+- `(slot_id, author_id, idempotency_key)` is unique in PostgreSQL;
+- same key + same normalized text returns the same canonical message row;
+- same key + different text returns HTTP 409 `idempotency_conflict`;
+- current chat authorization is checked before replay lookup, so an old send key cannot bypass LEAVE/block/terminal revocation;
+- idempotency keys stay server-internal and are not returned to other chat participants;
+- Android retains an in-process key across network/5xx ambiguity and explicit Retry, but clears it after acknowledgement or definitive client rejection;
+- composer text is not cleared before server acknowledgement; a failure leaves the draft in place;
+- Compose only clears after observing a real `Running → Idle` mutation transition, avoiding a coroutine-start/recomposition race.
+
+Scope boundary: this is v1.0 foreground/in-process retry safety. Durable process-death mutation replay remains v1.1 and is not claimed here.
+
+Execution evidence: source/tests committed. Migration `000006`, Go tests, Android tests and device behavior remain unexecuted.
+
+---
+
 ## Open v1.0 blockers after the above work
 
 ### P0 execution/release gates
 
-- complete reproducible Android Gradle wrapper (`gradlew`, `gradlew.bat`, verified wrapper JAR);
+- obtain exact official `android/gradle/wrapper/gradle-wrapper.jar`, verify it and execute Android wrapper/build;
 - Android compile + unit/lint/instrumentation as required;
-- obtain/verify `backend/go.sum` and run full Go test/vet/race gates;
-- execute migrations `000001..000005` on disposable PostgreSQL;
-- PostgreSQL integration/concurrency tests for last seat, block races, reset/login races and terminal chat purge;
+- obtain/verify `backend/go.sum` and run full Go test/vet/race gates on the pinned supported Go toolchain;
+- execute migrations `000001..000006` on disposable PostgreSQL;
+- PostgreSQL integration/concurrency tests for last seat, block races, reset/login races, migration startup, chat idempotency and terminal chat purge;
 - verify actual Supabase role grants before live migration application;
 - real two-user Android ↔ Go ↔ PostgreSQL v1.0 smoke;
 - signing/release AAB;
 - backup/recovery + rollback exercise;
 - Ukrainian/English/accessibility release checks.
 
-### P1 source/security work still open
+### P1/P2 source/release hardening still open
 
-- idempotency replay must re-authorize current access before returning a resource after block/reject/revocation;
-- verify exact replay semantics for LEAVE separately from host/request operations;
-- review/limit remaining unbounded list/query surfaces where applicable;
-- verify migration-runner concurrency behavior;
-- complete v1.0 query/index review.
+- review/limit remaining unbounded list/query surfaces where applicable, including pending-request lists;
+- complete v1.0 query/index review;
+- verify exact Android chat retry behavior with executed tests/device transport faults;
+- review remaining v1.0 forms/state restoration/accessibility/localization against release gate.
 
 ## Next exact v1.0 block
 
-**Idempotency replay authorization**, then **build/toolchain recovery and executed verification**.
+**Bound remaining v1.0 query surfaces and perform query/index review, while continuing P0 toolchain recovery where the available environment permits.**
 
 Do not start v1.1 capability work while v1.0 release gates above remain open unless the user explicitly changes the release order.
