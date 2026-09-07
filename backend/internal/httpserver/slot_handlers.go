@@ -9,24 +9,27 @@ import (
 )
 
 type createSlotRequest struct {
-	Title     string     `json:"title"`
-	Activity  string     `json:"activity"`
-	Details   *string    `json:"details"`
-	PlaceText string     `json:"placeText"`
-	ZoneText  *string    `json:"zoneText"`
-	StartAt   *time.Time `json:"startAt"`
-	Capacity  int        `json:"capacity"`
+	Title            string     `json:"title"`
+	Activity         string     `json:"activity"`
+	Details          *string    `json:"details"`
+	PlaceText        string     `json:"placeText"`
+	ZoneText         *string    `json:"zoneText"`
+	CanonicalPlaceID *string    `json:"canonicalPlaceId"`
+	StartAt          *time.Time `json:"startAt"`
+	Capacity         int        `json:"capacity"`
 }
 
 type editSlotRequest struct {
-	ExpectedVersion int64      `json:"expectedVersion"`
-	Title           *string    `json:"title"`
-	Details         *string    `json:"details"`
-	PlaceText       *string    `json:"placeText"`
-	ZoneText        *string    `json:"zoneText"`
-	StartAt         *time.Time `json:"startAt"`
-	ClearStartAt    bool       `json:"clearStartAt"`
-	Capacity        *int       `json:"capacity"`
+	ExpectedVersion       int64      `json:"expectedVersion"`
+	Title                 *string    `json:"title"`
+	Details               *string    `json:"details"`
+	PlaceText             *string    `json:"placeText"`
+	ZoneText              *string    `json:"zoneText"`
+	CanonicalPlaceID      *string    `json:"canonicalPlaceId"`
+	ClearCanonicalPlaceID bool       `json:"clearCanonicalPlaceId"`
+	StartAt               *time.Time `json:"startAt"`
+	ClearStartAt          bool       `json:"clearStartAt"`
+	Capacity              *int       `json:"capacity"`
 }
 
 type cancelSlotRequest struct {
@@ -53,13 +56,14 @@ func (s *Server) createSlot(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	out, err := s.deps.Slots.Create(r.Context(), auth.User.ID, slot.CreateInput{
-		Title:     in.Title,
-		Activity:  in.Activity,
-		Details:   in.Details,
-		PlaceText: in.PlaceText,
-		ZoneText:  in.ZoneText,
-		StartAt:   in.StartAt,
-		Capacity:  in.Capacity,
+		Title:            in.Title,
+		Activity:         in.Activity,
+		Details:          in.Details,
+		PlaceText:        in.PlaceText,
+		ZoneText:         in.ZoneText,
+		CanonicalPlaceID: in.CanonicalPlaceID,
+		StartAt:          in.StartAt,
+		Capacity:         in.Capacity,
 	}, r.Header.Get("Idempotency-Key"))
 	if err != nil {
 		s.writeSlotError(w, r, err)
@@ -108,14 +112,16 @@ func (s *Server) editSlot(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	out, err := s.deps.Slots.Edit(r.Context(), auth.User.ID, r.PathValue("slotID"), slot.EditInput{
-		ExpectedVersion: in.ExpectedVersion,
-		Title:           in.Title,
-		Details:         in.Details,
-		PlaceText:       in.PlaceText,
-		ZoneText:        in.ZoneText,
-		StartAt:         in.StartAt,
-		ClearStartAt:    in.ClearStartAt,
-		Capacity:        in.Capacity,
+		ExpectedVersion:       in.ExpectedVersion,
+		Title:                 in.Title,
+		Details:               in.Details,
+		PlaceText:             in.PlaceText,
+		ZoneText:              in.ZoneText,
+		CanonicalPlaceID:      in.CanonicalPlaceID,
+		ClearCanonicalPlaceID: in.ClearCanonicalPlaceID,
+		StartAt:               in.StartAt,
+		ClearStartAt:          in.ClearStartAt,
+		Capacity:              in.Capacity,
 	}, r.Header.Get("Idempotency-Key"))
 	if err != nil {
 		s.writeSlotError(w, r, err)
