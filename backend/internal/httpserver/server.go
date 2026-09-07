@@ -15,6 +15,7 @@ import (
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/account"
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/blocklist"
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/chat"
+	"github.com/vbdondarenko-cell/qweqwe/backend/internal/citymap"
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/identifier"
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/monetization"
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/push"
@@ -27,6 +28,7 @@ type Dependencies struct {
 	Blocks       *blocklist.Service
 	Slots        *slot.Service
 	Chats        *chat.Service
+	Map          *citymap.Service
 	Monetization *monetization.Service
 	Push         *push.Service
 	Ready        func(context.Context) error
@@ -81,6 +83,7 @@ func New(deps Dependencies) *Server {
 	mux.Handle("PUT /v1/me/push/android", s.requireAuth(http.HandlerFunc(s.registerAndroidPush)))
 	mux.Handle("DELETE /v1/me/push/android/{installationID}", s.requireAuth(http.HandlerFunc(s.revokeAndroidPush)))
 
+	mux.Handle("GET /v1/map", s.requireAuth(http.HandlerFunc(s.mapViewport)))
 	mux.Handle("POST /v1/slots", s.requireAuth(http.HandlerFunc(s.createSlot)))
 	mux.Handle("GET /v1/slots/{slotID}", s.requireAuth(http.HandlerFunc(s.getSlot)))
 	mux.Handle("PATCH /v1/slots/{slotID}", s.requireAuth(http.HandlerFunc(s.editSlot)))
