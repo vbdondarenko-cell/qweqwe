@@ -1,28 +1,32 @@
 package com.linkup.app.core.social
 
 import com.linkup.app.core.network.ApiException
-import com.linkup.app.core.network.MySlotsView
 import com.linkup.app.core.network.ChatMessage
 import com.linkup.app.core.network.CreateSlotInput
 import com.linkup.app.core.network.EditSlotInput
+import com.linkup.app.core.network.MySlotsView
 import com.linkup.app.core.network.PendingSlotRequest
-import com.linkup.app.core.network.SocialApi
-import com.linkup.app.core.network.SlotOrganizer
 import com.linkup.app.core.network.SlotModel
+import com.linkup.app.core.network.SlotOrganizer
 import com.linkup.app.core.network.SlotState
 import com.linkup.app.core.network.SlotViewerState
+import com.linkup.app.core.network.SocialApi
 import java.io.IOException
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.CancellationException
 
 sealed interface LoadState<out T> {
     data object Idle : LoadState<Nothing>
     data object Loading : LoadState<Nothing>
     data object Empty : LoadState<Nothing>
-    data class Content<T>(val value: T) : LoadState<T>
+    data class Content<T>(
+        val value: T,
+        val refreshing: Boolean = false,
+        val refreshError: SocialError? = null,
+    ) : LoadState<T>
     data class Failure(val error: SocialError) : LoadState<Nothing>
 }
 
@@ -73,50 +77,54 @@ class SocialCoordinator(
 
     suspend fun refreshMySlots(view: MySlotsView) {
         val request = ++mySlotsRequest
-        mutableMySlots.value = LoadState.Loading
+        val previous = mutableMySlots.value
+        mutableMySlots.value = previous.asRefreshingOrLoading()
         try {
             val items = api.mySlots(view)
             if (request == mySlotsRequest) mutableMySlots.value = if (items.isEmpty()) LoadState.Empty else LoadState.Content(items)
         } catch (error: CancellationException) {
-            if (request == mySlotsRequest) mutableMySlots.value = LoadState.Idle
+            if (request == mySlotsRequest) mutableMySlots.value = previous
             throw error
         } catch (error: Exception) {
-            if (request == mySlotsRequest) mutableMySlots.value = LoadState.Failure(error.toSocialError())
+            if (request == mySlotsRequest) mutableMySlots.value = previous.afterRefreshFailure(error)
         }
     }
 
     suspend fun refreshPulse() {
         val request = ++pulseRequest
-        mutablePulse.value = LoadState.Loading
+        val previous = mutablePulse.value
+        mutablePulse.value = previous.asRefreshingOrLoading()
         try {
             val items = api.pulse()
             if (request != pulseRequest) return
             pulseItems = items
             mutablePulse.value = if (items.isEmpty()) LoadState.Empty else LoadState.Content(items)
         } catch (error: CancellationException) {
-            if (request == pulseRequest) mutablePulse.value = LoadState.Idle
+            if (request == pulseRequest) mutablePulse.value = previous
             throw error
         } catch (error: Exception) {
             if (request != pulseRequest) return
-            mutablePulse.value = LoadState.Failure(error.toSocialError())
+            mutablePulse.value = previous.afterRefreshFailure(error)
         }
     }
 
     suspend fun openSlot(slotId: String) {
-        clearSelected()
+        val current = (mutableSelectedSlot.value as? LoadState.Content)?.value
+        if (current?.id != slotId) clearSelected()
         val generation = selectionGeneration
         val request = ++slotRequest
-        mutableSelectedSlot.value = LoadState.Loading
+        val previous = mutableSelectedSlot.value
+        mutableSelectedSlot.value = previous.asRefreshingOrLoading()
         try {
             val slot = api.getSlot(slotId)
             if (generation != selectionGeneration || request != slotRequest) return
             applySelected(slot)
         } catch (error: CancellationException) {
-            if (generation == selectionGeneration && request == slotRequest) mutableSelectedSlot.value = LoadState.Idle
+            if (generation == selectionGeneration && request == slotRequest) mutableSelectedSlot.value = previous
             throw error
         } catch (error: Exception) {
             if (generation != selectionGeneration || request != slotRequest) return
-            mutableSelectedSlot.value = LoadState.Failure(error.toSocialError())
+            mutableSelectedSlot.value = previous.afterRefreshFailure(error)
         }
     }
 
@@ -140,17 +148,18 @@ class SocialCoordinator(
     suspend fun refreshPending(slotId: String) {
         val generation = selectionGeneration
         val request = ++pendingRequest
-        mutablePending.value = LoadState.Loading
+        val previous = mutablePending.value
+        mutablePending.value = previous.asRefreshingOrLoading()
         try {
             val items = api.pendingRequests(slotId)
             if (generation != selectionGeneration || request != pendingRequest) return
             mutablePending.value = if (items.isEmpty()) LoadState.Empty else LoadState.Content(items)
         } catch (error: CancellationException) {
-            if (generation == selectionGeneration && request == pendingRequest) mutablePending.value = LoadState.Idle
+            if (generation == selectionGeneration && request == pendingRequest) mutablePending.value = previous
             throw error
         } catch (error: Exception) {
             if (generation != selectionGeneration || request != pendingRequest) return
-            mutablePending.value = LoadState.Failure(error.toSocialError())
+            mutablePending.value = previous.afterRefreshFailure(error)
         }
     }
 
@@ -168,17 +177,18 @@ class SocialCoordinator(
         if (current.id != slotId || current.viewerState != SlotViewerState.HOST || current.state in terminalStates) return
         val generation = selectionGeneration
         val request = ++acceptedRequest
-        mutableAccepted.value = LoadState.Loading
+        val previous = mutableAccepted.value
+        mutableAccepted.value = previous.asRefreshingOrLoading()
         try {
             val items = api.acceptedParticipants(slotId)
             if (generation == selectionGeneration && request == acceptedRequest) {
                 mutableAccepted.value = if (items.isEmpty()) LoadState.Empty else LoadState.Content(items)
             }
         } catch (error: CancellationException) {
-            if (generation == selectionGeneration && request == acceptedRequest) mutableAccepted.value = LoadState.Idle
+            if (generation == selectionGeneration && request == acceptedRequest) mutableAccepted.value = previous
             throw error
         } catch (error: Exception) {
-            if (generation == selectionGeneration && request == acceptedRequest) mutableAccepted.value = LoadState.Failure(error.toSocialError())
+            if (generation == selectionGeneration && request == acceptedRequest) mutableAccepted.value = previous.afterRefreshFailure(error)
         }
     }
 
@@ -193,7 +203,7 @@ class SocialCoordinator(
         val generation = selectionGeneration
         val request = ++chatRequest
         val previous = mutableChat.value
-        if (previous !is LoadState.Content && previous !is LoadState.Empty) mutableChat.value = LoadState.Loading
+        mutableChat.value = previous.asRefreshingOrLoading()
         try {
             val items = api.chatMessages(slotId, limit)
             if (generation != selectionGeneration || request != chatRequest) return ChatRefreshResult.SUCCESS
@@ -204,8 +214,9 @@ class SocialCoordinator(
             throw error
         } catch (error: Exception) {
             if (generation != selectionGeneration || request != chatRequest) return ChatRefreshResult.SUCCESS
-            mutableChat.value = LoadState.Failure(error.toSocialError())
-            return if (error is ApiException && error.status in setOf(400, 401, 403, 404, 409)) ChatRefreshResult.STOP else ChatRefreshResult.RETRY
+            val stop = error.isDefinitiveAccessError()
+            mutableChat.value = if (stop) LoadState.Failure(error.toSocialError()) else previous.afterRefreshFailure(error)
+            return if (stop) ChatRefreshResult.STOP else ChatRefreshResult.RETRY
         }
     }
 
@@ -233,7 +244,7 @@ class SocialCoordinator(
             throw error
         } catch (error: Exception) {
             if (generation == selectionGeneration) {
-                if (error is ApiException && error.status in setOf(401, 403, 404, 409)) {
+                if (error.isDefinitiveAccessError()) {
                     ++chatRequest
                     mutableChat.value = LoadState.Failure(error.toSocialError())
                 }
@@ -321,6 +332,22 @@ class SocialCoordinator(
         pulseItems = updated
         mutablePulse.value = if (updated.isEmpty()) LoadState.Empty else LoadState.Content(updated)
     }
+
+    private fun <T> LoadState<T>.asRefreshingOrLoading(): LoadState<T> = when (this) {
+        is LoadState.Content -> copy(refreshing = true, refreshError = null)
+        else -> LoadState.Loading
+    }
+
+    private fun <T> LoadState<T>.afterRefreshFailure(error: Exception): LoadState<T> {
+        if (error.isDefinitiveAccessError()) return LoadState.Failure(error.toSocialError())
+        return when (this) {
+            is LoadState.Content -> copy(refreshing = false, refreshError = error.toSocialError())
+            else -> LoadState.Failure(error.toSocialError())
+        }
+    }
+
+    private fun Exception.isDefinitiveAccessError(): Boolean =
+        this is ApiException && status in setOf(400, 401, 403, 404, 409)
 
     private fun Exception.toSocialError(): SocialError = when (this) {
         is ApiException -> SocialError(code = code, message = message, requestId = requestId)
