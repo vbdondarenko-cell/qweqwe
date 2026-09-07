@@ -56,6 +56,10 @@ actor LinkUpAPI {
     }
 
     func saveCredential(from envelope: AuthEnvelope) async throws {
+        guard OpaqueTokenContract.canonical32ByteBase64URL(envelope.token) != nil,
+              envelope.expiresAt > Date() else {
+            throw APIError.protocolViolation("Server returned an invalid session credential.")
+        }
         do {
             try await credentials.save(SessionCredential(token: envelope.token, expiresAt: envelope.expiresAt))
         } catch {

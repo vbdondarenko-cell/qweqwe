@@ -2,6 +2,7 @@ import Foundation
 import Security
 
 enum KeychainStoreError: Error, Sendable {
+    case invalidCredential
     case status(OSStatus)
 }
 
@@ -10,6 +11,9 @@ actor KeychainSessionStore {
     private let account = "bearer.v1"
 
     func save(_ credential: SessionCredential) throws {
+        guard credential.hasValidTokenShape, !credential.isExpired else {
+            throw KeychainStoreError.invalidCredential
+        }
         let data = try JSONEncoder().encode(credential)
         let query = baseQuery()
         let values: [String: Any] = [
@@ -35,8 +39,8 @@ actor KeychainSessionStore {
         guard status == errSecSuccess, let data = result as? Data else {
             throw KeychainStoreError.status(status)
         }
-        let credential = try JSONDecoder().decode(SessionCredential.self, from: data)
-        if credential.isExpired {
+        guard let credential = try? JSONDecoder().decode(SessionCredential.self, from: data),
+              credential.hasValidTokenShape, !credential.isExpired else {
             clear()
             return nil
         }

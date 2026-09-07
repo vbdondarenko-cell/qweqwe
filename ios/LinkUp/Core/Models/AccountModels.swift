@@ -28,4 +28,5 @@ struct SessionCredential: Codable, Equatable, Sendable {
     let expiresAt: Date
 
     var isExpired: Bool { expiresAt <= Date() }
+    var hasValidTokenShape: Bool { OpaqueTokenContract.canonical32ByteBase64URL(token) != nil }
 }

@@ -2,7 +2,7 @@ import Foundation
 
 func passwordResetToken(from input: String) -> String? {
     let raw = input.trimmingCharacters(in: .whitespacesAndNewlines)
-    guard raw.count <= 4096 else { return nil }
+    guard raw.utf8.count <= 4096 else { return nil }
 
     let token: String
     if raw.hasPrefix("https://") {
@@ -21,19 +21,5 @@ func passwordResetToken(from input: String) -> String? {
         token = raw
     }
 
-    guard token.range(of: #"^[A-Za-z0-9_-]{43}$"#, options: .regularExpression) != nil else {
-        return nil
-    }
-
-    var encoded = token
-        .replacingOccurrences(of: "-", with: "+")
-        .replacingOccurrences(of: "_", with: "/")
-    while encoded.count % 4 != 0 { encoded.append("=") }
-    guard let data = Data(base64Encoded: encoded), data.count == 32 else { return nil }
-
-    let canonical = data.base64EncodedString()
-        .replacingOccurrences(of: "+", with: "-")
-        .replacingOccurrences(of: "/", with: "_")
-        .replacingOccurrences(of: "=", with: "")
-    return canonical == token ? token : nil
+    return OpaqueTokenContract.canonical32ByteBase64URL(token)
 }
