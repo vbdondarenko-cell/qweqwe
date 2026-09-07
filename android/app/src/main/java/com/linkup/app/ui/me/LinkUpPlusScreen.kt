@@ -18,6 +18,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -26,6 +27,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -49,6 +51,7 @@ import com.linkup.app.ui.theme.LinkUpZone
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import kotlinx.coroutines.launch
 
 private sealed interface PlusLoadState {
     data object Loading : PlusLoadState
@@ -63,11 +66,15 @@ fun LinkUpPlusScreen(
 ) {
     var state by remember { mutableStateOf<PlusLoadState>(PlusLoadState.Loading) }
     var refreshKey by remember { mutableIntStateOf(0) }
+    var referralBusy by remember { mutableStateOf(false) }
+    var referralError by remember { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
     val failed = stringResource(R.string.plus_load_failed)
 
     BackHandler(onBack = onBack)
     LaunchedEffect(refreshKey) {
         state = PlusLoadState.Loading
+        referralError = null
         state = try {
             PlusLoadState.Content(api.snapshot())
         } catch (error: Exception) {
@@ -96,18 +103,45 @@ fun LinkUpPlusScreen(
                     TextButton(onClick = { refreshKey++ }) { Text(stringResource(R.string.common_retry), color = LinkUpRed) }
                 }
             }
-            is PlusLoadState.Content -> PlusContent(current.value) { refreshKey++ }
+            is PlusLoadState.Content -> PlusContent(
+                snapshot = current.value,
+                referralBusy = referralBusy,
+                referralError = referralError,
+                onRefresh = { refreshKey++ },
+                onBindReferral = { code ->
+                    if (!referralBusy) {
+                        scope.launch {
+                            referralBusy = true
+                            referralError = null
+                            try {
+                                state = PlusLoadState.Content(api.bindReferral(code))
+                            } catch (error: Exception) {
+                                referralError = error.message ?: failed
+                            } finally {
+                                referralBusy = false
+                            }
+                        }
+                    }
+                },
+            )
         }
         Spacer(Modifier.height(20.dp))
     }
 }
 
 @Composable
-private fun PlusContent(snapshot: MonetizationSnapshotModel, onRefresh: () -> Unit) {
+private fun PlusContent(
+    snapshot: MonetizationSnapshotModel,
+    referralBusy: Boolean,
+    referralError: String?,
+    onRefresh: () -> Unit,
+    onBindReferral: (String) -> Unit,
+) {
     val status = snapshot.status
     val catalog = snapshot.catalog
     val monthly = catalog.plans.firstOrNull { it.id == "monthly" }
     val annual = catalog.plans.firstOrNull { it.id == "annual" }
+    var referralInput by remember { mutableStateOf("") }
 
     PlusCard {
         SectionTitle(stringResource(R.string.plus_status_title))
@@ -176,6 +210,8 @@ private fun PlusContent(snapshot: MonetizationSnapshotModel, onRefresh: () -> Un
 
     PlusCard {
         SectionTitle(stringResource(R.string.plus_referral_title))
+        Text(stringResource(R.string.plus_your_referral_code), color = LinkUpTextMuted, fontSize = 11.sp)
+        Text(status.referral.referralCode, color = LinkUpRed, fontWeight = FontWeight.Black, fontSize = 20.sp)
         Text(
             stringResource(R.string.plus_referral_count_format, status.referral.qualifiedReferrals),
             color = LinkUpTextPrimary,
@@ -186,6 +222,37 @@ private fun PlusContent(snapshot: MonetizationSnapshotModel, onRefresh: () -> Un
             color = LinkUpTextDimmed,
             fontSize = 12.sp,
         )
+        if (status.referral.boundReferralCode != null) {
+            Text(
+                stringResource(R.string.plus_bound_referral_format, status.referral.boundReferralCode),
+                color = LinkUpTextPrimary,
+                fontWeight = FontWeight.Bold,
+                fontSize = 12.sp,
+            )
+            status.referral.qualifyingDeadlineEpochMillis?.let {
+                Text(stringResource(R.string.plus_referral_qualify_by_format, formatDateTime(it)), color = LinkUpTextMuted, fontSize = 11.sp)
+            }
+        } else {
+            OutlinedTextField(
+                value = referralInput,
+                onValueChange = { referralInput = it.uppercase().filter { char -> char.isLetterOrDigit() }.take(20) },
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text(stringResource(R.string.plus_enter_referral_code)) },
+                singleLine = true,
+                enabled = !referralBusy,
+            )
+            TextButton(
+                onClick = { onBindReferral(referralInput) },
+                enabled = !referralBusy && referralInput.length in 6..20,
+            ) {
+                Text(
+                    if (referralBusy) stringResource(R.string.plus_referral_binding) else stringResource(R.string.plus_apply_referral_code),
+                    color = if (referralBusy) LinkUpTextMuted else LinkUpRed,
+                    fontWeight = FontWeight.Bold,
+                )
+            }
+            referralError?.let { Text(it, color = LinkUpWarning, fontSize = 11.sp) }
+        }
         catalog.referralMilestones.forEach { milestone ->
             Text(
                 stringResource(
