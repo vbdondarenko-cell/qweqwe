@@ -4,9 +4,14 @@ import (
 	"context"
 	"errors"
 	"time"
+
+	"github.com/vbdondarenko-cell/qweqwe/backend/internal/slot"
 )
 
-const MaxClusters = 200
+const (
+	MaxClusters   = 200
+	MaxPlaceSlots = 100
+)
 
 var ErrInvalidViewport = errors.New("invalid map viewport")
 
@@ -32,10 +37,7 @@ func (v Viewport) Valid() bool {
 	if v.Zoom < 1 || v.Zoom > 20 || v.Limit < 1 || v.Limit > MaxClusters {
 		return false
 	}
-	if v.From.IsZero() || v.To.IsZero() || !v.From.Before(v.To) {
-		return false
-	}
-	return v.To.Sub(v.From) <= 7*24*time.Hour
+	return validTimeWindow(v.From, v.To)
 }
 
 func (v Viewport) BucketE6() int {
@@ -63,8 +65,20 @@ type Cluster struct {
 	PlaceName  *string `json:"placeName,omitempty"`
 }
 
+type PlaceSlotsQuery struct {
+	PlaceID string
+	From    time.Time
+	To      time.Time
+	Limit   int
+}
+
+func (q PlaceSlotsQuery) Valid() bool {
+	return validUUID(q.PlaceID) && q.Limit >= 1 && q.Limit <= MaxPlaceSlots && validTimeWindow(q.From, q.To)
+}
+
 type Store interface {
 	Viewport(ctx context.Context, viewerID string, query Viewport) ([]Cluster, error)
+	PlaceSlots(ctx context.Context, viewerID string, query PlaceSlotsQuery) ([]slot.Slot, error)
 }
 
 type Service struct{ store Store }
@@ -81,4 +95,34 @@ func (s *Service) Viewport(ctx context.Context, viewerID string, query Viewport)
 		return nil, ErrInvalidViewport
 	}
 	return s.store.Viewport(ctx, viewerID, query)
+}
+
+func (s *Service) PlaceSlots(ctx context.Context, viewerID string, query PlaceSlotsQuery) ([]slot.Slot, error) {
+	if viewerID == "" || !query.Valid() {
+		return nil, ErrInvalidViewport
+	}
+	return s.store.PlaceSlots(ctx, viewerID, query)
+}
+
+func validTimeWindow(from, to time.Time) bool {
+	if from.IsZero() || to.IsZero() || !from.Before(to) {
+		return false
+	}
+	return to.Sub(from) <= 7*24*time.Hour
+}
+
+func validUUID(value string) bool {
+	if len(value) != 36 || value[8] != '-' || value[13] != '-' || value[18] != '-' || value[23] != '-' {
+		return false
+	}
+	for i := 0; i < len(value); i++ {
+		if i == 8 || i == 13 || i == 18 || i == 23 {
+			continue
+		}
+		c := value[i]
+		if !((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')) {
+			return false
+		}
+	}
+	return true
 }
