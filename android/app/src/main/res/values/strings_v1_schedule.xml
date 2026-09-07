@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="schedule_action_schedule">Schedule</string>
+    <string name="schedule_action_change">Change</string>
+    <string name="schedule_gap_format">This time does not exist in %1$s because the clocks move forward. Choose another time.</string>
+    <string name="schedule_offset_title">Choose the time offset</string>
+    <string name="schedule_offset_body">The clocks move back on this date, so this time occurs twice.</string>
+</resources>
