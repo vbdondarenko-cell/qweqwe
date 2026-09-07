@@ -3,6 +3,7 @@ package httpserver
 import (
 	"net/http"
 
+	"github.com/vbdondarenko-cell/qweqwe/backend/internal/push"
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/slot"
 )
 
@@ -21,6 +22,11 @@ func (s *Server) requestSlot(w http.ResponseWriter, r *http.Request) {
 		s.writeSlotError(w, r, err)
 		return
 	}
+	s.notifyUser(out.Organizer.ID, push.Message{
+		Title: "New LinkUp request",
+		Body: auth.User.DisplayName + " wants to join " + out.Title,
+		Data: map[string]string{"type":"slot_request", "slotId":out.ID},
+	})
 	writeJSON(w, http.StatusOK, out)
 }
 
@@ -58,11 +64,17 @@ func (s *Server) approveRequest(w http.ResponseWriter, r *http.Request) {
 		writeProblem(w, r, http.StatusServiceUnavailable, "not_ready", "slot service is unavailable")
 		return
 	}
-	out, err := s.deps.Slots.Approve(r.Context(), auth.User.ID, r.PathValue("slotID"), r.PathValue("userID"), r.Header.Get("Idempotency-Key"))
+	requesterID := r.PathValue("userID")
+	out, err := s.deps.Slots.Approve(r.Context(), auth.User.ID, r.PathValue("slotID"), requesterID, r.Header.Get("Idempotency-Key"))
 	if err != nil {
 		s.writeSlotError(w, r, err)
 		return
 	}
+	s.notifyUser(requesterID, push.Message{
+		Title: "Request approved",
+		Body: "You were approved for " + out.Title,
+		Data: map[string]string{"type":"slot_request_approved", "slotId":out.ID},
+	})
 	writeJSON(w, http.StatusOK, out)
 }
 
@@ -72,11 +84,17 @@ func (s *Server) rejectRequest(w http.ResponseWriter, r *http.Request) {
 		writeProblem(w, r, http.StatusServiceUnavailable, "not_ready", "slot service is unavailable")
 		return
 	}
-	out, err := s.deps.Slots.Reject(r.Context(), auth.User.ID, r.PathValue("slotID"), r.PathValue("userID"), r.Header.Get("Idempotency-Key"))
+	requesterID := r.PathValue("userID")
+	out, err := s.deps.Slots.Reject(r.Context(), auth.User.ID, r.PathValue("slotID"), requesterID, r.Header.Get("Idempotency-Key"))
 	if err != nil {
 		s.writeSlotError(w, r, err)
 		return
 	}
+	s.notifyUser(requesterID, push.Message{
+		Title: "Request update",
+		Body: "Your request for " + out.Title + " was not approved",
+		Data: map[string]string{"type":"slot_request_rejected", "slotId":out.ID},
+	})
 	writeJSON(w, http.StatusOK, out)
 }
 
