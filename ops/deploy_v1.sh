@@ -3,26 +3,46 @@ set -euo pipefail
 
 ROOT="/opt/linkup"
 SRC="$ROOT/src"
+ARTIFACT_ROOT="$ROOT/artifacts"
 ENV_FILE="/etc/linkup/linkup.env"
 SERVICE="linkup-api.service"
-commit="${1:-$(git -C "$SRC" rev-parse HEAD)}"
-artifact_dir="$ROOT/artifacts/$commit"
-artifact="$artifact_dir/linkup-api"
-live="$ROOT/bin/linkup-api"
-previous="$ROOT/bin/linkup-api.previous"
-next="$ROOT/bin/.linkup-api.$commit.next"
+STABLE_LINK="$ARTIFACT_ROOT/stable"
 
 fail() {
   echo "ERROR: $*" >&2
   exit 1
 }
 
-[ -f "$artifact" ] || fail "missing built runtime artifact: $artifact"
+[ -L "$STABLE_LINK" ] || fail "no promoted stable artifact; run ops/promote_v1.sh first"
+stable_target="$(readlink "$STABLE_LINK")"
+case "$stable_target" in
+  releases/*) ;;
+  *) fail "invalid stable artifact link: $stable_target" ;;
+esac
+stable_commit="${stable_target#releases/}"
+commit="${1:-$stable_commit}"
+[ "$commit" = "$stable_commit" ] || fail "refusing to deploy non-stable commit $commit (stable is $stable_commit)"
+
+artifact_dir="$ARTIFACT_ROOT/releases/$commit"
+artifact="$artifact_dir/linkup-api"
+live="$ROOT/bin/linkup-api"
+previous="$ROOT/bin/linkup-api.previous"
+next="$ROOT/bin/.linkup-api.$commit.next"
+
+[ -f "$artifact" ] || fail "missing promoted runtime artifact: $artifact"
 [ -f "$artifact_dir/SHA256SUMS.txt" ] || fail "missing artifact checksum ledger"
+[ -f "$artifact_dir/BUILD_METADATA.txt" ] || fail "missing artifact metadata"
+grep -qx "commit=$commit" "$artifact_dir/BUILD_METADATA.txt" || fail "artifact metadata commit mismatch"
+grep -qx 'state=stable' "$artifact_dir/BUILD_METADATA.txt" || fail "artifact is not promoted stable"
 sudo test -f "$ENV_FILE" || fail "missing runtime environment file"
 sudo grep -Eq '^DATABASE_URL=postgres(ql)?://' "$ENV_FILE" || fail "DATABASE_URL is not configured"
 
-expected="$(awk '$2 ~ /\/linkup-api$/ {print $1; exit}' "$artifact_dir/SHA256SUMS.txt")"
+(
+  cd "$artifact_dir"
+  sha256sum -c SHA256SUMS.txt
+)
+
+expected="$(awk '$2 == "linkup-api" {print $1; exit}' "$artifact_dir/SHA256SUMS.txt")"
 actual="$(sha256sum "$artifact" | awk '{print $1}')"
 [ -n "$expected" ] && [ "$actual" = "$expected" ] || fail "runtime artifact checksum mismatch"
 
