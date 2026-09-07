@@ -62,6 +62,8 @@ func main() {
 
 	authLimiter, err := ratelimit.New(ratelimit.Config{Limit: cfg.AuthRateLimit, Window: cfg.AuthRateWindow, IdleTTL: cfg.AuthRateIdleTTL, MaxEntries: cfg.AuthRateMaxEntries})
 	if err != nil { slog.Error("auth rate limiter init failed", "error", err); os.Exit(1) }
+	userLimiter, err := ratelimit.New(ratelimit.Config{Limit: cfg.SocialRateLimit, Window: cfg.SocialRateWindow, IdleTTL: cfg.SocialRateIdleTTL, MaxEntries: cfg.SocialRateMaxEntries})
+	if err != nil { slog.Error("authenticated user rate limiter init failed", "error", err); os.Exit(1) }
 
 	app := httpserver.New(httpserver.Dependencies{
 		Accounts: accountService,
@@ -70,6 +72,7 @@ func main() {
 		Chats: chatService,
 		Ready: pool.Ping,
 		AuthLimiter: authLimiter,
+		UserLimiter: userLimiter,
 	})
 	srv := &http.Server{
 		Addr: cfg.HTTPAddr,
