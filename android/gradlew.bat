@@ -21,24 +21,22 @@
 @rem
 @rem  gradlew startup script for Windows
 @rem
+@rem  LinkUp adds one fail-closed bootstrap step: if the wrapper JAR is absent,
+@rem  PowerShell downloads the pinned Gradle 9.6.0 wrapper and verifies its
+@rem  official SHA-256 before Java is allowed to execute it.
+@rem
 @rem ##########################################################################
 
-@rem Set local scope for the variables, and ensure extensions are enabled
 setlocal EnableExtensions
 
 set DIRNAME=%~dp0
 if "%DIRNAME%"=="" set DIRNAME=.
-@rem This is normally unused
 set APP_BASE_NAME=%~n0
 set APP_HOME=%DIRNAME%
-
-@rem Resolve any "." and ".." in APP_HOME to make it shorter.
 for %%i in ("%APP_HOME%") do set APP_HOME=%%~fi
 
-@rem Add default JVM options here. You can also use JAVA_OPTS and GRADLE_OPTS to pass JVM options to this script.
 set DEFAULT_JVM_OPTS=-Dfile.encoding=UTF-8 "-Xmx64m" "-Xms64m"
 
-@rem Find java.exe
 if defined JAVA_HOME goto findJavaFromJavaHome
 
 set JAVA_EXE=java.exe
@@ -68,15 +66,20 @@ echo location of your Java installation. 1>&2
 "%COMSPEC%" /c exit 1
 
 :execute
-@rem Setup the command line
+if exist "%APP_HOME%\gradle\wrapper\gradle-wrapper.jar" goto runGradle
+where powershell.exe >NUL 2>&1
+if not %ERRORLEVEL% equ 0 (
+    echo ERROR: PowerShell is required to bootstrap the verified Gradle wrapper JAR. 1>&2
+    "%COMSPEC%" /c exit 1
+)
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%APP_HOME%\gradle\wrapper\bootstrap-wrapper.ps1"
+if not %ERRORLEVEL% equ 0 (
+    echo ERROR: unable to bootstrap verified Gradle wrapper JAR. 1>&2
+    "%COMSPEC%" /c exit 1
+)
 
-
-
-@rem Execute gradlew
-@rem endlocal doesn't take effect until after the line is parsed and variables are expanded
-@rem which allows us to clear the local environment before executing the java command
+:runGradle
 endlocal & "%JAVA_EXE%" %DEFAULT_JVM_OPTS% %JAVA_OPTS% %GRADLE_OPTS% "-Dorg.gradle.appname=%APP_BASE_NAME%" -jar "%APP_HOME%\gradle\wrapper\gradle-wrapper.jar" %* & call :exitWithErrorLevel
 
 :exitWithErrorLevel
-@rem Use "%COMSPEC%" /c exit to allow operators to work properly in scripts
 "%COMSPEC%" /c exit %ERRORLEVEL%
