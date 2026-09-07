@@ -187,8 +187,7 @@ class LinkUpApiClient(
         require(query.westE6 != query.eastE6)
         require(query.zoom in 1..20)
         require(query.limit in 1..200)
-        require(query.fromEpochMillis < query.toEpochMillis)
-        require(query.toEpochMillis - query.fromEpochMillis <= MAX_MAP_WINDOW_MS)
+        requireValidMapWindow(query.fromEpochMillis, query.toEpochMillis)
 
         val path = buildString {
             append("/v1/map?westE6=").append(query.westE6)
@@ -203,6 +202,27 @@ class LinkUpApiClient(
         val items = request("GET", path, null, true)!!.getJSONArray("items")
         return buildList(items.length()) {
             for (index in 0 until items.length()) add(parseMapCluster(items.getJSONObject(index)))
+        }
+    }
+
+    override suspend fun mapPlaceSlots(
+        placeId: String,
+        fromEpochMillis: Long,
+        toEpochMillis: Long,
+        limit: Int,
+    ): List<SlotModel> {
+        val normalizedPlaceId = uuid(placeId)
+        requireValidMapWindow(fromEpochMillis, toEpochMillis)
+        require(limit in 1..100)
+        val path = buildString {
+            append("/v1/map/places/").append(normalizedPlaceId).append("/slots?from=")
+            append(queryParam(Instant.ofEpochMilli(fromEpochMillis).toString()))
+            append("&to=").append(queryParam(Instant.ofEpochMilli(toEpochMillis).toString()))
+            append("&limit=").append(limit)
+        }
+        val items = request("GET", path, null, true)!!.getJSONArray("items")
+        return buildList(items.length()) {
+            for (index in 0 until items.length()) add(parseSlot(items.getJSONObject(index)))
         }
     }
 
@@ -428,6 +448,12 @@ class LinkUpApiClient(
     private fun uuid(raw: String): String = UUID.fromString(raw).toString()
     private fun queryParam(raw: String): String = URLEncoder.encode(raw, Charsets.UTF_8.name())
     private fun mutationHeaders(): Map<String, String> = mapOf("Idempotency-Key" to UUID.randomUUID().toString())
+
+    private fun requireValidMapWindow(fromEpochMillis: Long, toEpochMillis: Long) {
+        require(fromEpochMillis < toEpochMillis)
+        val duration = runCatching { Math.subtractExact(toEpochMillis, fromEpochMillis) }.getOrElse { -1L }
+        require(duration in 1..MAX_MAP_WINDOW_MS)
+    }
 
     private suspend fun request(
         method: String,
