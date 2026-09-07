@@ -540,3 +540,18 @@ README §10 host-remove/version-conflict/FULL→FILLING scope now has a Kotlin/G
 Validation: source/interface review and git diff --check passed. Tests/build remain unexecuted (Go/Gradle/Kotlin/Android SDK unavailable); PostgreSQL concurrency/device evidence remains open. No production DB, deployment, migrations, iOS or design-reference changes. Existing audit work remains deferred by user instruction.
 
 Next: continue host-management requirements, including waitlist and request expiry only with their canonical domain foundations. Verified production readiness remains 0% pending executed end-to-end evidence.
+
+
+## 25. 2026-09-07 — Foreground chat polling and reconnect baseline
+
+README §§4.9/6 coordination delivery and reconnect scope now has lifecycle-aware Android polling over the existing authorized Go recent-thread endpoint.
+
+- Opening chat starts sequential snapshot reads while the Activity is RESUMED. Pause/stop/disposal cancels the polling job; resume starts a fresh read. Navigation/disposal invalidates pending chat results. Transport cancellation still follows the existing HTTP client's cancellation/timeout behavior; this does not claim immediate socket abortion.
+- ChatPollingPolicy defaults to 5-second polling and capped retry delays up to 60 seconds. These are configurable operational defaults, not measured capacity/latency guarantees. Successful reads reset retry delay; authorization/closed/not-found/client-invalid responses stop automatic retries for that foreground session. Manual refresh and later resume can recheck access.
+- Existing content remains on screen during a normal refresh. Failed reads replace content with an explicit error; send is disabled until an authorized snapshot succeeds. Server remains authoritative for every read/send.
+- Sending invalidates older snapshots; refresh skips while a mutation is active so an in-flight old snapshot cannot erase the acknowledged send. Existing bounded recent lists remain in use.
+- Added injected-delay polling/backoff/cancellation tests plus suspended-snapshot/send and access-revocation coordinator tests.
+
+Executed: source/lifecycle/call-site review and git diff --check. Kotlin tests, compilation, device foreground/background/network behavior and two-client convergence remain unexecuted because toolchains are unavailable. No new dependency, backend endpoint, deployment, migration, iOS or canonical design-reference change. This is polling, not an ordered realtime stream, durable offline outbox or push notification implementation.
+
+Next: continue durable coordination delivery foundations with persisted send identity and server idempotency before claiming offline retry. Verified production readiness remains 0% pending executed end-to-end evidence.

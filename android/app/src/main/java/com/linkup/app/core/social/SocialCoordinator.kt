@@ -187,28 +187,38 @@ class SocialCoordinator(
         mutableAccepted.value = LoadState.Idle
     }
 
-    suspend fun refreshChat(slotId: String, limit: Int = 100) {
+    suspend fun refreshChat(slotId: String, limit: Int = 100): ChatRefreshResult {
+        // A snapshot started during a send could replace its acknowledged message.
+        if (actionMutex.isLocked) return ChatRefreshResult.SUCCESS
         val generation = selectionGeneration
         val request = ++chatRequest
-        mutableChat.value = LoadState.Loading
+        val previous = mutableChat.value
+        if (previous !is LoadState.Content && previous !is LoadState.Empty) mutableChat.value = LoadState.Loading
         try {
             val items = api.chatMessages(slotId, limit)
-            if (generation != selectionGeneration || request != chatRequest) return
+            if (generation != selectionGeneration || request != chatRequest) return ChatRefreshResult.SUCCESS
             mutableChat.value = if (items.isEmpty()) LoadState.Empty else LoadState.Content(items)
+            return ChatRefreshResult.SUCCESS
         } catch (error: CancellationException) {
-            if (generation == selectionGeneration && request == chatRequest) mutableChat.value = LoadState.Idle
+            if (generation == selectionGeneration && request == chatRequest) mutableChat.value = previous
             throw error
         } catch (error: Exception) {
-            if (generation != selectionGeneration || request != chatRequest) return
+            if (generation != selectionGeneration || request != chatRequest) return ChatRefreshResult.SUCCESS
             mutableChat.value = LoadState.Failure(error.toSocialError())
+            return if (error is ApiException && error.status in setOf(400, 401, 403, 404, 409)) ChatRefreshResult.STOP else ChatRefreshResult.RETRY
         }
+    }
+
+    fun clearChat() {
+        ++chatRequest
+        mutableChat.value = LoadState.Idle
     }
 
     suspend fun sendChatMessage(slotId: String, text: String) {
         // A Mutex queue would send a second mutation after a rapid double tap.
         if (!actionMutex.tryLock()) return
         val generation = selectionGeneration
-        val thread = chatRequest
+        val thread = ++chatRequest
         mutableMutation.value = MutationState.Running
         try {
             val message = api.sendChatMessage(slotId, text)

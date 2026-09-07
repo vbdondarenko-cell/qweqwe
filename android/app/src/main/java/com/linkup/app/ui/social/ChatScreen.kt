@@ -115,7 +115,7 @@ fun ChatScreen(
                         text = ""
                     }
                 },
-                enabled = !busy && text.trim().isNotEmpty(),
+                enabled = !busy && (state is LoadState.Content || state is LoadState.Empty) && text.trim().isNotEmpty(),
             ) { Text("Send", color = LinkUpRed, fontWeight = FontWeight.Bold) }
         }
     }

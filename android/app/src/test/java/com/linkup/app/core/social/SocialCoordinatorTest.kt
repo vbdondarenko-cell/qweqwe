@@ -1,5 +1,6 @@
 package com.linkup.app.core.social
 
+import com.linkup.app.core.network.ApiException
 import com.linkup.app.core.network.MySlotsView
 import com.linkup.app.core.network.ChatMessage
 import com.linkup.app.core.network.CreateSlotInput
@@ -209,7 +210,39 @@ class SocialCoordinatorTest {
         assertIs<LoadState.Empty>(coordinator.accepted.value)
     }
 
+    @Test
+    fun oldChatSnapshotCannotEraseAcknowledgedSend() = runBlocking {
+        val response = CompletableDeferred<List<ChatMessage>>()
+        val api = FakeSocialApi().apply { chatResponse = response; messages = listOf(message()) }
+        val coordinator = SocialCoordinator(api)
+        val read = launch(start = CoroutineStart.UNDISPATCHED) { coordinator.refreshChat("slot-1") }
+        coordinator.sendChatMessage("slot-1", "hello")
+        response.complete(emptyList())
+        read.join()
+        assertEquals(listOf("m1"), assertIs<LoadState.Content<List<ChatMessage>>>(coordinator.chat.value).value.map { it.id })
+    }
+
+    @Test
+    fun chatRefreshKeepsContentWhileLoadingAndStopsOnRevocation() = runBlocking {
+        val api = FakeSocialApi().apply { messages = listOf(message()) }
+        val coordinator = SocialCoordinator(api)
+        coordinator.refreshChat("slot-1")
+        val response = CompletableDeferred<List<ChatMessage>>()
+        api.chatResponse = response
+        val read = launch(start = CoroutineStart.UNDISPATCHED) { coordinator.refreshChat("slot-1") }
+        assertIs<LoadState.Content<List<ChatMessage>>>(coordinator.chat.value)
+        read.cancelAndJoin()
+        assertIs<LoadState.Content<List<ChatMessage>>>(coordinator.chat.value)
+        api.chatResponse = null
+        api.chatError = ApiException(403, "chat_forbidden", "Access removed")
+        assertEquals(ChatRefreshResult.STOP, coordinator.refreshChat("slot-1"))
+        assertIs<LoadState.Failure>(coordinator.chat.value)
+        api.chatError = java.io.IOException("offline")
+        assertEquals(ChatRefreshResult.RETRY, coordinator.refreshChat("slot-1"))
+    }
+
     private class FakeSocialApi : SocialApi {
+        var chatError: Exception? = null
         override suspend fun removeParticipant(slotId: String, userId: String, expectedVersion: Long) = mutationResult
         var acceptedResponse: CompletableDeferred<List<SlotOrganizer>>? = null
         override suspend fun acceptedParticipants(slotId: String): List<SlotOrganizer> = acceptedResponse?.await() ?: emptyList()
@@ -244,7 +277,10 @@ class SocialCoordinatorTest {
         override suspend fun rejectRequest(slotId: String, userId: String) = mutationResult
         override suspend fun startSlot(slotId: String) = mutationResult
         override suspend fun completeSlot(slotId: String) = mutationResult
-        override suspend fun chatMessages(slotId: String, limit: Int) = chatResponse?.await() ?: messages
+        override suspend fun chatMessages(slotId: String, limit: Int): List<ChatMessage> {
+            chatError?.let { throw it }
+            return chatResponse?.await() ?: messages
+        }
         override suspend fun sendChatMessage(slotId: String, text: String) = messages.first()
     }
 

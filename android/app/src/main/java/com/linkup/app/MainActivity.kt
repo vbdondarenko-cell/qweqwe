@@ -57,6 +57,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             LinkUpTheme {
                 LinkUpApp(
+                    lifecycle = lifecycle,
                     api = api,
                     sessions = sessionCoordinator,
                     social = socialCoordinator,

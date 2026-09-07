@@ -62,6 +62,8 @@ import com.linkup.app.ui.theme.LinkUpRed
 import com.linkup.app.ui.theme.LinkUpTextDimmed
 import com.linkup.app.ui.theme.LinkUpTextMuted
 import com.linkup.app.ui.theme.LinkUpTextPrimary
+import androidx.lifecycle.Lifecycle
+import com.linkup.app.ui.social.ChatPollingEffect
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.CancellationException
 
@@ -69,6 +71,7 @@ private enum class MainTab { PULSE, MAP, LINK, FLY, ME }
 
 @Composable
 fun LinkUpApp(
+    lifecycle: Lifecycle,
     api: LinkUpApiClient,
     sessions: SessionCoordinator,
     social: SocialCoordinator,
@@ -129,7 +132,7 @@ fun LinkUpApp(
                 },
             )
             is SessionState.SignedIn -> key(state.user.id) {
-                SignedInRoot(state.user, api, sessions, social)
+                SignedInRoot(state.user, api, sessions, social, lifecycle)
             }
             is SessionState.OfflineSession -> OfflineSessionSurface(
                 expiresAt = state.expiresAtEpochMillis,
@@ -152,6 +155,7 @@ private fun SignedInRoot(
     api: LinkUpApiClient,
     sessions: SessionCoordinator,
     social: SocialCoordinator,
+    lifecycle: Lifecycle,
 ) {
     val scope = rememberCoroutineScope()
     val pulse by social.pulse.collectAsState()
@@ -234,13 +238,16 @@ private fun SignedInRoot(
                     },
                 )
             }
-            chatSlotId != null -> ChatScreen(
-                state = chat,
-                mutation = mutation,
-                onBack = { chatSlotId = null },
-                onRefresh = { scope.launch { social.refreshChat(chatSlotId!!, 100) } },
-                onSend = { text -> scope.launch { social.sendChatMessage(chatSlotId!!, text) } },
-            )
+            chatSlotId != null -> {
+                ChatPollingEffect(lifecycle, chatSlotId!!, social)
+                ChatScreen(
+                    state = chat,
+                    mutation = mutation,
+                    onBack = { chatSlotId = null },
+                    onRefresh = { scope.launch { social.refreshChat(chatSlotId!!, 100) } },
+                    onSend = { text -> scope.launch { social.sendChatMessage(chatSlotId!!, text) } },
+                )
+            }
             detailOpen -> SlotDetailScreen(
                 state = selected,
                 pending = pending,
@@ -262,7 +269,6 @@ private fun SignedInRoot(
                 onBlockUser = { target -> blockError = null; blockTarget = target },
                 onOpenChat = { id ->
                     chatSlotId = id
-                    scope.launch { social.refreshChat(id, 100) }
                 },
             )
             mySlotsOpen -> MySlotsScreen(
