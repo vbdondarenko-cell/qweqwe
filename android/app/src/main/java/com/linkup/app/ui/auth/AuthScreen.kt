@@ -54,19 +54,20 @@ fun AuthScreen(
     busy: Boolean,
     errorMessage: String?,
     infoMessage: String?,
+    initialResetToken: String? = null,
     onLogin: (String, String) -> Unit,
     onRegister: (String, String, String, String) -> Unit,
     onRecovery: (String) -> Unit,
     onResetPassword: suspend (String, String) -> Boolean,
 ) {
-    var mode by remember { mutableStateOf(AuthMode.LOGIN) }
+    var mode by remember(initialResetToken) { mutableStateOf(if (initialResetToken != null) AuthMode.RESET else AuthMode.LOGIN) }
     var email by remember { mutableStateOf("") }
     var username by remember { mutableStateOf("") }
     var displayName by remember { mutableStateOf("") }
     var identifier by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     // Reset credentials are intentionally memory-only, never saved instance state.
-    var resetInput by remember { mutableStateOf("") }
+    var resetInput by remember(initialResetToken) { mutableStateOf(initialResetToken.orEmpty()) }
     var newPassword by remember { mutableStateOf("") }
     var confirmation by remember { mutableStateOf("") }
     val scope = rememberCoroutineScope()
