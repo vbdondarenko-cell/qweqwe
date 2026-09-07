@@ -32,9 +32,10 @@ type EncryptedDevice struct {
 }
 
 type StoredToken struct {
-	Ciphertext []byte
-	Nonce      []byte
-	KeyID      string
+	InstallationID string
+	Ciphertext     []byte
+	Nonce          []byte
+	KeyID          string
 }
 
 type Store interface {
@@ -99,7 +100,7 @@ func (s *Service) RegisterAndroid(ctx context.Context, userID, sessionID, instal
 	if _, err := rand.Read(nonce); err != nil {
 		return fmt.Errorf("push nonce entropy: %w", err)
 	}
-	ciphertext := s.aead.Seal(nil, nonce, []byte(token), []byte(userID+"|"+installationID+"|"+s.keyID))
+	ciphertext := s.aead.Seal(nil, nonce, []byte(token), []byte(aad(userID, installationID, s.keyID)))
 	hash := sha256.Sum256([]byte(token))
 	return s.store.UpsertAndroid(ctx, EncryptedDevice{
 		ID: id, UserID: userID, SessionID: sessionID, InstallationID: installationID,
@@ -136,9 +137,8 @@ func (s *Service) NotifyUser(ctx context.Context, userID string, message Message
 			if firstErr == nil { firstErr = errors.New("push token key mismatch") }
 			continue
 		}
-		plain, err := s.aead.Open(nil, stored.Nonce, stored.Ciphertext, []byte(userID+"|"+""+"|"+s.keyID))
+		plain, err := s.aead.Open(nil, stored.Nonce, stored.Ciphertext, []byte(aad(userID, stored.InstallationID, s.keyID)))
 		if err != nil {
-			// Legacy rows cannot be decrypted without their installation id in AAD.
 			if firstErr == nil { firstErr = err }
 			continue
 		}
@@ -147,6 +147,10 @@ func (s *Service) NotifyUser(ctx context.Context, userID string, message Message
 		}
 	}
 	return firstErr
+}
+
+func aad(userID, installationID, keyID string) string {
+	return userID + "|" + installationID + "|" + keyID
 }
 
 func validUUID(v string) bool {
