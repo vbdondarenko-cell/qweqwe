@@ -18,6 +18,7 @@ import (
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/httpserver"
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/monetization"
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/password"
+	"github.com/vbdondarenko-cell/qweqwe/backend/internal/places"
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/postgres"
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/push"
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/ratelimit"
@@ -71,6 +72,8 @@ func main() {
 	if err != nil { slog.Error("map store init failed", "error", err); os.Exit(1) }
 	mapService, err := citymap.NewService(mapStore)
 	if err != nil { slog.Error("map service init failed", "error", err); os.Exit(1) }
+	placeService, err := places.NewService(postgres.NewPlaceStore(pool))
+	if err != nil { slog.Error("place service init failed", "error", err); os.Exit(1) }
 
 	monetizationService := monetization.NewService(postgres.NewMonetizationStore(pool))
 
@@ -98,6 +101,7 @@ func main() {
 		Slots: slotService,
 		Chats: chatService,
 		Map: mapService,
+		Places: placeService,
 		Monetization: monetizationService,
 		Push: pushService,
 		Ready: pool.Ping,
