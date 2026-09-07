@@ -7,7 +7,10 @@ fi
 
 PROJECT_REF="oavnrlwsfiiehluubwjk"
 API_ROLE="linkup_api"
-PRIMARY_ENV="/etc/linkup/linkup.env"
+DB_HOST="${LINKUP_SUPABASE_DB_HOST:-aws-1-eu-west-1.pooler.supabase.com}"
+DB_PORT="${LINKUP_SUPABASE_DB_PORT:-6543}"
+DB_NAME="${LINKUP_SUPABASE_DB_NAME:-postgres}"
+ADMIN_USER="${LINKUP_SUPABASE_ADMIN_USER:-postgres.${PROJECT_REF}}"
 SECRET_ENV="/etc/linkup/linkup-api-secrets.env"
 BUILD_ENV="/etc/linkup/build.env"
 FIREBASE_SA="/etc/linkup/firebase-service-account.json"
@@ -17,44 +20,32 @@ JKS_ALIAS="linkup-key-alias"
 fail() { echo "ERROR: $*" >&2; exit 1; }
 
 command -v openssl >/dev/null || fail "openssl is required"
-command -v python3 >/dev/null || fail "python3 is required"
 command -v psql >/dev/null || fail "psql is required"
 command -v keytool >/dev/null || fail "keytool is required"
-[ -s "$PRIMARY_ENV" ] || fail "$PRIMARY_ENV is missing"
 [ -s "$BUILD_ENV" ] || fail "$BUILD_ENV is missing"
 [ -s "$FIREBASE_SA" ] || fail "$FIREBASE_SA is missing"
 
-ADMIN_URL="$(python3 - "$PRIMARY_ENV" <<'PY'
-import sys
-for raw in open(sys.argv[1], encoding='utf-8'):
-    line = raw.strip()
-    if line.startswith('DATABASE_URL='):
-        print(line.split('=', 1)[1])
-        break
-PY
-)"
-[ -n "$ADMIN_URL" ] || fail "DATABASE_URL is missing from primary runtime env"
-
-mapfile -d '' -t DB_PARTS < <(printf '%s' "$ADMIN_URL" | python3 -c '
-import sys, urllib.parse
-u=urllib.parse.urlsplit(sys.stdin.read().strip())
-parts=[urllib.parse.unquote(u.username or ""), urllib.parse.unquote(u.password or ""), u.hostname or "", str(u.port or 5432), (u.path or "/postgres").lstrip("/") or "postgres"]
-sys.stdout.write("\0".join(parts)+"\0")
-')
-unset ADMIN_URL
-[ "${#DB_PARTS[@]}" -eq 5 ] || fail "unable to parse admin DATABASE_URL"
-ADMIN_USER="${DB_PARTS[0]}"
-ADMIN_PASS="${DB_PARTS[1]}"
-DB_HOST="${DB_PARTS[2]}"
-DB_PORT="${DB_PARTS[3]}"
-DB_NAME="${DB_PARTS[4]}"
-unset DB_PARTS
-[ -n "$ADMIN_USER" ] && [ -n "$ADMIN_PASS" ] && [ -n "$DB_HOST" ] || fail "admin DATABASE_URL is incomplete"
+if [ -n "${LINKUP_SUPABASE_ADMIN_PASSWORD:-}" ]; then
+  ADMIN_PASS="$LINKUP_SUPABASE_ADMIN_PASSWORD"
+else
+  if [ ! -t 0 ]; then
+    fail "interactive terminal required for Supabase postgres password"
+  fi
+  read -rsp "Supabase postgres password: " ADMIN_PASS
+  echo
+fi
+[ -n "$ADMIN_PASS" ] || fail "Supabase postgres password is empty"
 
 RUNTIME_PASS="$(openssl rand -hex 32)"
 export PGHOST="$DB_HOST" PGPORT="$DB_PORT" PGDATABASE="$DB_NAME" PGUSER="$ADMIN_USER" PGPASSWORD="$ADMIN_PASS" PGSSLMODE=require
-printf "ALTER ROLE %s WITH LOGIN PASSWORD '%s' CONNECTION LIMIT 20;\n" "$API_ROLE" "$RUNTIME_PASS" | psql -v ON_ERROR_STOP=1 >/dev/null
-unset ADMIN_USER ADMIN_PASS PGPASSWORD
+psql -v ON_ERROR_STOP=1 -v runtime_pass="$RUNTIME_PASS" -v api_role="$API_ROLE" >/dev/null <<'SQL'
+SELECT format(
+  'ALTER ROLE %I WITH LOGIN PASSWORD %L CONNECTION LIMIT 20',
+  :'api_role',
+  :'runtime_pass'
+) \gexec
+SQL
+unset ADMIN_PASS LINKUP_SUPABASE_ADMIN_PASSWORD PGPASSWORD
 
 export PGUSER="${API_ROLE}.${PROJECT_REF}" PGPASSWORD="$RUNTIME_PASS"
 psql -v ON_ERROR_STOP=1 -Atqc 'select current_user' >/dev/null
