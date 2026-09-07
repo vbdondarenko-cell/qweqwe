@@ -80,15 +80,16 @@ func TestChatSendAndReadHTTP(t *testing.T) {
 	if firstRec.Code != http.StatusCreated {
 		t.Fatalf("send status=%d body=%s", firstRec.Code, firstRec.Body.String())
 	}
+	firstBody := append([]byte(nil), firstRec.Body.Bytes()...)
 	var first chat.Message
-	if err := json.NewDecoder(firstRec.Body).Decode(&first); err != nil {
+	if err := json.Unmarshal(firstBody, &first); err != nil {
 		t.Fatal(err)
 	}
 	if first.Text != "hello" || first.Author.Username != "alice" {
 		t.Fatalf("unexpected sent message: %#v", first)
 	}
 	var raw map[string]any
-	if err := json.Unmarshal(firstRec.Body.Bytes(), &raw); err != nil {
+	if err := json.Unmarshal(firstBody, &raw); err != nil {
 		t.Fatal(err)
 	}
 	if _, leaked := raw["idempotencyKey"]; leaked {
@@ -162,17 +163,16 @@ func TestChatForbiddenAndClosedAreExplicit(t *testing.T) {
 	}
 }
 
-func TestChatRejectsInvalidLimitAndOversizedMessage(t *testing.T) {
+func TestChatListLimitValidation(t *testing.T) {
 	accounts, _ := account.NewService(&authTestStore{}, password.OWASPMinimum(), time.Hour)
 	chats, _ := chat.NewService(&chatHTTPStore{})
 	server := New(Dependencies{Accounts: accounts, Chats: chats})
 	token := registerHTTPUser(t, server)
-
-	badLimit := httptest.NewRequest(http.MethodGet, "/v1/slots/slot-1/chat/messages?limit=101", nil)
-	badLimit.Header.Set("Authorization", "Bearer "+token)
-	badLimitRec := httptest.NewRecorder()
-	server.Handler().ServeHTTP(badLimitRec, badLimit)
-	if badLimitRec.Code != http.StatusBadRequest {
-		t.Fatalf("limit status=%d", badLimitRec.Code)
+	req := httptest.NewRequest(http.MethodGet, "/v1/slots/slot-1/chat/messages?limit=0", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	rec := httptest.NewRecorder()
+	server.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
 	}
 }
