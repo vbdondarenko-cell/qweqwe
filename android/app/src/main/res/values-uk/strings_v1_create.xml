@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="activity_coffee">Кава</string>
+    <string name="activity_walk">Прогулянка</string>
+    <string name="activity_run">Біг</string>
+    <string name="activity_food">Їжа</string>
+    <string name="activity_gym">Зал</string>
+    <string name="activity_music">Музика</string>
+    <string name="activity_games">Ігри</string>
+    <string name="activity_social">Спілкування</string>
+
+    <string name="create_what_happening">Що відбувається?</string>
+    <string name="create_pick_activity">Оберіть активність, щоб почати.</string>
+    <string name="create_title_counter">Назва (%1$d/60)</string>
+    <string name="create_title_example">напр. Ранкова кава на Подолі</string>
+    <string name="create_description_example">Розкажіть людям, чого очікувати…</string>
+    <string name="create_where_when">Де й коли?</string>
+    <string name="create_details_subtitle">Вкажіть деталі вашого LinkUp.</string>
+    <string name="create_location">Місце</string>
+    <string name="create_location_example">напр. кав’ярня на Подолі</string>
+    <string name="create_access_level">Рівень доступу</string>
+    <string name="create_approval_required">Потрібне схвалення</string>
+    <string name="create_approval_subtitle">Ви схвалюєте кожен запит вручну</string>
+    <string name="create_visibility">Видимість</string>
+    <string name="create_public">Публічний</string>
+    <string name="create_public_subtitle">Видимий людям, яким це дозволяють server privacy rules</string>
+    <string name="create_review_subtitle">Перевірте все перед публікацією.</string>
+    <string name="create_preview_capacity_format">0/%1$d приєдналися · потрібне схвалення · публічний</string>
+    <string name="create_server_backed_notice">Публікація створює реальний LinkUp, збережений на сервері.</string>
+    <string name="create_publishing">Публікація…</string>
+</resources>
