@@ -58,12 +58,11 @@ func (s *ChatStore) Send(ctx context.Context, actorID, slotID, messageID, idempo
 		return chat.Message{}, err
 	}
 	out := chat.Message{
-		ID:             resolvedID,
-		SlotID:         slotID,
-		Author:         author,
-		Text:           resolvedText,
-		IdempotencyKey: idempotencyKey,
-		CreatedAt:      createdAt.UTC(),
+		ID:        resolvedID,
+		SlotID:    slotID,
+		Author:    author,
+		Text:      resolvedText,
+		CreatedAt: createdAt.UTC(),
 	}
 	if err := tx.Commit(ctx); err != nil {
 		return chat.Message{}, err
@@ -83,9 +82,9 @@ func (s *ChatStore) ListRecent(ctx context.Context, actorID, slotID string, limi
 	}
 
 	rows, err := tx.Query(ctx, `
-		SELECT q.id,q.slot_id,u.id,u.username,u.display_name,u.avatar_url,q.body,q.idempotency_key,q.created_at
+		SELECT q.id,q.slot_id,u.id,u.username,u.display_name,u.avatar_url,q.body,q.created_at
 		FROM (
-			SELECT m.id,m.slot_id,m.author_id,m.body,m.idempotency_key,m.created_at
+			SELECT m.id,m.slot_id,m.author_id,m.body,m.created_at
 			FROM slot_messages m
 			WHERE m.slot_id=$1
 			  AND NOT EXISTS (
@@ -114,7 +113,6 @@ func (s *ChatStore) ListRecent(ctx context.Context, actorID, slotID string, limi
 			&item.Author.DisplayName,
 			&item.Author.AvatarURL,
 			&item.Text,
-			&item.IdempotencyKey,
 			&item.CreatedAt,
 		); err != nil {
 			return nil, err
