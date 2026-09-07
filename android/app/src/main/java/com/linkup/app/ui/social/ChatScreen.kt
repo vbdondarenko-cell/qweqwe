@@ -27,9 +27,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.linkup.app.R
 import com.linkup.app.core.network.ChatMessage
 import com.linkup.app.core.social.LoadState
 import com.linkup.app.core.social.MutationState
@@ -56,11 +60,8 @@ fun ChatScreen(
     var submittedText by remember { mutableStateOf<String?>(null) }
     var sawRunning by remember { mutableStateOf(false) }
     val busy = mutation is MutationState.Running
+    val backDescription = stringResource(R.string.a11y_back)
 
-    // A submitted draft is cleared only after this screen has observed the
-    // mutation actually enter Running and then return to Idle. That prevents a
-    // recomposition between onSend() and coroutine startup from looking like an
-    // acknowledgement. Failed/ambiguous sends preserve the user's text.
     LaunchedEffect(mutation) {
         when (mutation) {
             MutationState.Running -> sawRunning = true
@@ -84,12 +85,14 @@ fun ChatScreen(
             Modifier.fillMaxWidth().border(1.dp, LinkUpBorder).padding(horizontal = 14.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            TextButton(onClick = onBack) { Text("‹", color = LinkUpTextDimmed, fontSize = 28.sp) }
-            Column(modifier = Modifier.weight(1f)) {
-                Text("Coordination", color = LinkUpTextPrimary, fontWeight = FontWeight.Bold, fontSize = 15.sp)
-                Text("Ephemeral · accepted participants only", color = LinkUpTextMuted, fontSize = 10.sp)
+            TextButton(onClick = onBack, modifier = Modifier.semantics { contentDescription = backDescription }) {
+                Text("‹", color = LinkUpTextDimmed, fontSize = 28.sp)
             }
-            TextButton(onClick = onRefresh) { Text("Refresh", color = LinkUpRed, fontSize = 12.sp) }
+            Column(modifier = Modifier.weight(1f)) {
+                Text(stringResource(R.string.chat_title), color = LinkUpTextPrimary, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                Text(stringResource(R.string.chat_subtitle), color = LinkUpTextMuted, fontSize = 10.sp)
+            }
+            TextButton(onClick = onRefresh) { Text(stringResource(R.string.common_refresh), color = LinkUpRed, fontSize = 12.sp) }
         }
 
         when (state) {
@@ -97,14 +100,14 @@ fun ChatScreen(
                 CircularProgressIndicator(color = LinkUpRed)
             }
             LoadState.Empty -> Column(Modifier.weight(1f).fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-                Text("No messages yet", color = LinkUpTextPrimary, fontWeight = FontWeight.Bold)
-                Text("Use this chat only to coordinate this LinkUp.", color = LinkUpTextMuted, fontSize = 12.sp)
+                Text(stringResource(R.string.chat_no_messages), color = LinkUpTextPrimary, fontWeight = FontWeight.Bold)
+                Text(stringResource(R.string.chat_no_messages_body), color = LinkUpTextMuted, fontSize = 12.sp)
             }
             is LoadState.Failure -> Column(Modifier.weight(1f).fillMaxWidth().padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-                Text("Chat unavailable", color = LinkUpTextPrimary, fontWeight = FontWeight.Bold)
+                Text(stringResource(R.string.chat_unavailable), color = LinkUpTextPrimary, fontWeight = FontWeight.Bold)
                 Text(state.error.message, color = LinkUpTextDimmed, fontSize = 12.sp)
                 Spacer(Modifier.height(8.dp))
-                TextButton(onClick = onRefresh) { Text("Retry", color = LinkUpRed) }
+                TextButton(onClick = onRefresh) { Text(stringResource(R.string.common_retry), color = LinkUpRed) }
             }
             is LoadState.Content -> LazyColumn(
                 modifier = Modifier.weight(1f).fillMaxWidth(),
@@ -127,7 +130,7 @@ fun ChatScreen(
                 value = text,
                 onValueChange = { if (it.length <= 2000) text = it },
                 modifier = Modifier.weight(1f),
-                placeholder = { Text("Message…", color = LinkUpTextMuted) },
+                placeholder = { Text(stringResource(R.string.chat_message_hint), color = LinkUpTextMuted) },
                 maxLines = 4,
                 shape = RoundedCornerShape(14.dp),
             )
@@ -142,7 +145,9 @@ fun ChatScreen(
                     }
                 },
                 enabled = !busy && (state is LoadState.Content || state is LoadState.Empty) && text.trim().isNotEmpty(),
-            ) { Text("Send", color = LinkUpRed, fontWeight = FontWeight.Bold) }
+            ) {
+                Text(stringResource(R.string.chat_send), color = LinkUpRed, fontWeight = FontWeight.Bold)
+            }
         }
     }
 }
