@@ -33,9 +33,6 @@ const (
 	ViewerAccepted ViewerState = "ACCEPTED"
 	ViewerHost     ViewerState = "HOST"
 
-	// v1.0 intentionally stays bounded. The PostgreSQL canonical schema keeps a
-	// larger ceiling for future Mega capability work, but the active v1.0 API
-	// does not expose that later-release scale.
 	MaxV1Capacity      = 100
 	MaxPendingRequests = 100
 )
@@ -62,23 +59,24 @@ type Organizer struct {
 }
 
 type Slot struct {
-	ID            string      `json:"id"`
-	Organizer     Organizer   `json:"organizer"`
-	Title         string      `json:"title"`
-	Activity      string      `json:"activity"`
-	Details       *string     `json:"details,omitempty"`
-	PlaceText     string      `json:"placeText"`
-	ZoneText      *string     `json:"zoneText,omitempty"`
-	StartAt       *time.Time  `json:"startAt,omitempty"`
-	Capacity      int         `json:"capacity"`
-	AcceptedCount int         `json:"acceptedCount"`
-	State         State       `json:"state"`
-	AccessMode    AccessMode  `json:"accessMode"`
-	Visibility    Visibility  `json:"visibility"`
-	ViewerState   ViewerState `json:"viewerState"`
-	Version       int64       `json:"version"`
-	CreatedAt     time.Time   `json:"createdAt"`
-	UpdatedAt     time.Time   `json:"updatedAt"`
+	ID               string      `json:"id"`
+	Organizer        Organizer   `json:"organizer"`
+	Title            string      `json:"title"`
+	Activity         string      `json:"activity"`
+	Details          *string     `json:"details,omitempty"`
+	PlaceText        string      `json:"placeText"`
+	ZoneText         *string     `json:"zoneText,omitempty"`
+	CanonicalPlaceID *string     `json:"canonicalPlaceId,omitempty"`
+	StartAt          *time.Time  `json:"startAt,omitempty"`
+	Capacity         int         `json:"capacity"`
+	AcceptedCount    int         `json:"acceptedCount"`
+	State            State       `json:"state"`
+	AccessMode       AccessMode  `json:"accessMode"`
+	Visibility       Visibility  `json:"visibility"`
+	ViewerState      ViewerState `json:"viewerState"`
+	Version          int64       `json:"version"`
+	CreatedAt        time.Time   `json:"createdAt"`
+	UpdatedAt        time.Time   `json:"updatedAt"`
 }
 
 type PendingRequest struct {
@@ -87,24 +85,27 @@ type PendingRequest struct {
 }
 
 type CreateInput struct {
-	Title     string
-	Activity  string
-	Details   *string
-	PlaceText string
-	ZoneText  *string
-	StartAt   *time.Time
-	Capacity  int
+	Title            string
+	Activity         string
+	Details          *string
+	PlaceText        string
+	ZoneText         *string
+	CanonicalPlaceID *string
+	StartAt          *time.Time
+	Capacity         int
 }
 
 type EditInput struct {
-	ExpectedVersion int64
-	Title           *string
-	Details         *string
-	PlaceText       *string
-	ZoneText        *string
-	StartAt         *time.Time
-	ClearStartAt    bool
-	Capacity        *int
+	ExpectedVersion       int64
+	Title                 *string
+	Details               *string
+	PlaceText             *string
+	ZoneText              *string
+	CanonicalPlaceID      *string
+	ClearCanonicalPlaceID bool
+	StartAt               *time.Time
+	ClearStartAt          bool
+	Capacity              *int
 }
 
 type Store interface {
