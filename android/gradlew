@@ -59,6 +59,10 @@
 #       https://github.com/gradle/gradle/blob/3d91ce3b8caaf77ad09f381f43615b715b53f72c/platforms/jvm/plugins-application/src/main/resources/org/gradle/api/internal/plugins/unixStartScript.txt
 #       within the Gradle project.
 #
+#       LinkUp adds one fail-closed bootstrap step below: if the wrapper JAR is
+#       absent, it is downloaded from the pinned Gradle 9.6.0 URL and accepted
+#       only when its official SHA-256 matches.
+#
 #       You can find Gradle at https://github.com/gradle/gradle/.
 #
 ##############################################################################
@@ -144,10 +148,15 @@ if "$cygwin" || "$msys" ; then
     done
 fi
 
+WRAPPER_JAR="$APP_HOME/gradle/wrapper/gradle-wrapper.jar"
+if [ ! -f "$WRAPPER_JAR" ]; then
+    sh "$APP_HOME/gradle/wrapper/bootstrap-wrapper.sh" || die "ERROR: unable to bootstrap verified Gradle wrapper JAR"
+fi
+
 DEFAULT_JVM_OPTS='-Dfile.encoding=UTF-8 "-Xmx64m" "-Xms64m"'
 set -- \
         "-Dorg.gradle.appname=$APP_BASE_NAME" \
-        -jar "$APP_HOME/gradle/wrapper/gradle-wrapper.jar" \
+        -jar "$WRAPPER_JAR" \
         "$@"
 
 if ! command -v xargs >/dev/null 2>&1
