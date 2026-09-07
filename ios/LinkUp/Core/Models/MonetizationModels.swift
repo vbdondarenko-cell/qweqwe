@@ -70,3 +70,28 @@ struct MonetizationSnapshot: Codable, Equatable, Sendable {
 struct BindReferralBody: Encodable, Sendable {
     let code: String
 }
+
+enum ReferralCodeContract {
+    static func normalize(_ raw: String) -> String? {
+        let normalized = raw.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+        guard (6...20).contains(normalized.count), isASCIIAlphanumeric(normalized) else {
+            return nil
+        }
+        return normalized
+    }
+
+    static func filteredInput(_ raw: String) -> String {
+        let scalars = raw.uppercased().unicodeScalars.filter { scalar in
+            let value = Int(scalar.value)
+            return (65...90).contains(value) || (48...57).contains(value)
+        }
+        return scalars.prefix(20).map(String.init).joined()
+    }
+
+    private static func isASCIIAlphanumeric(_ value: String) -> Bool {
+        !value.isEmpty && value.unicodeScalars.allSatisfy { scalar in
+            let code = Int(scalar.value)
+            return (65...90).contains(code) || (48...57).contains(code)
+        }
+    }
+}

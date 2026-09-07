@@ -9,11 +9,7 @@ extension LinkUpAPI {
     }
 
     func bindReferral(code: String) async throws -> MonetizationSnapshot {
-        let normalized = code.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
-        let validCharacters = normalized.unicodeScalars.allSatisfy { scalar in
-            (65...90).contains(Int(scalar.value)) || (48...57).contains(Int(scalar.value))
-        }
-        guard (6...20).contains(normalized.count), validCharacters else {
+        guard let normalized = ReferralCodeContract.normalize(code) else {
             throw APIError.protocolViolation("Invalid referral code.")
         }
 
