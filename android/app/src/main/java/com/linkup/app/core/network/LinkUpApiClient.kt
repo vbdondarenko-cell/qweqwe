@@ -6,6 +6,7 @@ import java.io.IOException
 import java.io.InputStream
 import java.net.HttpURLConnection
 import java.net.URL
+import java.net.URLEncoder
 import java.time.Instant
 import java.util.UUID
 import kotlinx.coroutines.CancellationException
@@ -18,6 +19,7 @@ import org.json.JSONObject
 internal const val MAX_API_RESPONSE_BYTES = 1024 * 1024
 private const val MAX_GET_ATTEMPTS = 2
 private const val GET_RETRY_DELAY_MS = 250L
+private const val MAX_MAP_WINDOW_MS = 7L * 24L * 60L * 60L * 1000L
 
 internal class ResponseTooLargeException : IOException("API response exceeds client limit")
 
@@ -48,7 +50,7 @@ internal fun shouldRetryGet(method: String, error: Exception): Boolean {
 class LinkUpApiClient(
     baseUrl: String,
     private val sessions: SecureSessionStore,
-) : SocialApi {
+) : SocialApi, CityNetworkApi {
     private val root = validatedApiRoot(baseUrl)
 
     @Volatile
@@ -153,6 +155,57 @@ class LinkUpApiClient(
         return buildList(items.length()) { for (index in 0 until items.length()) add(parseSlot(items.getJSONObject(index))) }
     }
 
+    override suspend fun searchPlaces(query: String, locality: String?, limit: Int): List<CanonicalPlace> {
+        val normalizedQuery = query.trim()
+        val normalizedLocality = locality?.trim()?.takeIf { it.isNotEmpty() }
+        require(normalizedQuery.length in 2..80)
+        require(normalizedLocality == null || normalizedLocality.length <= 120)
+        require(limit in 1..50)
+
+        val path = buildString {
+            append("/v1/places/search?q=")
+            append(queryParam(normalizedQuery))
+            normalizedLocality?.let {
+                append("&locality=")
+                append(queryParam(it))
+            }
+            append("&limit=")
+            append(limit)
+        }
+        val items = request("GET", path, null, true)!!.getJSONArray("items")
+        return buildList(items.length()) {
+            for (index in 0 until items.length()) add(parseCanonicalPlace(items.getJSONObject(index)))
+        }
+    }
+
+    override suspend fun mapViewport(query: MapViewportQuery): List<MapCluster> {
+        require(query.westE6 in -180_000_000..180_000_000)
+        require(query.eastE6 in -180_000_000..180_000_000)
+        require(query.southE6 in -90_000_000..90_000_000)
+        require(query.northE6 in -90_000_000..90_000_000)
+        require(query.southE6 < query.northE6)
+        require(query.westE6 != query.eastE6)
+        require(query.zoom in 1..20)
+        require(query.limit in 1..200)
+        require(query.fromEpochMillis < query.toEpochMillis)
+        require(query.toEpochMillis - query.fromEpochMillis <= MAX_MAP_WINDOW_MS)
+
+        val path = buildString {
+            append("/v1/map?westE6=").append(query.westE6)
+            append("&southE6=").append(query.southE6)
+            append("&eastE6=").append(query.eastE6)
+            append("&northE6=").append(query.northE6)
+            append("&zoom=").append(query.zoom)
+            append("&from=").append(queryParam(Instant.ofEpochMilli(query.fromEpochMillis).toString()))
+            append("&to=").append(queryParam(Instant.ofEpochMilli(query.toEpochMillis).toString()))
+            append("&limit=").append(query.limit)
+        }
+        val items = request("GET", path, null, true)!!.getJSONArray("items")
+        return buildList(items.length()) {
+            for (index in 0 until items.length()) add(parseMapCluster(items.getJSONObject(index)))
+        }
+    }
+
     override suspend fun createSlot(input: CreateSlotInput): SlotModel {
         val body = JSONObject()
             .put("title", input.title)
@@ -161,6 +214,7 @@ class LinkUpApiClient(
             .put("capacity", input.capacity)
         input.details?.let { body.put("details", it) }
         input.zoneText?.let { body.put("zoneText", it) }
+        input.canonicalPlaceId?.let { body.put("canonicalPlaceId", uuid(it)) }
         input.startAtEpochMillis?.let { body.put("startAt", Instant.ofEpochMilli(it).toString()) }
         return parseSlot(request("POST", "/v1/slots", body, true, mutationHeaders())!!)
     }
@@ -170,11 +224,14 @@ class LinkUpApiClient(
 
     override suspend fun editSlot(slotId: String, input: EditSlotInput): SlotModel {
         require(input.expectedVersion > 0)
+        require(input.canonicalPlaceId == null || !input.clearCanonicalPlaceId)
         val body = JSONObject().put("expectedVersion", input.expectedVersion)
         input.title?.let { body.put("title", it) }
         input.details?.let { body.put("details", it) }
         input.placeText?.let { body.put("placeText", it) }
         input.zoneText?.let { body.put("zoneText", it) }
+        input.canonicalPlaceId?.let { body.put("canonicalPlaceId", uuid(it)) }
+        if (input.clearCanonicalPlaceId) body.put("clearCanonicalPlaceId", true)
         input.startAtEpochMillis?.let { body.put("startAt", Instant.ofEpochMilli(it).toString()) }
         if (input.clearStartAt) body.put("clearStartAt", true)
         input.capacity?.let { body.put("capacity", it) }
@@ -312,6 +369,7 @@ class LinkUpApiClient(
         details = nullableString(json, "details"),
         placeText = json.getString("placeText"),
         zoneText = nullableString(json, "zoneText"),
+        canonicalPlaceId = nullableString(json, "canonicalPlaceId"),
         startAtEpochMillis = nullableInstant(json, "startAt"),
         capacity = json.getInt("capacity"),
         acceptedCount = json.getInt("acceptedCount"),
@@ -322,6 +380,27 @@ class LinkUpApiClient(
         version = json.getLong("version"),
         createdAtEpochMillis = Instant.parse(json.getString("createdAt")).toEpochMilli(),
         updatedAtEpochMillis = Instant.parse(json.getString("updatedAt")).toEpochMilli(),
+    )
+
+    private fun parseCanonicalPlace(json: JSONObject): CanonicalPlace = CanonicalPlace(
+        id = uuid(json.getString("id")),
+        name = json.getString("name"),
+        category = nullableString(json, "category"),
+        locality = nullableString(json, "locality"),
+        countryCode = nullableString(json, "countryCode"),
+        latitudeE6 = json.getInt("latitudeE6"),
+        longitudeE6 = json.getInt("longitudeE6"),
+        precisionM = json.getInt("precisionM"),
+    )
+
+    private fun parseMapCluster(json: JSONObject): MapCluster = MapCluster(
+        key = json.getString("key"),
+        latitudeE6 = json.getInt("latitudeE6"),
+        longitudeE6 = json.getInt("longitudeE6"),
+        placeCount = json.getInt("placeCount"),
+        slotCount = json.getInt("slotCount"),
+        placeId = nullableString(json, "placeId")?.let(::uuid),
+        placeName = nullableString(json, "placeName"),
     )
 
     private fun parseChatMessage(json: JSONObject): ChatMessage {
@@ -347,6 +426,7 @@ class LinkUpApiClient(
         nullableString(json, key)?.let { Instant.parse(it).toEpochMilli() }
 
     private fun uuid(raw: String): String = UUID.fromString(raw).toString()
+    private fun queryParam(raw: String): String = URLEncoder.encode(raw, Charsets.UTF_8.name())
     private fun mutationHeaders(): Map<String, String> = mapOf("Idempotency-Key" to UUID.randomUUID().toString())
 
     private suspend fun request(
