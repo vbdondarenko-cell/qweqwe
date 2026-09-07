@@ -21,6 +21,10 @@ val releaseApiBaseUrl = providers.gradleProperty("LINKUP_API_BASE_URL").orElse("
 val releasePrivacyUrl = providers.gradleProperty("LINKUP_PRIVACY_URL").orElse("").get().trim()
 val releaseTermsUrl = providers.gradleProperty("LINKUP_TERMS_URL").orElse("").get().trim()
 val releaseResetHost = providers.gradleProperty("LINKUP_RESET_HOST").orElse("").get().trim().lowercase()
+val firebaseApiKey = providers.gradleProperty("LINKUP_FIREBASE_API_KEY").orElse("").get().trim()
+val firebaseAppId = providers.gradleProperty("LINKUP_FIREBASE_APP_ID").orElse("").get().trim()
+val firebaseProjectId = providers.gradleProperty("LINKUP_FIREBASE_PROJECT_ID").orElse("").get().trim()
+val firebaseSenderId = providers.gradleProperty("LINKUP_FIREBASE_SENDER_ID").orElse("").get().trim()
 val releaseKeystoreFile = providers.gradleProperty("LINKUP_KEYSTORE_FILE").orNull?.trim().orEmpty()
 val releaseKeystorePassword = providers.gradleProperty("LINKUP_KEYSTORE_PASSWORD").orNull.orEmpty()
 val releaseKeyAlias = providers.gradleProperty("LINKUP_KEY_ALIAS").orNull?.trim().orEmpty()
@@ -31,6 +35,7 @@ val releaseSigningConfigured = listOf(
     releaseKeyAlias,
     releaseKeyPassword,
 ).all { it.isNotBlank() }
+val firebaseConfigured = listOf(firebaseApiKey, firebaseAppId, firebaseProjectId, firebaseSenderId).all { it.isNotBlank() }
 
 android {
     namespace = "com.linkup.app"
@@ -43,9 +48,11 @@ android {
         versionCode = 1
         versionName = "1.0.0"
         manifestPlaceholders["usesCleartextTraffic"] = "false"
-        // Debug/manual builds remain installable without claiming a verified
-        // production domain. Release overrides this placeholder and fails closed.
         manifestPlaceholders["resetHost"] = "reset.invalid"
+        buildConfigField("String", "LINKUP_FIREBASE_API_KEY", quotedBuildConfig(firebaseApiKey))
+        buildConfigField("String", "LINKUP_FIREBASE_APP_ID", quotedBuildConfig(firebaseAppId))
+        buildConfigField("String", "LINKUP_FIREBASE_PROJECT_ID", quotedBuildConfig(firebaseProjectId))
+        buildConfigField("String", "LINKUP_FIREBASE_SENDER_ID", quotedBuildConfig(firebaseSenderId))
     }
 
     signingConfigs {
@@ -123,6 +130,9 @@ tasks.matching { it.name == "preReleaseBuild" }.configureEach {
         check(validHttpsHostOnly(releaseResetHost)) {
             "Release requires LINKUP_RESET_HOST as a bare HTTPS App Link host (for example app.example.com)"
         }
+        check(firebaseConfigured) {
+            "Release requires LINKUP_FIREBASE_API_KEY, LINKUP_FIREBASE_APP_ID, LINKUP_FIREBASE_PROJECT_ID and LINKUP_FIREBASE_SENDER_ID"
+        }
         check(releaseSigningConfigured) {
             "Release signing requires LINKUP_KEYSTORE_FILE, LINKUP_KEYSTORE_PASSWORD, LINKUP_KEY_ALIAS and LINKUP_KEY_PASSWORD"
         }
@@ -142,6 +152,7 @@ dependencies {
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.compose.material3:material3")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.11.0")
+    implementation("com.google.firebase:firebase-messaging:24.1.2")
 
     testImplementation("org.jetbrains.kotlin:kotlin-test-junit:2.4.10")
 
