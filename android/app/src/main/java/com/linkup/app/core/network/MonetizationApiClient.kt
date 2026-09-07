@@ -40,7 +40,7 @@ class MonetizationApiClient(
 
     suspend fun bindReferral(code: String): MonetizationSnapshotModel = withContext(Dispatchers.IO) {
         requestOnce(
-            method = "POST",
+            method = "PUT",
             path = "/v1/me/referral",
             body = JSONObject().put("code", code),
         )
