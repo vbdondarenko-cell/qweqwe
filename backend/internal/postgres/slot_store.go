@@ -321,6 +321,16 @@ func (s *SlotStore) Request(ctx context.Context, actorID, slotID, key string, re
 		return slot.Slot{}, slot.ErrDuplicateRequest
 	}
 
+	// The Slot row lock serializes all REQUEST inserts for this Slot, so this
+	// count is an atomic queue bound rather than a racy preflight check.
+	var pendingCount int
+	if err := tx.QueryRow(ctx, `SELECT count(*) FROM slot_requests WHERE slot_id=$1`, slotID).Scan(&pendingCount); err != nil {
+		return slot.Slot{}, err
+	}
+	if pendingCount >= slot.MaxPendingRequests {
+		return slot.Slot{}, slot.ErrRequestLimit
+	}
+
 	if _, err := tx.Exec(ctx, `INSERT INTO slot_requests (slot_id,user_id,created_at) VALUES ($1,$2,$3)`, slotID, actorID, now); err != nil {
 		return slot.Slot{}, err
 	}
@@ -441,13 +451,14 @@ func (s *SlotStore) ListPending(ctx context.Context, actorID, slotID string) ([]
 			WHERE (b.blocker_id=$2 AND b.blocked_id=r.user_id)
 			   OR (b.blocker_id=r.user_id AND b.blocked_id=$2)
 		  )
-		ORDER BY r.created_at ASC,u.id`, slotID, actorID)
+		ORDER BY r.created_at ASC,u.id
+		LIMIT $3`, slotID, actorID, slot.MaxPendingRequests)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
-	out := make([]slot.PendingRequest, 0)
+	out := make([]slot.PendingRequest, 0, slot.MaxPendingRequests)
 	for rows.Next() {
 		var item slot.PendingRequest
 		if err := rows.Scan(&item.User.ID, &item.User.Username, &item.User.DisplayName, &item.User.AvatarURL, &item.RequestedAt); err != nil {
