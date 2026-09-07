@@ -13,21 +13,22 @@ git fetch --prune origin main
 git checkout main
 git reset --hard origin/main
 commit="$(git rev-parse HEAD)"
+artifact_dir="$ROOT/artifacts/$commit"
+mkdir -p "$artifact_dir"
 
 cd "$SRC/backend"
 go mod verify
 go test ./... -count=1
 go vet ./...
 go test -race ./... -count=1
-go build -trimpath -o "$ROOT/bin/linkup-api" ./cmd/api
+go build -trimpath -o "$artifact_dir/linkup-api" ./cmd/api
 
 cd "$SRC/android"
 chmod +x ./gradlew
 ./gradlew --no-daemon --stacktrace :app:testDebugUnitTest :app:lintDebug :app:assembleDebug
 
-mkdir -p "$ROOT/artifacts/$commit"
-cp app/build/outputs/apk/debug/app-debug.apk "$ROOT/artifacts/$commit/LinkUp-v1.0-$commit-debug.apk"
-sha256sum "$ROOT/bin/linkup-api" "$ROOT/artifacts/$commit/LinkUp-v1.0-$commit-debug.apk" > "$ROOT/artifacts/$commit/SHA256SUMS.txt"
+cp app/build/outputs/apk/debug/app-debug.apk "$artifact_dir/LinkUp-v1.0-$commit-debug.apk"
+sha256sum "$artifact_dir/linkup-api" "$artifact_dir/LinkUp-v1.0-$commit-debug.apk" > "$artifact_dir/SHA256SUMS.txt"
 
 if [ "${LINKUP_BUILD_RELEASE:-0}" = "1" ]; then
   : "${ORG_GRADLE_PROJECT_LINKUP_API_BASE_URL:?missing release API URL}"
@@ -39,9 +40,9 @@ if [ "${LINKUP_BUILD_RELEASE:-0}" = "1" ]; then
   : "${ORG_GRADLE_PROJECT_LINKUP_KEY_ALIAS:?missing key alias}"
   : "${ORG_GRADLE_PROJECT_LINKUP_KEY_PASSWORD:?missing key password}"
   ./gradlew --no-daemon --stacktrace :app:testReleaseUnitTest :app:lintRelease :app:assembleRelease :app:bundleRelease
-  cp app/build/outputs/apk/release/app-release.apk "$ROOT/artifacts/$commit/LinkUp-v1.0-$commit-release.apk"
-  cp app/build/outputs/bundle/release/app-release.aab "$ROOT/artifacts/$commit/LinkUp-v1.0-$commit-release.aab"
-  sha256sum "$ROOT/artifacts/$commit/LinkUp-v1.0-$commit-release.apk" "$ROOT/artifacts/$commit/LinkUp-v1.0-$commit-release.aab" >> "$ROOT/artifacts/$commit/SHA256SUMS.txt"
+  cp app/build/outputs/apk/release/app-release.apk "$artifact_dir/LinkUp-v1.0-$commit-release.apk"
+  cp app/build/outputs/bundle/release/app-release.aab "$artifact_dir/LinkUp-v1.0-$commit-release.aab"
+  sha256sum "$artifact_dir/LinkUp-v1.0-$commit-release.apk" "$artifact_dir/LinkUp-v1.0-$commit-release.aab" >> "$artifact_dir/SHA256SUMS.txt"
 fi
 
-printf 'commit=%s\nartifacts=%s\n' "$commit" "$ROOT/artifacts/$commit"
+printf 'commit=%s\nartifacts=%s\n' "$commit" "$artifact_dir"
