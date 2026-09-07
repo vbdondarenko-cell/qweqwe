@@ -15,6 +15,7 @@ import (
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/chat"
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/config"
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/httpserver"
+	"github.com/vbdondarenko-cell/qweqwe/backend/internal/monetization"
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/password"
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/postgres"
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/ratelimit"
@@ -60,6 +61,8 @@ func main() {
 	chatService, err := chat.NewService(postgres.NewChatStore(pool))
 	if err != nil { slog.Error("chat service init failed", "error", err); os.Exit(1) }
 
+	monetizationService := monetization.NewService(postgres.NewMonetizationStore(pool))
+
 	authLimiter, err := ratelimit.New(ratelimit.Config{Limit: cfg.AuthRateLimit, Window: cfg.AuthRateWindow, IdleTTL: cfg.AuthRateIdleTTL, MaxEntries: cfg.AuthRateMaxEntries})
 	if err != nil { slog.Error("auth rate limiter init failed", "error", err); os.Exit(1) }
 	userLimiter, err := ratelimit.New(ratelimit.Config{Limit: cfg.SocialRateLimit, Window: cfg.SocialRateWindow, IdleTTL: cfg.SocialRateIdleTTL, MaxEntries: cfg.SocialRateMaxEntries})
@@ -70,6 +73,7 @@ func main() {
 		Blocks: blockService,
 		Slots: slotService,
 		Chats: chatService,
+		Monetization: monetizationService,
 		Ready: pool.Ping,
 		AuthLimiter: authLimiter,
 		UserLimiter: userLimiter,
