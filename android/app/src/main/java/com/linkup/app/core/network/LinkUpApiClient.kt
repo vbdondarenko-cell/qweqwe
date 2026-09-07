@@ -41,6 +41,11 @@ class LinkUpApiClient(
     @Volatile
     private var unauthorizedHandler: (() -> Unit)? = null
 
+    // v1.0 keeps only in-process ambiguous chat sends. Durable process-death
+    // mutation replay belongs to v1.1. The same slot+text retry reuses the key
+    // until the server acknowledges the message or returns a definitive 4xx.
+    private val pendingChatKeys = mutableMapOf<String, String>()
+
     fun setUnauthorizedHandler(handler: (() -> Unit)?) {
         unauthorizedHandler = handler
     }
@@ -80,7 +85,10 @@ class LinkUpApiClient(
     }
 
     suspend fun logout() {
-        try { request("POST", "/v1/auth/logout", null, true) } finally { sessions.clear() }
+        try { request("POST", "/v1/auth/logout", null, true) } finally {
+            synchronized(pendingChatKeys) { pendingChatKeys.clear() }
+            sessions.clear()
+        }
     }
 
     suspend fun me(): UserProfile = parseUser(request("GET", "/v1/me", null, true)!!)
@@ -233,13 +241,30 @@ class LinkUpApiClient(
         return buildList(items.length()) { for (index in 0 until items.length()) add(parseChatMessage(items.getJSONObject(index))) }
     }
 
-    override suspend fun sendChatMessage(slotId: String, text: String): ChatMessage =
-        parseChatMessage(request(
-            "POST",
-            "/v1/slots/${uuid(slotId)}/chat/messages",
-            JSONObject().put("text", text),
-            true,
-        )!!)
+    override suspend fun sendChatMessage(slotId: String, text: String): ChatMessage {
+        val normalized = text.trim()
+        require(normalized.isNotEmpty())
+        val fingerprint = "$slotId\u0000$normalized"
+        val idempotencyKey = synchronized(pendingChatKeys) {
+            pendingChatKeys.getOrPut(fingerprint) { UUID.randomUUID().toString() }
+        }
+        try {
+            val message = parseChatMessage(request(
+                "POST",
+                "/v1/slots/${uuid(slotId)}/chat/messages",
+                JSONObject().put("text", normalized),
+                true,
+                mapOf("Idempotency-Key" to idempotencyKey),
+            )!!)
+            synchronized(pendingChatKeys) { pendingChatKeys.remove(fingerprint) }
+            return message
+        } catch (error: Exception) {
+            if (error is ApiException && error.status in 400..499 && error.status != 408 && error.status != 429) {
+                synchronized(pendingChatKeys) { pendingChatKeys.remove(fingerprint) }
+            }
+            throw error
+        }
+    }
 
     private fun persistAuth(json: JSONObject): AuthSession {
         val token = json.getString("token")
@@ -320,7 +345,6 @@ class LinkUpApiClient(
     ): JSONObject? = withContext(Dispatchers.IO) {
         val connection = URL(root + path).openConnection() as HttpURLConnection
         try {
-            // Redirects must never forward bearer credentials or silently replay a mutation.
             connection.instanceFollowRedirects = false
             connection.useCaches = false
             connection.requestMethod = method
@@ -342,19 +366,18 @@ class LinkUpApiClient(
             if (status == HttpURLConnection.HTTP_NO_CONTENT) return@withContext null
             val requestId = connection.getHeaderField("X-Request-ID")
             val stream = if (status in 200..299) connection.inputStream else connection.errorStream
-            val text = try {
+            val responseText = try {
                 stream?.use { readUtf8Bounded(it) }.orEmpty()
             } catch (_: ResponseTooLargeException) {
                 throw ApiException(status, "response_too_large", "Server response exceeded the client safety limit", requestId)
             }
-            val json = try { JSONObject(text) } catch (_: JSONException) { null }
+            val json = try { JSONObject(responseText) } catch (_: JSONException) { null }
             if (status !in 200..299) {
                 if (authenticated && status == HttpURLConnection.HTTP_UNAUTHORIZED) {
                     sessions.clear()
+                    synchronized(pendingChatKeys) { pendingChatKeys.clear() }
                     unauthorizedHandler?.invoke()
                 }
-                // Proxies may return HTML or empty errors, including 401. Preserve
-                // HTTP status so session recovery does not depend on JSON validity.
                 throw ApiException(
                     status = status,
                     code = json?.optString("code")?.ifBlank { null } ?: "http_error",
