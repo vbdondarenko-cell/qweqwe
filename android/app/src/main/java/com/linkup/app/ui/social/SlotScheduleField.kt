@@ -17,8 +17,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.linkup.app.R
 import com.linkup.app.core.scheduling.scheduleInstants
 import com.linkup.app.core.scheduling.scheduleLabel
 import com.linkup.app.ui.theme.LinkUpRed
@@ -38,16 +40,22 @@ fun SlotScheduleField(value: Long?, enabled: Boolean, onChange: (Long?) -> Unit)
     var selectedDate by remember { mutableStateOf<LocalDate?>(null) }
     var choices by remember { mutableStateOf<List<Long>>(emptyList()) }
     var error by remember { mutableStateOf<String?>(null) }
+    val gapTemplate = stringResource(R.string.schedule_gap_format, zoneName)
 
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Text("Date & time", color = LinkUpTextDimmed, fontSize = 12.sp)
+        Text(stringResource(R.string.field_date_time), color = LinkUpTextDimmed, fontSize = 12.sp)
         Text(scheduleLabel(value, zone), color = LinkUpTextDimmed, fontSize = 12.sp)
         Row {
             TextButton(enabled = enabled, onClick = { error = null; picker = "date" }) {
-                Text(if (value == null) "Schedule" else "Change", color = LinkUpRed)
+                Text(
+                    if (value == null) stringResource(R.string.schedule_action_schedule) else stringResource(R.string.schedule_action_change),
+                    color = LinkUpRed,
+                )
             }
-            if (value != null) TextButton(enabled = enabled, onClick = { error = null; onChange(null) }) {
-                Text("Now", color = LinkUpRed)
+            if (value != null) {
+                TextButton(enabled = enabled, onClick = { error = null; onChange(null) }) {
+                    Text(stringResource(R.string.common_now), color = LinkUpRed)
+                }
             }
         }
         error?.let { Text(it, color = LinkUpWarning, fontSize = 12.sp) }
@@ -66,7 +74,7 @@ fun SlotScheduleField(value: Long?, enabled: Boolean, onChange: (Long?) -> Unit)
                     val local = LocalDateTime.of(selectedDate ?: initial.toLocalDate(), java.time.LocalTime.of(hour, minute))
                     val candidates = scheduleInstants(local, zone)
                     when (candidates.size) {
-                        0 -> error = "This time does not exist in $zoneName because the clocks move forward. Choose another time."
+                        0 -> error = gapTemplate
                         1 -> onChange(candidates.single())
                         else -> choices = candidates
                     }
@@ -79,19 +87,23 @@ fun SlotScheduleField(value: Long?, enabled: Boolean, onChange: (Long?) -> Unit)
         }
     }
 
-    if (choices.isNotEmpty() && enabled) AlertDialog(
-        onDismissRequest = { choices = emptyList() },
-        title = { Text("Choose the time offset") },
-        text = { Text("The clocks move back on this date, so this time occurs twice.") },
-        confirmButton = {
-            Column {
-                choices.forEach { instant ->
-                    TextButton(onClick = { onChange(instant); choices = emptyList() }) {
-                        Text(scheduleLabel(instant, zone), color = LinkUpRed)
+    if (choices.isNotEmpty() && enabled) {
+        AlertDialog(
+            onDismissRequest = { choices = emptyList() },
+            title = { Text(stringResource(R.string.schedule_offset_title)) },
+            text = { Text(stringResource(R.string.schedule_offset_body)) },
+            confirmButton = {
+                Column {
+                    choices.forEach { instant ->
+                        TextButton(onClick = { onChange(instant); choices = emptyList() }) {
+                            Text(scheduleLabel(instant, zone), color = LinkUpRed)
+                        }
                     }
                 }
-            }
-        },
-        dismissButton = { TextButton(onClick = { choices = emptyList() }) { Text("Cancel") } },
-    )
+            },
+            dismissButton = {
+                TextButton(onClick = { choices = emptyList() }) { Text(stringResource(R.string.common_cancel)) }
+            },
+        )
+    }
 }
