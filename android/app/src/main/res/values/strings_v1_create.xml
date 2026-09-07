@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="activity_coffee">Coffee</string>
+    <string name="activity_walk">Walk</string>
+    <string name="activity_run">Run</string>
+    <string name="activity_food">Food</string>
+    <string name="activity_gym">Gym</string>
+    <string name="activity_music">Music</string>
+    <string name="activity_games">Games</string>
+    <string name="activity_social">Social</string>
+
+    <string name="create_what_happening">What’s happening?</string>
+    <string name="create_pick_activity">Pick an activity to get started.</string>
+    <string name="create_title_counter">Title (%1$d/60)</string>
+    <string name="create_title_example">e.g. Morning Coffee at Green Hills</string>
+    <string name="create_description_example">Tell people what to expect…</string>
+    <string name="create_where_when">Where &amp; when?</string>
+    <string name="create_details_subtitle">Set the details for your LinkUp.</string>
+    <string name="create_location">Location</string>
+    <string name="create_location_example">e.g. Green Hills Coffee, Podil</string>
+    <string name="create_access_level">Access level</string>
+    <string name="create_approval_required">Approval Required</string>
+    <string name="create_approval_subtitle">You approve each request manually</string>
+    <string name="create_visibility">Visibility</string>
+    <string name="create_public">Public</string>
+    <string name="create_public_subtitle">Visible to people allowed by server privacy rules</string>
+    <string name="create_review_subtitle">Review before publishing.</string>
+    <string name="create_preview_capacity_format">0/%1$d going · Approval required · Public</string>
+    <string name="create_server_backed_notice">Publishing creates a real server-backed LinkUp.</string>
+    <string name="create_publishing">Publishing…</string>
+</resources>
