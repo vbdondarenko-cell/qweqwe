@@ -12,26 +12,30 @@ import (
 )
 
 type Config struct {
-	HTTPAddr             string
-	DatabaseURL          string
-	SessionTTL           time.Duration
-	PasswordResetTTL     time.Duration
-	IdempotencyTTL       time.Duration
-	MigrationDir         string
-	ArgonMemoryKiB       uint32
-	ArgonIterations      uint32
-	ArgonParallel        uint8
-	AuthRateLimit        int
-	AuthRateWindow       time.Duration
-	AuthRateIdleTTL      time.Duration
-	AuthRateMaxEntries   int
-	RecoverySMTPAddress  string
-	RecoverySMTPHost     string
-	RecoverySMTPUsername string
-	RecoverySMTPPassword string
-	RecoveryFrom         string
-	RecoveryResetURL     string
-	RecoveryImplicitTLS  bool
+	HTTPAddr               string
+	DatabaseURL            string
+	SessionTTL             time.Duration
+	PasswordResetTTL       time.Duration
+	IdempotencyTTL         time.Duration
+	MigrationDir           string
+	ArgonMemoryKiB         uint32
+	ArgonIterations        uint32
+	ArgonParallel          uint8
+	AuthRateLimit          int
+	AuthRateWindow         time.Duration
+	AuthRateIdleTTL        time.Duration
+	AuthRateMaxEntries     int
+	SocialRateLimit        int
+	SocialRateWindow       time.Duration
+	SocialRateIdleTTL      time.Duration
+	SocialRateMaxEntries   int
+	RecoverySMTPAddress    string
+	RecoverySMTPHost       string
+	RecoverySMTPUsername   string
+	RecoverySMTPPassword   string
+	RecoveryFrom           string
+	RecoveryResetURL       string
+	RecoveryImplicitTLS    bool
 }
 
 func Load() (Config, error) {
@@ -49,6 +53,10 @@ func Load() (Config, error) {
 		AuthRateWindow:       time.Minute,
 		AuthRateIdleTTL:      10 * time.Minute,
 		AuthRateMaxEntries:   20_000,
+		SocialRateLimit:      120,
+		SocialRateWindow:     time.Minute,
+		SocialRateIdleTTL:    10 * time.Minute,
+		SocialRateMaxEntries: 20_000,
 		RecoverySMTPAddress:  strings.TrimSpace(os.Getenv("LINKUP_RECOVERY_SMTP_ADDR")),
 		RecoverySMTPHost:     strings.TrimSpace(os.Getenv("LINKUP_RECOVERY_SMTP_HOST")),
 		RecoverySMTPUsername: strings.TrimSpace(os.Getenv("LINKUP_RECOVERY_SMTP_USERNAME")),
@@ -107,6 +115,21 @@ func Load() (Config, error) {
 	}
 	if cfg.AuthRateIdleTTL < cfg.AuthRateWindow {
 		return Config{}, errors.New("LINKUP_AUTH_RATE_IDLE_TTL must be >= LINKUP_AUTH_RATE_WINDOW")
+	}
+	if cfg.SocialRateLimit, err = positiveIntEnv("LINKUP_SOCIAL_RATE_LIMIT", cfg.SocialRateLimit); err != nil {
+		return Config{}, err
+	}
+	if cfg.SocialRateWindow, err = durationEnv("LINKUP_SOCIAL_RATE_WINDOW", cfg.SocialRateWindow); err != nil {
+		return Config{}, err
+	}
+	if cfg.SocialRateIdleTTL, err = durationEnv("LINKUP_SOCIAL_RATE_IDLE_TTL", cfg.SocialRateIdleTTL); err != nil {
+		return Config{}, err
+	}
+	if cfg.SocialRateMaxEntries, err = positiveIntEnv("LINKUP_SOCIAL_RATE_MAX_ENTRIES", cfg.SocialRateMaxEntries); err != nil {
+		return Config{}, err
+	}
+	if cfg.SocialRateIdleTTL < cfg.SocialRateWindow {
+		return Config{}, errors.New("LINKUP_SOCIAL_RATE_IDLE_TTL must be >= LINKUP_SOCIAL_RATE_WINDOW")
 	}
 	if cfg.RecoveryImplicitTLS, err = boolEnv("LINKUP_RECOVERY_SMTP_IMPLICIT_TLS", false); err != nil {
 		return Config{}, err
