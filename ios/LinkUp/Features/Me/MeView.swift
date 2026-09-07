@@ -1,7 +1,17 @@
 import SwiftUI
 
 struct MeView: View {
+    let user: UserProfile
+    @ObservedObject var session: SessionCoordinator
+    @StateObject private var coordinator: MeCoordinator
+
     @State private var tab = "Profile"
+
+    init(user: UserProfile, api: LinkUpAPI, session: SessionCoordinator) {
+        self.user = user
+        self.session = session
+        _coordinator = StateObject(wrappedValue: MeCoordinator(api: api, session: session))
+    }
 
     var body: some View {
         ScrollView {
@@ -14,11 +24,17 @@ struct MeView: View {
                     default: profile
                     }
                 }
-                .padding(.horizontal, 20).padding(.top, 16)
+                .padding(.horizontal, 20)
+                .padding(.top, 16)
             }
         }
         .scrollIndicators(.hidden)
+        .refreshable { await coordinator.load() }
         .background(LinkUpPalette.background)
+        .task {
+            if coordinator.phase == .idle { await coordinator.load() }
+        }
+        .onDisappear { coordinator.dispose() }
     }
 
     private var header: some View {
@@ -31,7 +47,9 @@ struct MeView: View {
             }
         }
         .foregroundStyle(LinkUpPalette.textPrimary)
-        .padding(.horizontal, 20).padding(.top, 12).padding(.bottom, 12)
+        .padding(.horizontal, 20)
+        .padding(.top, 12)
+        .padding(.bottom, 12)
         .frame(maxWidth: .infinity, alignment: .leading)
         .linkUpGlass()
     }
@@ -39,17 +57,21 @@ struct MeView: View {
     private var profile: some View {
         VStack(spacing: 16) {
             HStack(spacing: 16) {
-                LinkUpAvatar(initials: "LU", size: .xl)
+                LinkUpAvatar(initials: initials, size: .xl)
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Profile")
+                    Text(user.displayName)
                         .font(LinkUpTypography.display(20))
                         .foregroundStyle(LinkUpPalette.textPrimary)
-                    Text("Account data will load from LinkUp API")
+                    Text("@\(user.username)")
                         .font(LinkUpTypography.body(13))
                         .foregroundStyle(LinkUpPalette.textDimmed)
+                    Text(user.email)
+                        .font(LinkUpTypography.body(11))
+                        .foregroundStyle(LinkUpPalette.textMuted)
                 }
                 Spacer()
             }
+
             LinkUpCard {
                 VStack(spacing: 12) {
                     HStack {
@@ -65,6 +87,24 @@ struct MeView: View {
                     }
                 }
             }
+
+            LinkUpCard {
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack {
+                        Label("My LinkUps", systemImage: "bolt.fill")
+                            .font(LinkUpTypography.body(14, weight: .semibold))
+                        Spacer()
+                        if coordinator.phase == .loading { ProgressView().tint(LinkUpPalette.red) }
+                    }
+                    HStack(spacing: 8) {
+                        linkMetric("Hosting", coordinator.hosting.count)
+                        linkMetric("Joined", coordinator.joined.count)
+                        linkMetric("Requests", coordinator.requested.count)
+                    }
+                }
+                .foregroundStyle(LinkUpPalette.textPrimary)
+            }
+
             LinkUpCard {
                 HStack {
                     Label("BUMP Vault", systemImage: "heart.fill")
@@ -73,13 +113,9 @@ struct MeView: View {
                 }
                 .font(LinkUpTypography.body(14, weight: .semibold))
             }
-            LinkUpCard {
-                HStack {
-                    Label("My LinkUps", systemImage: "bolt.fill")
-                    Spacer()
-                    Text("—").font(LinkUpTypography.mono(12))
-                }
-                .font(LinkUpTypography.body(14, weight: .semibold))
+
+            if case .failed(let message) = coordinator.phase {
+                LinkUpErrorState(message: message) { Task { await coordinator.load() } }
             }
         }
     }
@@ -119,10 +155,74 @@ struct MeView: View {
 
     private var settings: some View {
         VStack(spacing: 16) {
+            accountSummary
+            blockedSection
             settingsSection("Privacy & Safety", ["Privacy Center", "Safety Center", "Guardian", "Ghost Mode"])
-            settingsSection("Account", ["Notifications", "Language", "Accessibility", "Data & Privacy"])
+            settingsSection("Account", ["Notifications", "Accessibility", "Data & Privacy"])
             settingsSection("LinkUp+", ["Upgrade to LinkUp+", "Rewarded Free Day"])
-            settingsSection("App", ["Themes", "Legal", "Version", "Log out"])
+            settingsSection("App", ["Themes", "Legal", "Version"])
+            LinkUpButton(title: "Log out", variant: .danger) {
+                Task { await session.logout() }
+            }
+        }
+    }
+
+    private var accountSummary: some View {
+        LinkUpCard {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Text("Language").font(LinkUpTypography.body(13, weight: .semibold))
+                    Spacer()
+                    Text(user.language.uppercased()).font(LinkUpTypography.mono(11))
+                }
+                HStack {
+                    Text("Profile visibility").font(LinkUpTypography.body(13, weight: .semibold))
+                    Spacer()
+                    Text(user.profileVisibility).font(LinkUpTypography.mono(11))
+                }
+            }
+            .foregroundStyle(LinkUpPalette.textPrimary)
+        }
+    }
+
+    @ViewBuilder private var blockedSection: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("BLOCKED ACCOUNTS")
+                .font(LinkUpTypography.mono(10, weight: .semibold))
+                .foregroundStyle(LinkUpPalette.textMuted)
+                .padding(.horizontal, 4)
+            if coordinator.blockedUsers.isEmpty {
+                LinkUpCard {
+                    Text("No blocked accounts")
+                        .font(LinkUpTypography.body(13))
+                        .foregroundStyle(LinkUpPalette.textMuted)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            } else {
+                VStack(spacing: 0) {
+                    ForEach(coordinator.blockedUsers) { blocked in
+                        HStack(spacing: 10) {
+                            LinkUpAvatar(initials: initials(blocked.displayName), size: .sm)
+                            VStack(alignment: .leading, spacing: 1) {
+                                Text(blocked.displayName).font(LinkUpTypography.body(13, weight: .semibold))
+                                Text("@\(blocked.username)").font(LinkUpTypography.body(10)).foregroundStyle(LinkUpPalette.textMuted)
+                            }
+                            Spacer()
+                            Button("Unblock") { Task { await coordinator.unblock(blocked) } }
+                                .font(LinkUpTypography.body(11, weight: .semibold))
+                                .foregroundStyle(LinkUpPalette.red)
+                                .disabled(coordinator.isMutating)
+                        }
+                        .padding(.horizontal, 14).frame(minHeight: 50)
+                        if blocked.id != coordinator.blockedUsers.last?.id {
+                            Rectangle().fill(LinkUpPalette.border.opacity(0.5)).frame(height: 1)
+                        }
+                    }
+                }
+                .background(LinkUpPalette.elevated)
+                .clipShape(RoundedRectangle(cornerRadius: LinkUpRadius.card))
+                .overlay { RoundedRectangle(cornerRadius: LinkUpRadius.card).stroke(LinkUpPalette.border) }
+            }
         }
     }
 
@@ -133,6 +233,16 @@ struct MeView: View {
         }
         .foregroundStyle(LinkUpPalette.textMuted)
         .frame(maxWidth: .infinity).padding(.vertical, 8)
+        .background(LinkUpPalette.zone.opacity(0.5))
+        .clipShape(RoundedRectangle(cornerRadius: LinkUpRadius.control))
+    }
+
+    private func linkMetric(_ label: String, _ value: Int) -> some View {
+        VStack(spacing: 2) {
+            Text("\(value)").font(LinkUpTypography.mono(18, weight: .bold))
+            Text(label).font(LinkUpTypography.body(10)).foregroundStyle(LinkUpPalette.textMuted)
+        }
+        .frame(maxWidth: .infinity).padding(.vertical, 10)
         .background(LinkUpPalette.zone.opacity(0.5))
         .clipShape(RoundedRectangle(cornerRadius: LinkUpRadius.control))
     }
@@ -164,7 +274,7 @@ struct MeView: View {
                             .font(.system(size: 12, weight: .semibold))
                             .foregroundStyle(LinkUpPalette.textMuted)
                     }
-                    .foregroundStyle(row == "Log out" ? LinkUpPalette.critical : LinkUpPalette.textPrimary)
+                    .foregroundStyle(LinkUpPalette.textPrimary)
                     .padding(.horizontal, 16).frame(height: 46)
                     if row != rows.last { Rectangle().fill(LinkUpPalette.border.opacity(0.5)).frame(height: 1) }
                 }
@@ -173,5 +283,12 @@ struct MeView: View {
             .clipShape(RoundedRectangle(cornerRadius: LinkUpRadius.card))
             .overlay { RoundedRectangle(cornerRadius: LinkUpRadius.card).stroke(LinkUpPalette.border) }
         }
+    }
+
+    private var initials: String { initials(user.displayName) }
+
+    private func initials(_ name: String) -> String {
+        let value = name.split(separator: " ").prefix(2).compactMap(\.first).map(String.init).joined()
+        return value.isEmpty ? "LU" : value.uppercased()
     }
 }

@@ -14,6 +14,7 @@ struct CreateSlotBody: Encodable, Sendable {
     let details: String?
     let placeText: String
     let zoneText: String?
+    let canonicalPlaceId: UUID?
     let startAt: Date?
     let capacity: Int
 }
@@ -24,6 +25,8 @@ struct EditSlotBody: Encodable, Sendable {
     let details: String?
     let placeText: String?
     let zoneText: String?
+    let canonicalPlaceId: UUID?
+    let clearCanonicalPlaceId: Bool
     let startAt: Date?
     let clearStartAt: Bool
     let capacity: Int?

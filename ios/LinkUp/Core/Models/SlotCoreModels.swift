@@ -16,6 +16,17 @@ enum SlotState: String, Codable, Sendable {
     case cancelled = "CANCELLED"
     case expired = "EXPIRED"
     case moderated = "MODERATED"
+
+    var isTerminal: Bool {
+        switch self {
+        case .completed, .cancelled, .expired, .moderated: true
+        default: false
+        }
+    }
+
+    var acceptsNewRequests: Bool {
+        self == .filling || self == .full
+    }
 }
 
 enum SlotAccessMode: String, Codable, Sendable {
@@ -24,7 +35,10 @@ enum SlotAccessMode: String, Codable, Sendable {
     case waitlist = "WAITLIST"
 }
 
-enum SlotVisibility: String, Codable, Sendable { case publicValue = "PUBLIC" }
+enum SlotVisibility: String, Codable, Sendable {
+    case publicValue = "PUBLIC"
+}
+
 enum SlotViewerState: String, Codable, Sendable {
     case none = "NONE"
     case pending = "PENDING"

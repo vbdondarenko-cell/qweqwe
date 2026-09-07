@@ -15,6 +15,7 @@ struct SlotModel: Codable, Identifiable, Equatable, Sendable {
     let details: String?
     let placeText: String
     let zoneText: String?
+    let canonicalPlaceId: UUID?
     let startAt: Date?
     let capacity: Int
     let acceptedCount: Int
@@ -25,6 +26,9 @@ struct SlotModel: Codable, Identifiable, Equatable, Sendable {
     let version: Int64
     let createdAt: Date
     let updatedAt: Date
+
+    var isTerminal: Bool { state.isTerminal }
+    var remainingCapacity: Int { max(0, capacity - acceptedCount) }
 }
 
 struct PendingSlotRequest: Codable, Equatable, Sendable {

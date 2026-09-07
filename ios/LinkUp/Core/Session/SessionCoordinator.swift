@@ -53,6 +53,62 @@ final class SessionCoordinator: ObservableObject {
         }
     }
 
+    func login(identifier: String, password: String, deviceLabel: String) async throws {
+        let user = try await api.login(identifier: identifier, password: password, deviceLabel: deviceLabel)
+        state = .signedIn(user)
+    }
+
+    func register(
+        email: String,
+        username: String,
+        displayName: String,
+        password: String,
+        language: String,
+        deviceLabel: String
+    ) async throws {
+        let user = try await api.register(
+            email: email,
+            username: username,
+            displayName: displayName,
+            password: password,
+            language: language,
+            deviceLabel: deviceLabel
+        )
+        state = .signedIn(user)
+    }
+
+    func requestPasswordRecovery(email: String) async throws {
+        try await api.requestPasswordRecovery(email: email)
+    }
+
+    func resetPassword(token: String, newPassword: String) async throws {
+        try await api.resetPassword(token: token, newPassword: newPassword)
+    }
+
+    func updateProfile(
+        displayName: String,
+        avatarUrl: String?,
+        profileVisibility: String,
+        language: String
+    ) async throws {
+        guard case .signedIn(let current) = state else { throw APIError.unauthorized }
+        let updated = try await api.updateMe(
+            displayName: displayName,
+            avatarUrl: avatarUrl,
+            profileVisibility: profileVisibility,
+            language: language
+        )
+        guard updated.id == current.id else {
+            throw APIError.protocolViolation("Profile response belongs to a different account.")
+        }
+        state = .signedIn(updated)
+    }
+
+    func logout() async {
+        await api.logout()
+        state = .signedOut
+    }
+
     func acceptSignedInUser(_ user: UserProfile) {
         state = .signedIn(user)
     }
