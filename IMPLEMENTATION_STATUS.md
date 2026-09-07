@@ -620,7 +620,7 @@ Published directly to `main`:
 - `27c321b2a4617314beb9c9ff16744d39e319c639` — native iOS SwiftUI design/application foundation;
 - `44d4073d2ea32676ce14111e7f587a9d3f0ec349` — native iOS API transport/session/social-contract foundation.
 
-Current iOS source now uses Swift + SwiftUI with an iOS 17 / Swift 5.10 strict-concurrency target, an XcodeGen project manifest, frozen LinkUp visual tokens/primitives, native `Pulse · Map · LINK · Fly · Me` navigation, design-safe Pulse/Map/Fly/Me surfaces and the three-step Create LINK surface with all 16 canonical activity labels.
+Current iOS source now uses Swift + SwiftUI with an iOS 17 / Swift 5 language-mode target plus strict concurrency, an XcodeGen project manifest, frozen LinkUp visual tokens/primitives, native `Pulse · Map · LINK · Fly · Me` navigation, design-safe Pulse/Map/Fly/Me surfaces and the three-step Create LINK surface with all 16 canonical activity labels. The compiler version is supplied by Xcode rather than encoded as an unsupported `SWIFT_VERSION=5.10` language-mode value.
 
 Security/network foundation now present in source:
 

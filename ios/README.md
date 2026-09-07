@@ -16,7 +16,7 @@ Status: iOS work explicitly activated by direct user command on 2026-09-08.
 
 The first block establishes:
 
-- an iOS 17 / Swift 5.10 project manifest;
+- an iOS 17 / Swift 5 language-mode project manifest with strict concurrency;
 - strict Swift concurrency settings;
 - exact frozen LinkUp color, typography-role and radius tokens;
 - native shared card/glass/button/chip/avatar/progress/status/state primitives;
