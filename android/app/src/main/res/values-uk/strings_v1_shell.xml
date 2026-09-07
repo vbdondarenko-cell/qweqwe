@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="session_checking">Перевірка сесії…</string>
+    <string name="session_check_failed">Не вдалося перевірити сесію</string>
+    <string name="session_offline_title">Офлайн</string>
+    <string name="session_offline_body_format">Ваша зашифрована локальна сесія чинна до %1$s, але соціальні дані потребують з’єднання із сервером.</string>
+    <string name="session_sign_out_local">Вийти локально</string>
+    <string name="recovery_request_info">Якщо відновлення доступне для цього акаунта, запит на повідомлення для скидання вже надіслано.</string>
+    <string name="recovery_changed_info">Пароль змінено. Увійдіть із новим паролем.</string>
+    <string name="common_request_failed">Запит не виконано</string>
+    <string name="block_busy">Блокування…</string>
+    <string name="block_relationship_body">Ваші запити або участь у LINK один одного буде видалено. Розблокувати користувача можна в Me.</string>
+    <string name="map_v1_inactive">Real City Context і дані карти не активні у v1.0.</string>
+    <string name="fly_v1_inactive">Production-поведінка Fly потребує city/realtime foundation з v1.1.</string>
+</resources>
