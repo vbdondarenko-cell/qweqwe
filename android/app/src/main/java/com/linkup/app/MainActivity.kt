@@ -88,7 +88,7 @@ class MainActivity : ComponentActivity() {
                 sessionCoordinator.state.collectLatest { state ->
                     if (state is SessionState.SignedIn) {
                         try {
-                            pushCoordinator.syncPendingToken()
+                            pushCoordinator.sync()
                         } catch (error: CancellationException) {
                             throw error
                         } catch (_: Exception) {
