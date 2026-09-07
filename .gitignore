@@ -50,3 +50,10 @@ logs/
 *.log
 .tmp/
 tmp/
+
+# iOS / Xcode
+DerivedData/
+.build/
+*.xcuserstate
+**/xcuserdata/
+ios/LinkUp.xcodeproj/
