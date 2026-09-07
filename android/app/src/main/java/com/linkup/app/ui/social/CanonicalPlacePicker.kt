@@ -42,6 +42,7 @@ internal fun CanonicalPlacePicker(
     onSelect: (CanonicalPlace) -> Unit,
     onUseTextOnly: () -> Unit,
 ) {
+    val searchErrorFallback = stringResource(R.string.create_place_error)
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -90,7 +91,7 @@ internal fun CanonicalPlacePicker(
             LoadState.Loading -> Text(stringResource(R.string.create_place_searching), color = LinkUpTextDimmed, fontSize = 11.sp)
             LoadState.Empty -> Text(stringResource(R.string.create_place_empty), color = LinkUpWarning, fontSize = 11.sp)
             is LoadState.Failure -> Text(
-                state.error.message.ifBlank { stringResource(R.string.create_place_error) },
+                state.error.message.ifBlank { searchErrorFallback },
                 color = LinkUpWarning,
                 fontSize = 11.sp,
             )
@@ -112,7 +113,7 @@ internal fun CanonicalPlacePicker(
                     }
                 }
                 state.refreshError?.let {
-                    Text(it.message.ifBlank { stringResource(R.string.create_place_error) }, color = LinkUpWarning, fontSize = 10.sp)
+                    Text(it.message.ifBlank { searchErrorFallback }, color = LinkUpWarning, fontSize = 10.sp)
                 }
             }
         }
