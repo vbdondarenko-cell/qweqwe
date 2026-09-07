@@ -17,9 +17,14 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -28,7 +33,9 @@ import androidx.compose.ui.unit.sp
 import com.linkup.app.BuildConfig
 import com.linkup.app.R
 import com.linkup.app.core.network.BlockedUser
+import com.linkup.app.core.network.MonetizationApiClient
 import com.linkup.app.core.network.UserProfile
+import com.linkup.app.core.session.SecureSessionStore
 import com.linkup.app.core.social.LoadState
 import com.linkup.app.ui.theme.LinkUpBorder
 import com.linkup.app.ui.theme.LinkUpElevated
@@ -50,11 +57,24 @@ fun MeScreen(
     onEditProfile: () -> Unit,
     onMySlots: () -> Unit,
 ) {
+    val context = LocalContext.current
     val uriHandler = LocalUriHandler.current
     val privacyUrl = BuildConfig.LINKUP_PRIVACY_URL.trim()
     val termsUrl = BuildConfig.LINKUP_TERMS_URL.trim()
     val privacyConfigured = privacyUrl.startsWith("https://")
     val termsConfigured = termsUrl.startsWith("https://")
+    var plusOpen by remember { mutableStateOf(false) }
+    val plusApi = remember(context) {
+        MonetizationApiClient(
+            baseUrl = BuildConfig.LINKUP_API_BASE_URL,
+            sessions = SecureSessionStore(context.applicationContext),
+        )
+    }
+
+    if (plusOpen) {
+        LinkUpPlusScreen(api = plusApi, onBack = { plusOpen = false })
+        return
+    }
 
     Column(Modifier.fillMaxSize().padding(horizontal = 20.dp, vertical = 18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Text(stringResource(R.string.me_title), color = LinkUpTextPrimary, fontWeight = FontWeight.Black, fontSize = 24.sp)
@@ -76,6 +96,9 @@ fun MeScreen(
 
         TextButton(onClick = onEditProfile) { Text(stringResource(R.string.me_edit_profile), color = LinkUpRed) }
         TextButton(onClick = onMySlots) { Text(stringResource(R.string.me_my_links), color = LinkUpRed) }
+        TextButton(onClick = { plusOpen = true }) {
+            Text(stringResource(R.string.me_linkup_plus), color = LinkUpRed, fontWeight = FontWeight.Bold)
+        }
 
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(stringResource(R.string.me_blocked_people), color = LinkUpTextPrimary, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
