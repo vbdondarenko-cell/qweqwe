@@ -9,21 +9,23 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.linkup.app.R
 import com.linkup.app.core.network.SlotOrganizer
 import com.linkup.app.core.social.LoadState
 import com.linkup.app.ui.theme.LinkUpBorder
@@ -47,30 +49,32 @@ internal fun AcceptedRoster(
     removeTarget?.let { target ->
         AlertDialog(
             onDismissRequest = { removeTarget = null },
-            title = { Text("Remove @${target.username}?") },
-            text = { Text("They will lose participation and chat access for this LINK. This does not block their account; they can request to join again while the LINK is open.") },
+            title = { Text(stringResource(R.string.accepted_remove_title, target.username)) },
+            text = { Text(stringResource(R.string.accepted_remove_body)) },
             confirmButton = {
                 TextButton(enabled = !busy, onClick = {
                     removeTarget = null
                     onRemove(slotId, target.id, version)
-                }) { Text("Remove", color = LinkUpWarning) }
+                }) { Text(stringResource(R.string.common_remove), color = LinkUpWarning) }
             },
-            dismissButton = { TextButton(onClick = { removeTarget = null }) { Text("Cancel") } },
+            dismissButton = {
+                TextButton(onClick = { removeTarget = null }) { Text(stringResource(R.string.common_cancel)) }
+            },
         )
     }
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Text("Accepted participants", color = LinkUpTextPrimary, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+        Text(stringResource(R.string.slot_accepted_participants), color = LinkUpTextPrimary, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
         TextButton(onClick = onRefresh, enabled = !busy && state !is LoadState.Loading) {
-            Text(if (state is LoadState.Idle) "Show" else "Refresh", color = LinkUpRed)
+            Text(if (state is LoadState.Idle) stringResource(R.string.slot_show) else stringResource(R.string.common_refresh), color = LinkUpRed)
         }
     }
     when (state) {
         LoadState.Idle -> Unit
         LoadState.Loading -> CircularProgressIndicator(color = LinkUpRed, modifier = Modifier.size(24.dp))
-        LoadState.Empty -> Text("No accepted participants", color = LinkUpTextMuted, fontSize = 12.sp)
+        LoadState.Empty -> Text(stringResource(R.string.accepted_empty), color = LinkUpTextMuted, fontSize = 12.sp)
         is LoadState.Failure -> {
-            Text(state.error.message, color = LinkUpWarning, fontSize = 12.sp)
-            TextButton(onClick = onRefresh, enabled = !busy) { Text("Retry", color = LinkUpRed) }
+            Text(state.error.message.ifBlank { stringResource(R.string.accepted_error) }, color = LinkUpWarning, fontSize = 12.sp)
+            TextButton(onClick = onRefresh, enabled = !busy) { Text(stringResource(R.string.common_retry), color = LinkUpRed) }
         }
         is LoadState.Content -> state.value.forEach { participant ->
             Row(
@@ -83,10 +87,10 @@ internal fun AcceptedRoster(
                     Text("@${participant.username}", color = LinkUpTextMuted, fontSize = 11.sp)
                 }
                 TextButton(onClick = { removeTarget = participant }, enabled = !busy) {
-                    Text("Remove", color = LinkUpWarning, fontSize = 11.sp)
+                    Text(stringResource(R.string.common_remove), color = LinkUpWarning, fontSize = 11.sp)
                 }
                 TextButton(onClick = { onBlockUser(participant) }, enabled = !busy) {
-                    Text("Block user", color = LinkUpWarning, fontSize = 11.sp)
+                    Text(stringResource(R.string.slot_block_user), color = LinkUpWarning, fontSize = 11.sp)
                 }
             }
         }
