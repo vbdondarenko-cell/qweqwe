@@ -8,12 +8,16 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.time.Instant
 import java.util.UUID
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import org.json.JSONException
 import org.json.JSONObject
 
 internal const val MAX_API_RESPONSE_BYTES = 1024 * 1024
+private const val MAX_GET_ATTEMPTS = 2
+private const val GET_RETRY_DELAY_MS = 250L
 
 internal class ResponseTooLargeException : IOException("API response exceeds client limit")
 
@@ -30,6 +34,15 @@ internal fun readUtf8Bounded(input: InputStream, maxBytes: Int = MAX_API_RESPONS
         output.write(buffer, 0, read)
     }
     return output.toString(Charsets.UTF_8.name())
+}
+
+internal fun shouldRetryGet(method: String, error: Exception): Boolean {
+    if (method != "GET") return false
+    return when (error) {
+        is ApiException -> error.status in setOf(408, 429, 502, 503, 504)
+        is IOException -> true
+        else -> false
+    }
 }
 
 class LinkUpApiClient(
@@ -343,6 +356,29 @@ class LinkUpApiClient(
         authenticated: Boolean,
         headers: Map<String, String> = emptyMap(),
     ): JSONObject? = withContext(Dispatchers.IO) {
+        val maxAttempts = if (method == "GET") MAX_GET_ATTEMPTS else 1
+        var lastError: Exception? = null
+        for (attempt in 1..maxAttempts) {
+            try {
+                return@withContext requestOnce(method, path, body, authenticated, headers)
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Exception) {
+                lastError = error
+                if (attempt >= maxAttempts || !shouldRetryGet(method, error)) throw error
+                delay(GET_RETRY_DELAY_MS)
+            }
+        }
+        throw lastError ?: IOException("request failed")
+    }
+
+    private fun requestOnce(
+        method: String,
+        path: String,
+        body: JSONObject?,
+        authenticated: Boolean,
+        headers: Map<String, String>,
+    ): JSONObject? {
         val connection = URL(root + path).openConnection() as HttpURLConnection
         try {
             connection.instanceFollowRedirects = false
@@ -363,7 +399,7 @@ class LinkUpApiClient(
             }
 
             val status = connection.responseCode
-            if (status == HttpURLConnection.HTTP_NO_CONTENT) return@withContext null
+            if (status == HttpURLConnection.HTTP_NO_CONTENT) return null
             val requestId = connection.getHeaderField("X-Request-ID")
             val stream = if (status in 200..299) connection.inputStream else connection.errorStream
             val responseText = try {
@@ -385,7 +421,7 @@ class LinkUpApiClient(
                     requestId = json?.optString("requestId")?.ifBlank { null } ?: requestId,
                 )
             }
-            json ?: throw ApiException(status, "protocol_error", "Invalid server response", requestId)
+            return json ?: throw ApiException(status, "protocol_error", "Invalid server response", requestId)
         } finally {
             connection.disconnect()
         }
