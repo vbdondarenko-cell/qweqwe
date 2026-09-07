@@ -14,10 +14,11 @@ const (
 )
 
 var (
-	ErrInvalidInput = errors.New("invalid chat input")
-	ErrNotFound     = errors.New("chat slot not found")
-	ErrForbidden    = errors.New("chat forbidden")
-	ErrClosed       = errors.New("chat closed")
+	ErrInvalidInput        = errors.New("invalid chat input")
+	ErrNotFound            = errors.New("chat slot not found")
+	ErrForbidden           = errors.New("chat forbidden")
+	ErrClosed              = errors.New("chat closed")
+	ErrIdempotencyConflict = errors.New("chat idempotency conflict")
 )
 
 type Author struct {
