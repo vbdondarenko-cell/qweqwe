@@ -4,7 +4,22 @@ plugins {
     id("org.jetbrains.kotlin.plugin.compose")
 }
 
-val releaseApiBaseUrl = providers.gradleProperty("LINKUP_API_BASE_URL").orElse("").get()
+fun quotedBuildConfig(value: String): String =
+    "\"${value.replace("\\", "\\\\").replace("\"", "\\\"")}\""
+
+val releaseApiBaseUrl = providers.gradleProperty("LINKUP_API_BASE_URL").orElse("").get().trim()
+val releasePrivacyUrl = providers.gradleProperty("LINKUP_PRIVACY_URL").orElse("").get().trim()
+val releaseTermsUrl = providers.gradleProperty("LINKUP_TERMS_URL").orElse("").get().trim()
+val releaseKeystoreFile = providers.gradleProperty("LINKUP_KEYSTORE_FILE").orNull?.trim().orEmpty()
+val releaseKeystorePassword = providers.gradleProperty("LINKUP_KEYSTORE_PASSWORD").orNull.orEmpty()
+val releaseKeyAlias = providers.gradleProperty("LINKUP_KEY_ALIAS").orNull?.trim().orEmpty()
+val releaseKeyPassword = providers.gradleProperty("LINKUP_KEY_PASSWORD").orNull.orEmpty()
+val releaseSigningConfigured = listOf(
+    releaseKeystoreFile,
+    releaseKeystorePassword,
+    releaseKeyAlias,
+    releaseKeyPassword,
+).all { it.isNotBlank() }
 
 android {
     namespace = "com.linkup.app"
@@ -15,23 +30,43 @@ android {
         minSdk = 26
         targetSdk = 37
         versionCode = 1
-        versionName = "1.0.0-dev"
+        versionName = "1.0.0"
         manifestPlaceholders["usesCleartextTraffic"] = "false"
+    }
+
+    signingConfigs {
+        if (releaseSigningConfigured) {
+            create("release") {
+                storeFile = file(releaseKeystoreFile)
+                storePassword = releaseKeystorePassword
+                keyAlias = releaseKeyAlias
+                keyPassword = releaseKeyPassword
+                enableV1Signing = true
+                enableV2Signing = true
+                enableV3Signing = true
+                enableV4Signing = true
+            }
+        }
     }
 
     buildTypes {
         debug {
-            buildConfigField("String", "LINKUP_API_BASE_URL", "\"http://10.0.2.2:8080\"")
+            applicationIdSuffix = ".debug"
+            versionNameSuffix = "-debug"
+            buildConfigField("String", "LINKUP_API_BASE_URL", quotedBuildConfig("http://10.0.2.2:8080"))
+            buildConfigField("String", "LINKUP_PRIVACY_URL", quotedBuildConfig(""))
+            buildConfigField("String", "LINKUP_TERMS_URL", quotedBuildConfig(""))
             manifestPlaceholders["usesCleartextTraffic"] = "true"
         }
         release {
             isMinifyEnabled = false
-            buildConfigField(
-                "String",
-                "LINKUP_API_BASE_URL",
-                "\"${releaseApiBaseUrl.replace("\\", "\\\\").replace("\"", "\\\"")}\"",
-            )
+            buildConfigField("String", "LINKUP_API_BASE_URL", quotedBuildConfig(releaseApiBaseUrl))
+            buildConfigField("String", "LINKUP_PRIVACY_URL", quotedBuildConfig(releasePrivacyUrl))
+            buildConfigField("String", "LINKUP_TERMS_URL", quotedBuildConfig(releaseTermsUrl))
             manifestPlaceholders["usesCleartextTraffic"] = "false"
+            if (releaseSigningConfigured) {
+                signingConfig = signingConfigs.getByName("release")
+            }
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
@@ -57,6 +92,26 @@ android {
 
 kotlin {
     jvmToolchain(17)
+}
+
+tasks.matching { it.name == "preReleaseBuild" }.configureEach {
+    doFirst {
+        check(releaseApiBaseUrl.startsWith("https://")) {
+            "Release requires LINKUP_API_BASE_URL with an https:// origin"
+        }
+        check(releasePrivacyUrl.startsWith("https://")) {
+            "Release requires LINKUP_PRIVACY_URL with an https:// URL"
+        }
+        check(releaseTermsUrl.startsWith("https://")) {
+            "Release requires LINKUP_TERMS_URL with an https:// URL"
+        }
+        check(releaseSigningConfigured) {
+            "Release signing requires LINKUP_KEYSTORE_FILE, LINKUP_KEYSTORE_PASSWORD, LINKUP_KEY_ALIAS and LINKUP_KEY_PASSWORD"
+        }
+        check(file(releaseKeystoreFile).isFile) {
+            "LINKUP_KEYSTORE_FILE does not point to a readable keystore file"
+        }
+    }
 }
 
 dependencies {
