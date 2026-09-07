@@ -6,6 +6,7 @@ SRC="$ROOT/src"
 ARTIFACT_ROOT="$ROOT/artifacts"
 CANDIDATE_ROOT="$ARTIFACT_ROOT/candidates"
 ANDROID_HOME="${ANDROID_HOME:-/opt/android-sdk}"
+BUILD_ENV_FILE="${LINKUP_BUILD_ENV_FILE:-/etc/linkup/build.env}"
 export ANDROID_HOME
 export ANDROID_SDK_ROOT="$ANDROID_HOME"
 export PATH="/usr/local/go/bin:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools:$PATH"
@@ -14,6 +15,18 @@ fail() {
   echo "ERROR: $*" >&2
   exit 1
 }
+
+# Build/release configuration is server-only. Nothing from this file is echoed,
+# copied into Git, or written to artifact metadata. Firebase Android client
+# identifiers are exposed to Gradle by ORG_GRADLE_PROJECT_* variables; signing
+# passwords and keystore paths remain only in the build process environment.
+if [ -e "$BUILD_ENV_FILE" ]; then
+  [ -r "$BUILD_ENV_FILE" ] || fail "build environment file is not readable: $BUILD_ENV_FILE"
+  set -a
+  # shellcheck disable=SC1090
+  . "$BUILD_ENV_FILE"
+  set +a
+fi
 
 cd "$SRC"
 git fetch --prune origin main
@@ -53,6 +66,10 @@ if [ "${LINKUP_BUILD_RELEASE:-0}" = "1" ]; then
   : "${ORG_GRADLE_PROJECT_LINKUP_PRIVACY_URL:?missing privacy URL}"
   : "${ORG_GRADLE_PROJECT_LINKUP_TERMS_URL:?missing terms URL}"
   : "${ORG_GRADLE_PROJECT_LINKUP_RESET_HOST:?missing reset host}"
+  : "${ORG_GRADLE_PROJECT_LINKUP_FIREBASE_API_KEY:?missing Firebase Android API key}"
+  : "${ORG_GRADLE_PROJECT_LINKUP_FIREBASE_APP_ID:?missing Firebase Android app id}"
+  : "${ORG_GRADLE_PROJECT_LINKUP_FIREBASE_PROJECT_ID:?missing Firebase project id}"
+  : "${ORG_GRADLE_PROJECT_LINKUP_FIREBASE_SENDER_ID:?missing Firebase sender id}"
   : "${ORG_GRADLE_PROJECT_LINKUP_KEYSTORE_FILE:?missing keystore file}"
   : "${ORG_GRADLE_PROJECT_LINKUP_KEYSTORE_PASSWORD:?missing keystore password}"
   : "${ORG_GRADLE_PROJECT_LINKUP_KEY_ALIAS:?missing key alias}"
