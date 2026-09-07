@@ -4,6 +4,7 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/chat"
 )
@@ -27,7 +28,8 @@ func (s *Server) sendChatMessage(w http.ResponseWriter, r *http.Request) {
 		writeProblem(w, r, http.StatusBadRequest, "invalid_request", "invalid JSON body")
 		return
 	}
-	out, err := s.deps.Chats.Send(r.Context(), auth.User.ID, r.PathValue("slotID"), in.Text)
+	key := strings.TrimSpace(r.Header.Get("Idempotency-Key"))
+	out, err := s.deps.Chats.Send(r.Context(), auth.User.ID, r.PathValue("slotID"), key, in.Text)
 	if err != nil {
 		s.writeChatError(w, r, err)
 		return
@@ -68,6 +70,8 @@ func (s *Server) writeChatError(w http.ResponseWriter, r *http.Request, err erro
 		writeProblem(w, r, http.StatusForbidden, "chat_forbidden", "chat access is not allowed")
 	case errors.Is(err, chat.ErrClosed):
 		writeProblem(w, r, http.StatusConflict, "chat_closed", "chat is closed")
+	case errors.Is(err, chat.ErrIdempotencyConflict):
+		writeProblem(w, r, http.StatusConflict, "idempotency_conflict", "idempotency key was already used with different message data")
 	default:
 		writeProblem(w, r, http.StatusInternalServerError, "internal_error", "request failed")
 	}
