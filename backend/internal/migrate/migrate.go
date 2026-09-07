@@ -66,7 +66,12 @@ func applyOne(ctx context.Context, pool *pgxpool.Pool, m migration) error {
 	if !errors.Is(err, pgx.ErrNoRows) {
 		return fmt.Errorf("read migration %s: %w", m.Name, err)
 	}
-	if _, err = tx.Exec(ctx, m.SQL); err != nil {
+
+	executable, err := executionSQL(m.SQL)
+	if err != nil {
+		return fmt.Errorf("prepare migration %s: %w", m.Name, err)
+	}
+	if _, err = tx.Exec(ctx, executable); err != nil {
 		return fmt.Errorf("apply migration %s: %w", m.Name, err)
 	}
 	if _, err = tx.Exec(ctx, `INSERT INTO linkup_schema_migrations (name,checksum) VALUES ($1,$2)`, m.Name, m.Checksum[:]); err != nil {
@@ -76,6 +81,37 @@ func applyOne(ctx context.Context, pool *pgxpool.Pool, m migration) error {
 		return fmt.Errorf("commit migration %s: %w", m.Name, err)
 	}
 	return nil
+}
+
+// executionSQL keeps migration checksums immutable while making transaction
+// ownership explicit. The runner always owns the PostgreSQL transaction. A
+// previously committed migration may still contain one legacy full-file
+// `BEGIN; ... COMMIT;` wrapper; that wrapper is removed only for execution.
+// One-sided wrappers are rejected so a migration cannot silently commit or
+// escape the runner's checksum-ledger transaction.
+func executionSQL(raw string) (string, error) {
+	s := strings.TrimSpace(raw)
+	if s == "" {
+		return "", errors.New("empty migration SQL")
+	}
+
+	const begin = "BEGIN;"
+	const commit = "COMMIT;"
+	hasBegin := len(s) >= len(begin) && strings.EqualFold(s[:len(begin)], begin)
+	hasCommit := len(s) >= len(commit) && strings.EqualFold(s[len(s)-len(commit):], commit)
+
+	if hasBegin != hasCommit {
+		return "", errors.New("unbalanced migration transaction wrapper")
+	}
+	if !hasBegin {
+		return s, nil
+	}
+
+	body := strings.TrimSpace(s[len(begin) : len(s)-len(commit)])
+	if body == "" {
+		return "", errors.New("empty migration transaction body")
+	}
+	return body, nil
 }
 
 func discover(dir string) ([]migration, error) {
