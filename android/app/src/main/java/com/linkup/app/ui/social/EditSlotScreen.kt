@@ -18,6 +18,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -45,6 +46,7 @@ fun EditSlotScreen(
     var details by remember(slot.id, slot.version) { mutableStateOf(slot.details.orEmpty()) }
     var place by remember(slot.id, slot.version) { mutableStateOf(slot.placeText) }
     var capacity by remember(slot.id, slot.version) { mutableIntStateOf(slot.capacity) }
+    var startAt by rememberSaveable(slot.id, slot.version) { mutableStateOf(slot.startAtEpochMillis) }
 
     Column(Modifier.fillMaxSize()) {
         Row(
@@ -65,6 +67,8 @@ fun EditSlotScreen(
                             details = details.trim(),
                             placeText = place.trim(),
                             capacity = capacity,
+                            startAtEpochMillis = startAt.takeIf { it != slot.startAtEpochMillis },
+                            clearStartAt = startAt == null && slot.startAtEpochMillis != null,
                         ),
                     )
                 },
@@ -79,6 +83,7 @@ fun EditSlotScreen(
             EditField("Title", title, { title = it.take(60) })
             EditField("Description", details, { details = it.take(1000) }, singleLine = false)
             EditField("Location", place, { place = it.take(200) })
+            SlotScheduleField(startAt, !submitting) { startAt = it }
             Text("Capacity", color = LinkUpTextDimmed, fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
             Row(verticalAlignment = Alignment.CenterVertically) {
                 TextButton(onClick = { capacity = (capacity - 1).coerceAtLeast(slot.acceptedCount.coerceAtLeast(2)) }) { Text("−", color = LinkUpTextDimmed, fontSize = 22.sp) }

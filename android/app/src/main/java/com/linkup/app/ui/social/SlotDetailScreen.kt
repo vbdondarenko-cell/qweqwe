@@ -28,6 +28,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.linkup.app.core.scheduling.scheduleLabel
 import com.linkup.app.core.network.PendingSlotRequest
 import com.linkup.app.core.network.SlotModel
 import com.linkup.app.core.network.SlotOrganizer
@@ -95,6 +96,7 @@ fun SlotDetailScreen(
                         }
                     }
 
+                    Text(scheduleLabel(slot.startAtEpochMillis), color = LinkUpTextDimmed, fontSize = 12.sp)
                     slot.details?.takeIf { it.isNotBlank() }?.let { Text(it, color = LinkUpTextDimmed, fontSize = 14.sp) }
 
                     Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(LinkUpElevated).border(1.dp, LinkUpBorder, RoundedCornerShape(14.dp)).padding(14.dp)) {

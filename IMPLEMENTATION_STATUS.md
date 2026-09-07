@@ -484,3 +484,16 @@ Next feature: password-reset completion surface using existing reset endpoint. P
 Validation: git diff --check and source/call-site review passed. No build/deploy was run. Automatic verified App Link opening remains unimplemented; the manual reset completion path is now present. SMTP delivery depends on existing server configuration. Android/Go Version 1 verified production readiness remains 0% pending end-to-end evidence.
 
 Next functionality in the active foundation: date/time selection for create/edit, then Hosting/Joined navigation using real server data. Existing audit fixes are reserved for the later correction phase per the user's current instruction.
+
+## 21. 2026-09-07 — Native Slot date/time functionality
+
+- Create step 2 now offers native date/time selection; step 3 previews the selected instant.
+- Edit supports setting/changing startAt and clearing it through existing clearStartAt semantics; unchanged start time is omitted from the patch.
+- Slot detail shows full date, local time, UTC offset and viewer time zone.
+- New SlotScheduleField reuses existing UI colors and Android pickers. Schedule choice survives form configuration recreation; open picker dialogs are disposed with the screen.
+- Local time conversion rejects DST gaps and explicitly asks which offset to use during repeated clock times. API continues serializing UTC Instant through the existing Go startAt contract.
+- SlotScheduleTest adds ordinary half-hour-zone conversion, spring gap and autumn overlap cases.
+
+Validation: source/API wiring review and git diff --check passed; Kotlin unit/device tests not run (toolchain unavailable). No server, migration, iOS or React/TS design modifications. This is optional start-time functionality, not full City Context/scheduled-expiry policy.
+
+Next functionality: server-backed Hosting/Joined navigation, including ACTIVE Slots. Existing audit corrections remain deferred by user direction. Verified production readiness stays 0% pending full end-to-end execution.

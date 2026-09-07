@@ -27,6 +27,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -35,6 +36,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.linkup.app.core.network.CreateSlotInput
+import com.linkup.app.core.scheduling.scheduleLabel
 import com.linkup.app.ui.theme.LinkUpBorder
 import com.linkup.app.ui.theme.LinkUpElevated
 import com.linkup.app.ui.theme.LinkUpRed
@@ -71,6 +73,7 @@ fun CreateLinkScreen(
     var description by remember { mutableStateOf("") }
     var location by remember { mutableStateOf("") }
     var capacity by remember { mutableIntStateOf(6) }
+    var startAt by rememberSaveable { mutableStateOf<Long?>(null) }
 
     val canNext = when (step) {
         1 -> activity != null && title.trim().isNotEmpty()
@@ -131,6 +134,7 @@ fun CreateLinkScreen(
                 2 -> {
                     SectionTitle("Where & when?", "Set the details for your LinkUp.")
                     StyledField("Location", location, { location = it.take(200) }, "e.g. Green Hills Coffee, Podil")
+                    SlotScheduleField(startAt, !submitting) { startAt = it }
                     Text("Capacity", color = LinkUpTextDimmed, fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         CounterButton("−") { capacity = (capacity - 1).coerceAtLeast(2) }
@@ -161,6 +165,7 @@ fun CreateLinkScreen(
                             }
                         }
                         if (description.isNotBlank()) Text(description.trim(), color = LinkUpTextDimmed, fontSize = 13.sp)
+                        Text(scheduleLabel(startAt), color = LinkUpTextDimmed, fontSize = 12.sp)
                         Text("0/$capacity going · Approval required · Public", color = LinkUpTextMuted, fontSize = 11.sp)
                     }
                     Text("Publishing creates a real server-backed LinkUp.", color = LinkUpTextDimmed, fontSize = 12.sp, modifier = Modifier.fillMaxWidth().background(LinkUpZone.copy(alpha = .5f)).padding(12.dp))
@@ -184,6 +189,7 @@ fun CreateLinkScreen(
                         details = description.trim().ifBlank { null },
                         placeText = location.trim(),
                         capacity = capacity,
+                        startAtEpochMillis = startAt,
                     ),
                 )
             }
