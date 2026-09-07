@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="session_checking">Checking session…</string>
+    <string name="session_check_failed">Session check failed</string>
+    <string name="session_offline_title">Offline</string>
+    <string name="session_offline_body_format">Your encrypted local session is still valid until %1$s, but social data requires a server connection.</string>
+    <string name="session_sign_out_local">Sign out locally</string>
+    <string name="recovery_request_info">If recovery is available for this account, a reset message has been requested.</string>
+    <string name="recovery_changed_info">Password changed. Sign in with your new password.</string>
+    <string name="common_request_failed">Request failed</string>
+    <string name="block_busy">Blocking…</string>
+    <string name="block_relationship_body">Your requests or participation in each other’s LINKs will be removed. You can unblock this person in Me.</string>
+    <string name="map_v1_inactive">Real City Context and map data are not active in v1.0.</string>
+    <string name="fly_v1_inactive">Fly production behavior requires the v1.1 city/realtime foundations.</string>
+</resources>
