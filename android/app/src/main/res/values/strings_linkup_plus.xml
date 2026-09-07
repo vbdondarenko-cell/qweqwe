@@ -23,6 +23,12 @@
     <string name="plus_next_claim_format">Next bonus-day claim after %1$s</string>
     <string name="plus_rewarded_weekly_limit">Claim limit: once every 7 days (~4 premium days/month).</string>
     <string name="plus_referral_title">Referral program</string>
+    <string name="plus_your_referral_code">Your referral code</string>
+    <string name="plus_enter_referral_code">Referral code</string>
+    <string name="plus_apply_referral_code">Apply code</string>
+    <string name="plus_referral_binding">Applying…</string>
+    <string name="plus_bound_referral_format">Invited with code %1$s</string>
+    <string name="plus_referral_qualify_by_format">Verified subscription must be paid by %1$s</string>
     <string name="plus_referral_count_format">Qualified paid referrals: %1$d</string>
     <string name="plus_referral_deadline_format">A referral qualifies only after verified payment within %1$d days of registration.</string>
     <string name="plus_milestone_format">%1$d referrals → inviter %2$d days · triggering invitee %3$d days</string>
