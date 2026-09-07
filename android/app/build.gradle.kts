@@ -7,9 +7,19 @@ plugins {
 fun quotedBuildConfig(value: String): String =
     "\"${value.replace("\\", "\\\\").replace("\"", "\\\"")}\""
 
+fun validHttpsHostOnly(value: String): Boolean {
+    if (value.isBlank() || value.contains('/') || value.contains('@') || value.contains(':')) return false
+    return runCatching {
+        val uri = java.net.URI("https://$value")
+        uri.scheme == "https" && uri.host == value && uri.userInfo == null && uri.port == -1 &&
+            uri.rawPath.isNullOrEmpty() && uri.rawQuery == null && uri.rawFragment == null
+    }.getOrDefault(false)
+}
+
 val releaseApiBaseUrl = providers.gradleProperty("LINKUP_API_BASE_URL").orElse("").get().trim()
 val releasePrivacyUrl = providers.gradleProperty("LINKUP_PRIVACY_URL").orElse("").get().trim()
 val releaseTermsUrl = providers.gradleProperty("LINKUP_TERMS_URL").orElse("").get().trim()
+val releaseResetHost = providers.gradleProperty("LINKUP_RESET_HOST").orElse("").get().trim().lowercase()
 val releaseKeystoreFile = providers.gradleProperty("LINKUP_KEYSTORE_FILE").orNull?.trim().orEmpty()
 val releaseKeystorePassword = providers.gradleProperty("LINKUP_KEYSTORE_PASSWORD").orNull.orEmpty()
 val releaseKeyAlias = providers.gradleProperty("LINKUP_KEY_ALIAS").orNull?.trim().orEmpty()
@@ -32,6 +42,9 @@ android {
         versionCode = 1
         versionName = "1.0.0"
         manifestPlaceholders["usesCleartextTraffic"] = "false"
+        // Debug/manual builds remain installable without claiming a verified
+        // production domain. Release overrides this placeholder and fails closed.
+        manifestPlaceholders["resetHost"] = "reset.invalid"
     }
 
     signingConfigs {
@@ -64,6 +77,7 @@ android {
             buildConfigField("String", "LINKUP_PRIVACY_URL", quotedBuildConfig(releasePrivacyUrl))
             buildConfigField("String", "LINKUP_TERMS_URL", quotedBuildConfig(releaseTermsUrl))
             manifestPlaceholders["usesCleartextTraffic"] = "false"
+            manifestPlaceholders["resetHost"] = releaseResetHost
             if (releaseSigningConfigured) {
                 signingConfig = signingConfigs.getByName("release")
             }
@@ -104,6 +118,9 @@ tasks.matching { it.name == "preReleaseBuild" }.configureEach {
         }
         check(releaseTermsUrl.startsWith("https://")) {
             "Release requires LINKUP_TERMS_URL with an https:// URL"
+        }
+        check(validHttpsHostOnly(releaseResetHost)) {
+            "Release requires LINKUP_RESET_HOST as a bare HTTPS App Link host (for example app.example.com)"
         }
         check(releaseSigningConfigured) {
             "Release signing requires LINKUP_KEYSTORE_FILE, LINKUP_KEYSTORE_PASSWORD, LINKUP_KEY_ALIAS and LINKUP_KEY_PASSWORD"
