@@ -13,18 +13,16 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.key
-import com.linkup.app.core.network.MySlotsView
-import com.linkup.app.ui.social.MySlotsScreen
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -32,12 +30,16 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.Lifecycle
+import com.linkup.app.R
 import com.linkup.app.core.network.ApiException
 import com.linkup.app.core.network.BlockedUser
 import com.linkup.app.core.network.LinkUpApiClient
+import com.linkup.app.core.network.MySlotsView
 import com.linkup.app.core.network.SlotModel
 import com.linkup.app.core.network.SlotOrganizer
 import com.linkup.app.core.network.SlotViewerState
@@ -48,11 +50,13 @@ import com.linkup.app.core.social.MutationState
 import com.linkup.app.core.social.SocialCoordinator
 import com.linkup.app.core.social.SocialError
 import com.linkup.app.ui.auth.AuthScreen
-import com.linkup.app.ui.me.MeScreen
 import com.linkup.app.ui.me.EditProfileScreen
+import com.linkup.app.ui.me.MeScreen
+import com.linkup.app.ui.social.ChatPollingEffect
 import com.linkup.app.ui.social.ChatScreen
 import com.linkup.app.ui.social.CreateLinkScreen
 import com.linkup.app.ui.social.EditSlotScreen
+import com.linkup.app.ui.social.MySlotsScreen
 import com.linkup.app.ui.social.PulseScreen
 import com.linkup.app.ui.social.SlotDetailScreen
 import com.linkup.app.ui.theme.LinkUpBackground
@@ -62,10 +66,11 @@ import com.linkup.app.ui.theme.LinkUpRed
 import com.linkup.app.ui.theme.LinkUpTextDimmed
 import com.linkup.app.ui.theme.LinkUpTextMuted
 import com.linkup.app.ui.theme.LinkUpTextPrimary
-import androidx.lifecycle.Lifecycle
-import com.linkup.app.ui.social.ChatPollingEffect
-import kotlinx.coroutines.launch
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.launch
 
 private enum class MainTab { PULSE, MAP, LINK, FLY, ME }
 
@@ -81,12 +86,15 @@ fun LinkUpApp(
     var authBusy by remember { mutableStateOf(false) }
     var authError by remember { mutableStateOf<String?>(null) }
     var authInfo by remember { mutableStateOf<String?>(null) }
+    val genericError = stringResource(R.string.common_request_failed)
+    val recoveryRequested = stringResource(R.string.recovery_request_info)
+    val passwordChanged = stringResource(R.string.recovery_changed_info)
 
     LaunchedEffect(Unit) { sessions.bootstrap() }
 
     Box(Modifier.fillMaxSize().background(LinkUpBackground)) {
         when (val state = sessionState) {
-            SessionState.Checking -> CenterLoading("Checking session…")
+            SessionState.Checking -> CenterLoading(stringResource(R.string.session_checking))
             SessionState.SignedOut -> AuthScreen(
                 busy = authBusy,
                 errorMessage = authError,
@@ -95,7 +103,7 @@ fun LinkUpApp(
                     scope.launch {
                         authBusy = true; authError = null; authInfo = null
                         try { sessions.login(identifier, password, deviceLabel()) }
-                        catch (error: Exception) { authError = error.userMessage() }
+                        catch (error: Exception) { authError = error.userMessage(genericError) }
                         finally { authBusy = false }
                     }
                 },
@@ -103,7 +111,7 @@ fun LinkUpApp(
                     scope.launch {
                         authBusy = true; authError = null; authInfo = null
                         try { sessions.register(email, username, displayName, password, "uk", deviceLabel()) }
-                        catch (error: Exception) { authError = error.userMessage() }
+                        catch (error: Exception) { authError = error.userMessage(genericError) }
                         finally { authBusy = false }
                     }
                 },
@@ -112,8 +120,8 @@ fun LinkUpApp(
                         authBusy = true; authError = null; authInfo = null
                         try {
                             api.requestPasswordRecovery(email)
-                            authInfo = "If recovery is available for this account, a reset message has been requested."
-                        } catch (error: Exception) { authError = error.userMessage() }
+                            authInfo = recoveryRequested
+                        } catch (error: Exception) { authError = error.userMessage(genericError) }
                         finally { authBusy = false }
                     }
                 },
@@ -122,10 +130,10 @@ fun LinkUpApp(
                         authBusy = true; authError = null; authInfo = null
                         try {
                             api.resetPassword(token, password)
-                            authInfo = "Password changed. Sign in with your new password."
+                            authInfo = passwordChanged
                             true
                         } catch (error: Exception) {
-                            authError = error.userMessage()
+                            authError = error.userMessage(genericError)
                             false
                         } finally { authBusy = false }
                     }
@@ -140,7 +148,7 @@ fun LinkUpApp(
                 onSignOut = { sessions.clearLocalSession() },
             )
             is SessionState.RecoverableError -> ErrorSurface(
-                title = "Session check failed",
+                title = stringResource(R.string.session_check_failed),
                 message = state.message,
                 onRetry = { scope.launch { sessions.bootstrap() } },
                 onSecondary = { sessions.clearLocalSession() },
@@ -165,6 +173,7 @@ private fun SignedInRoot(
     val accepted by social.accepted.collectAsState()
     val chat by social.chat.collectAsState()
     val mutation by social.mutation.collectAsState()
+    val genericError = stringResource(R.string.common_request_failed)
 
     var tab by remember { mutableStateOf(MainTab.PULSE) }
     var detailOpen by remember { mutableStateOf(false) }
@@ -188,21 +197,16 @@ private fun SignedInRoot(
                 val items = api.blockedUsers()
                 blockedState = if (items.isEmpty()) LoadState.Empty else LoadState.Content(items)
             } catch (error: Exception) {
-                blockedState = LoadState.Failure(SocialError("blocks_error", error.userMessage()))
+                blockedState = LoadState.Failure(SocialError("blocks_error", error.userMessage(genericError)))
             }
         }
     }
 
-    DisposableEffect(user.id) {
-        onDispose { social.clearAll() }
-    }
+    DisposableEffect(user.id) { onDispose { social.clearAll() } }
     LaunchedEffect(mySlotsOpen, detailOpen, myView) {
         if (mySlotsOpen && !detailOpen) social.refreshMySlots(myView)
     }
-
-    LaunchedEffect(user.id) {
-        social.refreshPulse()
-    }
+    LaunchedEffect(user.id) { social.refreshPulse() }
 
     Box(Modifier.fillMaxSize()) {
         when {
@@ -219,7 +223,7 @@ private fun SignedInRoot(
                                 profileOpen = false
                                 social.refreshPulse()
                             }
-                        } catch (error: Exception) { profileError = error.userMessage() }
+                        } catch (error: Exception) { profileError = error.userMessage(genericError) }
                         finally { profileBusy = false }
                     }
                 },
@@ -231,11 +235,7 @@ private fun SignedInRoot(
                     submitting = mutation is MutationState.Running,
                     errorMessage = (mutation as? MutationState.Failed)?.error?.message,
                     onClose = { editTarget = null },
-                    onSave = { input ->
-                        scope.launch {
-                            if (social.editSlot(target.id, input)) editTarget = null
-                        }
-                    },
+                    onSave = { input -> scope.launch { if (social.editSlot(target.id, input)) editTarget = null } },
                 )
             }
             chatSlotId != null -> {
@@ -267,9 +267,7 @@ private fun SignedInRoot(
                 onCancel = { id, version -> scope.launch { social.cancelSlot(id, version) } },
                 onEdit = { editTarget = it },
                 onBlockUser = { target -> blockError = null; blockTarget = target },
-                onOpenChat = { id ->
-                    chatSlotId = id
-                },
+                onOpenChat = { id -> chatSlotId = id },
             )
             mySlotsOpen -> MySlotsScreen(
                 state = mySlots,
@@ -277,10 +275,7 @@ private fun SignedInRoot(
                 onViewChange = { myView = it },
                 onBack = { mySlotsOpen = false },
                 onRefresh = { scope.launch { social.refreshMySlots(myView) } },
-                onSlotClick = { item ->
-                    detailOpen = true
-                    scope.launch { social.openSlot(item.id) }
-                },
+                onSlotClick = { item -> detailOpen = true; scope.launch { social.openSlot(item.id) } },
             )
             else -> {
                 Column(Modifier.fillMaxSize()) {
@@ -289,16 +284,10 @@ private fun SignedInRoot(
                             MainTab.PULSE -> PulseScreen(
                                 state = pulse,
                                 onRefresh = { scope.launch { social.refreshPulse() } },
-                                onSlotClick = { slot ->
-                                    detailOpen = true
-                                    scope.launch { social.openSlot(slot.id) }
-                                },
+                                onSlotClick = { slot -> detailOpen = true; scope.launch { social.openSlot(slot.id) } },
                                 onPrimaryAction = { slot ->
                                     if (slot.viewerState == SlotViewerState.NONE) scope.launch { social.requestSlot(slot.id) }
-                                    else {
-                                        detailOpen = true
-                                        scope.launch { social.openSlot(slot.id) }
-                                    }
+                                    else { detailOpen = true; scope.launch { social.openSlot(slot.id) } }
                                 },
                             )
                             MainTab.LINK -> CreateLinkScreen(
@@ -324,18 +313,18 @@ private fun SignedInRoot(
                                 onUnblock = { userId ->
                                     scope.launch {
                                         try { api.unblockUser(userId); meError = null; refreshBlocks() }
-                                        catch (error: Exception) { meError = error.userMessage() }
+                                        catch (error: Exception) { meError = error.userMessage(genericError) }
                                     }
                                 },
                                 onLogout = {
                                     scope.launch {
                                         try { sessions.logout() }
-                                        catch (error: Exception) { meError = error.userMessage() }
+                                        catch (error: Exception) { meError = error.userMessage(genericError) }
                                     }
                                 },
                             )
-                            MainTab.MAP -> CapabilitySurface("Map", "Real City Context and map data are not active in this capability block yet.")
-                            MainTab.FLY -> CapabilitySurface("Fly", "Fly production behavior is scheduled after its required city/realtime foundations.")
+                            MainTab.MAP -> CapabilitySurface(stringResource(R.string.nav_map), stringResource(R.string.map_v1_inactive))
+                            MainTab.FLY -> CapabilitySurface(stringResource(R.string.nav_fly), stringResource(R.string.fly_v1_inactive))
                         }
                     }
                     BottomNav(tab) { selectedTab ->
@@ -349,10 +338,10 @@ private fun SignedInRoot(
         blockTarget?.let { target ->
             AlertDialog(
                 onDismissRequest = { if (!blockBusy) blockTarget = null },
-                title = { Text("Block @${target.username}?") },
+                title = { Text(stringResource(R.string.block_confirm_title, target.username)) },
                 text = {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text("Your requests or participation in each other's LINKs will be removed. You can unblock this person in Me.")
+                        Text(stringResource(R.string.block_relationship_body))
                         blockError?.let { Text(it, color = LinkUpRed) }
                     }
                 },
@@ -367,13 +356,15 @@ private fun SignedInRoot(
                                 blockTarget = null; tab = MainTab.PULSE
                                 blockedState = LoadState.Idle
                                 social.refreshPulse()
-                            } catch (error: Exception) { blockError = error.userMessage() }
+                            } catch (error: Exception) { blockError = error.userMessage(genericError) }
                             finally { blockBusy = false }
                         }
-                    }) { Text(if (blockBusy) "Blocking…" else "Block", color = LinkUpRed) }
+                    }) {
+                        Text(if (blockBusy) stringResource(R.string.block_busy) else stringResource(R.string.common_block), color = LinkUpRed)
+                    }
                 },
                 dismissButton = {
-                    TextButton(enabled = !blockBusy, onClick = { blockTarget = null }) { Text("Cancel") }
+                    TextButton(enabled = !blockBusy, onClick = { blockTarget = null }) { Text(stringResource(R.string.common_cancel)) }
                 },
             )
         }
@@ -387,13 +378,14 @@ private fun BottomNav(selected: MainTab, onSelect: (MainTab) -> Unit) {
         horizontalArrangement = Arrangement.SpaceEvenly,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        listOf(
-            MainTab.PULSE to "Pulse",
-            MainTab.MAP to "Map",
-            MainTab.LINK to "LINK",
-            MainTab.FLY to "Fly",
-            MainTab.ME to "Me",
-        ).forEach { (tab, label) ->
+        MainTab.values().forEach { tab ->
+            val label = when (tab) {
+                MainTab.PULSE -> stringResource(R.string.nav_pulse)
+                MainTab.MAP -> stringResource(R.string.nav_map)
+                MainTab.LINK -> stringResource(R.string.nav_link)
+                MainTab.FLY -> stringResource(R.string.nav_fly)
+                MainTab.ME -> stringResource(R.string.nav_me)
+            }
             val active = selected == tab
             Column(
                 Modifier.weight(1f).clip(RoundedCornerShape(12.dp)).clickable { onSelect(tab) }.padding(vertical = 7.dp),
@@ -416,7 +408,12 @@ private fun CenterLoading(label: String) {
 
 @Composable
 private fun OfflineSessionSurface(expiresAt: Long, onRetry: () -> Unit, onSignOut: () -> Unit) {
-    ErrorSurface("Offline", "Your encrypted local session is still valid until $expiresAt, but foundation social data requires a server connection.", onRetry, onSignOut)
+    ErrorSurface(
+        stringResource(R.string.session_offline_title),
+        stringResource(R.string.session_offline_body_format, sessionExpiryLabel(expiresAt)),
+        onRetry,
+        onSignOut,
+    )
 }
 
 @Composable
@@ -424,8 +421,8 @@ private fun ErrorSurface(title: String, message: String, onRetry: () -> Unit, on
     Column(Modifier.fillMaxSize().padding(28.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
         Text(title, color = LinkUpTextPrimary, fontWeight = FontWeight.Bold, fontSize = 20.sp)
         Text(message, color = LinkUpTextDimmed, fontSize = 13.sp, modifier = Modifier.padding(vertical = 10.dp))
-        TextButton(onClick = onRetry) { Text("Retry", color = LinkUpRed) }
-        TextButton(onClick = onSecondary) { Text("Sign out locally", color = LinkUpTextMuted) }
+        TextButton(onClick = onRetry) { Text(stringResource(R.string.common_retry), color = LinkUpRed) }
+        TextButton(onClick = onSecondary) { Text(stringResource(R.string.session_sign_out_local), color = LinkUpTextMuted) }
     }
 }
 
@@ -437,10 +434,14 @@ private fun CapabilitySurface(title: String, message: String) {
     }
 }
 
+private fun sessionExpiryLabel(epochMillis: Long): String = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")
+    .withZone(ZoneId.systemDefault())
+    .format(Instant.ofEpochMilli(epochMillis))
+
 private fun deviceLabel(): String = "${Build.MANUFACTURER} ${Build.MODEL}".trim().take(120)
 
-private fun Exception.userMessage(): String = when (this) {
+private fun Exception.userMessage(fallback: String): String = when (this) {
     is CancellationException -> throw this
     is ApiException -> message
-    else -> message ?: "Request failed"
+    else -> message ?: fallback
 }
