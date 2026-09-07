@@ -50,6 +50,9 @@ import com.linkup.app.core.social.MutationState
 import com.linkup.app.core.social.SocialCoordinator
 import com.linkup.app.core.social.SocialError
 import com.linkup.app.ui.auth.AuthScreen
+import com.linkup.app.ui.design.FrozenBottomNav
+import com.linkup.app.ui.design.FrozenMainTab
+import com.linkup.app.ui.design.FrozenPulseScreen
 import com.linkup.app.ui.me.EditProfileScreen
 import com.linkup.app.ui.me.MeScreen
 import com.linkup.app.ui.social.ChatPollingEffect
@@ -331,15 +334,7 @@ private fun SignedInRoot(
                 Column(Modifier.fillMaxSize()) {
                     Box(Modifier.weight(1f).fillMaxWidth()) {
                         when (tab) {
-                            MainTab.PULSE -> PulseScreen(
-                                state = pulse,
-                                onRefresh = { scope.launch { social.refreshPulse() } },
-                                onSlotClick = { slot -> detailOpen = true; scope.launch { social.openSlot(slot.id) } },
-                                onPrimaryAction = { slot ->
-                                    if (slot.viewerState == SlotViewerState.NONE) scope.launch { social.requestSlot(slot.id) }
-                                    else { detailOpen = true; scope.launch { social.openSlot(slot.id) } }
-                                },
-                            )
+                            MainTab.PULSE -> FrozenPulseScreen()
                             MainTab.LINK -> CreateLinkScreen(
                                 submitting = mutation is MutationState.Running,
                                 errorMessage = (mutation as? MutationState.Failed)?.error?.message,
@@ -423,29 +418,24 @@ private fun SignedInRoot(
 
 @Composable
 private fun BottomNav(selected: MainTab, onSelect: (MainTab) -> Unit) {
-    Row(
-        Modifier.fillMaxWidth().height(72.dp).background(LinkUpElevated).border(1.dp, LinkUpBorder).padding(horizontal = 6.dp, vertical = 7.dp),
-        horizontalArrangement = Arrangement.SpaceEvenly,
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        MainTab.values().forEach { tab ->
-            val label = when (tab) {
-                MainTab.PULSE -> stringResource(R.string.nav_pulse)
-                MainTab.MAP -> stringResource(R.string.nav_map)
-                MainTab.LINK -> stringResource(R.string.nav_link)
-                MainTab.FLY -> stringResource(R.string.nav_fly)
-                MainTab.ME -> stringResource(R.string.nav_me)
-            }
-            val active = selected == tab
-            Column(
-                Modifier.weight(1f).clip(RoundedCornerShape(12.dp)).clickable { onSelect(tab) }.padding(vertical = 7.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                Text(if (tab == MainTab.LINK) "+" else "•", color = if (active || tab == MainTab.LINK) LinkUpRed else LinkUpTextMuted, fontSize = if (tab == MainTab.LINK) 21.sp else 13.sp, fontWeight = FontWeight.Black)
-                Text(label, color = if (active) LinkUpTextPrimary else LinkUpTextMuted, fontSize = 10.sp, fontWeight = if (active) FontWeight.Bold else FontWeight.Normal)
-            }
-        }
+    val frozen = when (selected) {
+        MainTab.PULSE -> FrozenMainTab.PULSE
+        MainTab.MAP -> FrozenMainTab.MAP
+        MainTab.LINK -> FrozenMainTab.CREATE
+        MainTab.FLY -> FrozenMainTab.FLY
+        MainTab.ME -> FrozenMainTab.ME
     }
+    FrozenBottomNav(selected = frozen, onSelect = { tab ->
+        onSelect(
+            when (tab) {
+                FrozenMainTab.PULSE -> MainTab.PULSE
+                FrozenMainTab.MAP -> MainTab.MAP
+                FrozenMainTab.CREATE -> MainTab.LINK
+                FrozenMainTab.FLY -> MainTab.FLY
+                FrozenMainTab.ME -> MainTab.ME
+            },
+        )
+    })
 }
 
 @Composable
