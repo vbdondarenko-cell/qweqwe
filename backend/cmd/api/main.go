@@ -18,6 +18,7 @@ import (
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/monetization"
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/password"
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/postgres"
+	"github.com/vbdondarenko-cell/qweqwe/backend/internal/push"
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/ratelimit"
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/recovery"
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/slot"
@@ -26,6 +27,9 @@ import (
 func main() {
 	cfg, err := config.Load()
 	if err != nil { slog.Error("invalid configuration", "error", err); os.Exit(1) }
+
+	pushCfg, err := push.LoadRuntimeConfig()
+	if err != nil { slog.Error("invalid push configuration", "error", err); os.Exit(1) }
 
 	startupCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -63,6 +67,13 @@ func main() {
 
 	monetizationService := monetization.NewService(postgres.NewMonetizationStore(pool))
 
+	var pushService *push.Service
+	if pushCfg.RegistrationEnabled() {
+		pushService, err = push.NewService(postgres.NewPushStore(pool), pushCfg.TokenKeyID, pushCfg.TokenKeyBase64, nil)
+		if err != nil { slog.Error("push service init failed", "error", err); os.Exit(1) }
+		slog.Info("android push device registration enabled", "delivery_enabled", pushCfg.DeliveryEnabled())
+	}
+
 	authLimiter, err := ratelimit.New(ratelimit.Config{Limit: cfg.AuthRateLimit, Window: cfg.AuthRateWindow, IdleTTL: cfg.AuthRateIdleTTL, MaxEntries: cfg.AuthRateMaxEntries})
 	if err != nil { slog.Error("auth rate limiter init failed", "error", err); os.Exit(1) }
 	userLimiter, err := ratelimit.New(ratelimit.Config{Limit: cfg.SocialRateLimit, Window: cfg.SocialRateWindow, IdleTTL: cfg.SocialRateIdleTTL, MaxEntries: cfg.SocialRateMaxEntries})
@@ -74,6 +85,7 @@ func main() {
 		Slots: slotService,
 		Chats: chatService,
 		Monetization: monetizationService,
+		Push: pushService,
 		Ready: pool.Ping,
 		AuthLimiter: authLimiter,
 		UserLimiter: userLimiter,
