@@ -41,6 +41,9 @@ data class RewardedProgressModel(
 )
 
 data class ReferralStatusModel(
+    val referralCode: String,
+    val boundReferralCode: String?,
+    val qualifyingDeadlineEpochMillis: Long?,
     val qualifiedReferrals: Int,
     val nextMilestone: ReferralMilestoneModel?,
 )
