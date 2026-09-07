@@ -35,12 +35,11 @@ func (s *chatHTTPStore) Send(_ context.Context, actorID, slotID, messageID, key,
 		return existing, nil
 	}
 	out := chat.Message{
-		ID:             messageID,
-		SlotID:         slotID,
-		Author:         chat.Author{ID: actorID, Username: "alice", DisplayName: "Alice"},
-		Text:           text,
-		IdempotencyKey: key,
-		CreatedAt:      time.Unix(1, 0).UTC(),
+		ID:        messageID,
+		SlotID:    slotID,
+		Author:    chat.Author{ID: actorID, Username: "alice", DisplayName: "Alice"},
+		Text:      text,
+		CreatedAt: time.Unix(1, 0).UTC(),
 	}
 	s.byKey[key] = out
 	return out, nil
@@ -85,8 +84,15 @@ func TestChatSendAndReadHTTP(t *testing.T) {
 	if err := json.NewDecoder(firstRec.Body).Decode(&first); err != nil {
 		t.Fatal(err)
 	}
-	if first.Text != "hello" || first.Author.Username != "alice" || first.IdempotencyKey != key {
+	if first.Text != "hello" || first.Author.Username != "alice" {
 		t.Fatalf("unexpected sent message: %#v", first)
+	}
+	var raw map[string]any
+	if err := json.Unmarshal(firstRec.Body.Bytes(), &raw); err != nil {
+		t.Fatal(err)
+	}
+	if _, leaked := raw["idempotencyKey"]; leaked {
+		t.Fatal("chat idempotency key leaked in HTTP response")
 	}
 
 	replayRec := sendMessage("hello")
