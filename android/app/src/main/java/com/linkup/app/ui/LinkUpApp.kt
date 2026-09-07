@@ -36,6 +36,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
 import com.linkup.app.R
+import com.linkup.app.core.city.CityNetworkCoordinator
 import com.linkup.app.core.network.ApiException
 import com.linkup.app.core.network.BlockedUser
 import com.linkup.app.core.network.LinkUpApiClient
@@ -58,13 +59,11 @@ import com.linkup.app.ui.design.FrozenFlyScreen
 import com.linkup.app.ui.design.FrozenPulseScreen
 import com.linkup.app.ui.design.canJoin
 import com.linkup.app.ui.me.EditProfileScreen
-import com.linkup.app.ui.me.MeScreen
 import com.linkup.app.ui.social.ChatPollingEffect
 import com.linkup.app.ui.social.ChatScreen
 import com.linkup.app.ui.social.CreateLinkScreen
 import com.linkup.app.ui.social.EditSlotScreen
 import com.linkup.app.ui.social.MySlotsScreen
-import com.linkup.app.ui.social.PulseScreen
 import com.linkup.app.ui.social.SlotDetailScreen
 import com.linkup.app.ui.theme.LinkUpBackground
 import com.linkup.app.ui.theme.LinkUpBorder
@@ -224,6 +223,7 @@ private fun SignedInRoot(
     lifecycle: Lifecycle,
 ) {
     val scope = rememberCoroutineScope()
+    val city = remember(api) { CityNetworkCoordinator(api) }
     val pulse by social.pulse.collectAsState()
     val mySlots by social.mySlots.collectAsState()
     val selected by social.selectedSlot.collectAsState()
@@ -231,6 +231,7 @@ private fun SignedInRoot(
     val accepted by social.accepted.collectAsState()
     val chat by social.chat.collectAsState()
     val mutation by social.mutation.collectAsState()
+    val placeSearch by city.places.collectAsState()
     val genericError = stringResource(R.string.common_request_failed)
 
     var tab by remember { mutableStateOf(MainTab.PULSE) }
@@ -290,7 +291,12 @@ private fun SignedInRoot(
         }
     }
 
-    DisposableEffect(user.id) { onDispose { social.clearAll() } }
+    DisposableEffect(user.id) {
+        onDispose {
+            social.clearAll()
+            city.clearAll()
+        }
+    }
     LaunchedEffect(mySlotsOpen, detailOpen, myView) {
         if (mySlotsOpen && !detailOpen) social.refreshMySlots(myView)
     }
@@ -378,10 +384,17 @@ private fun SignedInRoot(
                             MainTab.LINK -> CreateLinkScreen(
                                 submitting = mutation is MutationState.Running,
                                 errorMessage = (mutation as? MutationState.Failed)?.error?.message,
-                                onClose = { tab = MainTab.PULSE },
+                                placeSearch = placeSearch,
+                                onPlaceSearch = { query -> scope.launch { city.searchPlaces(query) } },
+                                onClearPlaceSearch = city::clearPlaces,
+                                onClose = {
+                                    city.clearPlaces()
+                                    tab = MainTab.PULSE
+                                },
                                 onPublish = { input ->
                                     scope.launch {
                                         if (social.createSlot(input)) {
+                                            city.clearPlaces()
                                             tab = MainTab.PULSE
                                             detailOpen = true
                                         }
@@ -399,7 +412,10 @@ private fun SignedInRoot(
                                 onLogout = {
                                     scope.launch {
                                         try { sessions.logout() }
-                                        finally { social.clearAll() }
+                                        finally {
+                                            social.clearAll()
+                                            city.clearAll()
+                                        }
                                     }
                                 },
                             )
@@ -419,6 +435,7 @@ private fun SignedInRoot(
                     }
                     BottomNav(tab) { selectedTab ->
                         detailOpen = false; chatSlotId = null; editTarget = null; social.clearSelected(); tab = selectedTab
+                        if (selectedTab != MainTab.LINK) city.clearPlaces()
                         if (selectedTab == MainTab.PULSE) scope.launch { social.refreshPulse() }
                         if (selectedTab == MainTab.ME && blockedState is LoadState.Idle) refreshBlocks()
                     }
