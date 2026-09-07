@@ -19,6 +19,7 @@ object FirebaseBootstrap {
             .setProjectId(projectId)
             .setGcmSenderId(senderId)
             .build()
-        return FirebaseApp.initializeApp(context, options) != null
+        FirebaseApp.initializeApp(context, options)
+        return FirebaseApp.getApps(context).isNotEmpty()
     }
 }
