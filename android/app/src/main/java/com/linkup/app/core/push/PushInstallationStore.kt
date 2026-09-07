@@ -15,15 +15,7 @@ class PushInstallationStore(context: Context) {
         return created
     }
 
-    fun savePendingToken(token: String) {
-        val normalized = token.trim()
-        if (normalized.isNotEmpty()) prefs.edit().putString(KEY_PENDING_TOKEN, normalized).apply()
-    }
-
-    fun pendingToken(): String? = prefs.getString(KEY_PENDING_TOKEN, null)?.trim()?.takeIf { it.isNotEmpty() }
-
     private companion object {
         const val KEY_INSTALLATION_ID = "installation_id"
-        const val KEY_PENDING_TOKEN = "pending_token"
     }
 }
