@@ -23,6 +23,13 @@ class SessionCoordinator(
     private val mutableState = MutableStateFlow<SessionState>(SessionState.Checking)
     val state: StateFlow<SessionState> = mutableState.asStateFlow()
 
+    init {
+        // Any authenticated endpoint may discover a revoked/expired server session.
+        // Keep routing synchronized with the same authority instead of waiting for
+        // another bootstrap or /me request.
+        api.setUnauthorizedHandler { clearLocalSession() }
+    }
+
     suspend fun bootstrap() {
         mutableState.value = SessionState.Checking
         val local = sessions.load()
@@ -35,8 +42,7 @@ class SessionCoordinator(
             mutableState.value = SessionState.SignedIn(api.me())
         } catch (error: ApiException) {
             if (error.status == 401) {
-                sessions.clear()
-                mutableState.value = SessionState.SignedOut
+                clearLocalSession()
             } else {
                 mutableState.value = SessionState.RecoverableError(error.message)
             }
