@@ -161,6 +161,8 @@ func (s *Server) writeSlotError(w http.ResponseWriter, r *http.Request, err erro
 		writeProblem(w, r, http.StatusConflict, "invalid_slot_state", "slot state does not allow this operation")
 	case errors.Is(err, slot.ErrCapacityFull):
 		writeProblem(w, r, http.StatusConflict, "slot_full", "slot has no available capacity")
+	case errors.Is(err, slot.ErrRequestLimit):
+		writeProblem(w, r, http.StatusConflict, "request_queue_full", "slot has reached the v1.0 pending request limit")
 	case errors.Is(err, slot.ErrDuplicateRequest):
 		writeProblem(w, r, http.StatusConflict, "request_exists", "a pending request already exists")
 	case errors.Is(err, slot.ErrAlreadyMember):
