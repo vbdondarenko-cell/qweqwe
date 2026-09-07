@@ -52,6 +52,8 @@ import com.linkup.app.core.social.SocialError
 import com.linkup.app.ui.auth.AuthScreen
 import com.linkup.app.ui.design.FrozenBottomNav
 import com.linkup.app.ui.design.FrozenMainTab
+import com.linkup.app.ui.design.FrozenMapScreen
+import com.linkup.app.ui.design.FrozenFlyScreen
 import com.linkup.app.ui.design.FrozenPulseScreen
 import com.linkup.app.ui.me.EditProfileScreen
 import com.linkup.app.ui.me.MeScreen
@@ -368,8 +370,8 @@ private fun SignedInRoot(
                                     }
                                 },
                             )
-                            MainTab.MAP -> CapabilitySurface(stringResource(R.string.nav_map), stringResource(R.string.map_v1_inactive))
-                            MainTab.FLY -> CapabilitySurface(stringResource(R.string.nav_fly), stringResource(R.string.fly_v1_inactive))
+                            MainTab.MAP -> FrozenMapScreen()
+                            MainTab.FLY -> FrozenFlyScreen()
                         }
                     }
                     BottomNav(tab) { selectedTab ->
