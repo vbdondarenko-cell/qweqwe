@@ -32,6 +32,12 @@ const (
 	ViewerPending  ViewerState = "PENDING"
 	ViewerAccepted ViewerState = "ACCEPTED"
 	ViewerHost     ViewerState = "HOST"
+
+	// v1.0 intentionally stays bounded. The PostgreSQL canonical schema keeps a
+	// larger ceiling for future Mega capability work, but the active v1.0 API
+	// does not expose that later-release scale.
+	MaxV1Capacity      = 100
+	MaxPendingRequests = 100
 )
 
 var (
@@ -42,6 +48,7 @@ var (
 	ErrInvalidState        = errors.New("invalid slot state")
 	ErrIdempotencyConflict = errors.New("idempotency key conflict")
 	ErrCapacityFull        = errors.New("slot capacity full")
+	ErrRequestLimit        = errors.New("slot pending request limit reached")
 	ErrDuplicateRequest    = errors.New("duplicate slot request")
 	ErrAlreadyMember       = errors.New("already accepted member")
 	ErrRequestNotFound     = errors.New("slot request not found")
