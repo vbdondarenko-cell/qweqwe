@@ -149,6 +149,14 @@
     <string name="create_publish">Publish LINK</string>
     <string name="create_public_approval">Public · Approval required</string>
     <string name="create_step_format">Step %1$d of %2$d</string>
+    <string name="create_place_search">Search canonical places</string>
+    <string name="create_place_searching">Searching places…</string>
+    <string name="create_place_empty">No canonical place found. This LINK can still be published, but it will not appear on Map until a canonical place is selected.</string>
+    <string name="create_place_selected">Map place selected: %1$s</string>
+    <string name="create_place_result_meta">%1$s · ±%2$d m</string>
+    <string name="create_place_error">Couldn’t search places.</string>
+    <string name="create_place_text_only">Use text-only place</string>
+    <string name="create_place_map_notice">Map visibility requires a canonical place. Free-text location remains available for the core LINK flow.</string>
 
     <string name="accepted_empty">No accepted participants yet.</string>
     <string name="accepted_error">Couldn’t load accepted participants.</string>
