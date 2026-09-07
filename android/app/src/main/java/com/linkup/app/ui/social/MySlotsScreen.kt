@@ -13,9 +13,11 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.linkup.app.R
 import com.linkup.app.core.network.MySlotsView
 import com.linkup.app.core.network.SlotModel
 import com.linkup.app.core.social.LoadState
@@ -36,16 +38,19 @@ fun MySlotsScreen(
     BackHandler(onBack = onBack)
     Column(Modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Row {
-            TextButton(onClick = onBack, modifier = Modifier.weight(1f)) { Text("Back", color = LinkUpRed) }
-            TextButton(onClick = onRefresh) { Text("Refresh", color = LinkUpRed) }
+            TextButton(onClick = onBack, modifier = Modifier.weight(1f)) { Text(stringResource(R.string.common_back), color = LinkUpRed) }
+            TextButton(onClick = onRefresh) { Text(stringResource(R.string.common_refresh), color = LinkUpRed) }
         }
-        Text("My LINKs", color = LinkUpTextPrimary, fontSize = 24.sp, fontWeight = FontWeight.Bold)
-        Text("Current LINKs · up to 100 most recently updated", color = LinkUpTextMuted, fontSize = 12.sp)
+        Text(stringResource(R.string.my_links_title), color = LinkUpTextPrimary, fontSize = 24.sp, fontWeight = FontWeight.Bold)
         Row {
             MySlotsView.values().forEach { item ->
                 TextButton(onClick = { onViewChange(item) }, modifier = Modifier.weight(1f)) {
                     Text(
-                        when (item) { MySlotsView.HOSTING -> "Hosting"; MySlotsView.JOINED -> "Joined"; MySlotsView.REQUESTED -> "Requests" },
+                        when (item) {
+                            MySlotsView.HOSTING -> stringResource(R.string.my_links_hosting)
+                            MySlotsView.JOINED -> stringResource(R.string.my_links_joined)
+                            MySlotsView.REQUESTED -> stringResource(R.string.my_links_requests)
+                        },
                         color = if (view == item) LinkUpRed else LinkUpTextMuted,
                         fontWeight = if (view == item) FontWeight.Bold else FontWeight.Normal,
                     )
@@ -54,16 +59,10 @@ fun MySlotsScreen(
         }
         when (state) {
             LoadState.Idle, LoadState.Loading -> CircularProgressIndicator(color = LinkUpRed)
-            LoadState.Empty -> Text(
-                when (view) {
-                    MySlotsView.HOSTING -> "You are not hosting any current LINKs."
-                    MySlotsView.JOINED -> "You have not joined any current LINKs."
-                    MySlotsView.REQUESTED -> "You have no pending requests."
-                }, color = LinkUpTextMuted,
-            )
+            LoadState.Empty -> Text(stringResource(R.string.my_links_empty), color = LinkUpTextMuted)
             is LoadState.Failure -> {
-                Text(state.error.message, color = LinkUpWarning)
-                TextButton(onClick = onRefresh) { Text("Retry", color = LinkUpRed) }
+                Text(state.error.message.ifBlank { stringResource(R.string.my_links_error) }, color = LinkUpWarning)
+                TextButton(onClick = onRefresh) { Text(stringResource(R.string.common_retry), color = LinkUpRed) }
             }
             is LoadState.Content -> LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 items(state.value, key = { it.id }) { item ->
