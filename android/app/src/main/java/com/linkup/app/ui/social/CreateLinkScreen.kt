@@ -42,8 +42,10 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.linkup.app.R
+import com.linkup.app.core.network.CanonicalPlace
 import com.linkup.app.core.network.CreateSlotInput
 import com.linkup.app.core.scheduling.scheduleLabel
+import com.linkup.app.core.social.LoadState
 import com.linkup.app.ui.theme.LinkUpBorder
 import com.linkup.app.ui.theme.LinkUpElevated
 import com.linkup.app.ui.theme.LinkUpRed
@@ -71,6 +73,9 @@ private val activityOptions = listOf(
 fun CreateLinkScreen(
     submitting: Boolean,
     errorMessage: String?,
+    placeSearch: LoadState<List<CanonicalPlace>>,
+    onPlaceSearch: (String) -> Unit,
+    onClearPlaceSearch: () -> Unit,
     onClose: () -> Unit,
     onPublish: (CreateSlotInput) -> Unit,
 ) {
@@ -79,6 +84,7 @@ fun CreateLinkScreen(
     var title by remember { mutableStateOf("") }
     var description by remember { mutableStateOf("") }
     var location by remember { mutableStateOf("") }
+    var selectedPlace by remember { mutableStateOf<CanonicalPlace?>(null) }
     var capacity by remember { mutableIntStateOf(6) }
     var startAt by rememberSaveable { mutableStateOf<Long?>(null) }
     val closeDescription = stringResource(R.string.a11y_close)
@@ -160,8 +166,29 @@ fun CreateLinkScreen(
                     StyledField(
                         stringResource(R.string.create_location),
                         location,
-                        { location = it.take(200) },
+                        {
+                            val next = it.take(200)
+                            location = next
+                            if (selectedPlace?.name != next.trim()) selectedPlace = null
+                            onClearPlaceSearch()
+                        },
                         stringResource(R.string.create_location_example),
+                    )
+                    CanonicalPlacePicker(
+                        locationText = location,
+                        selected = selectedPlace,
+                        state = placeSearch,
+                        enabled = !submitting,
+                        onSearch = { onPlaceSearch(location.trim()) },
+                        onSelect = { place ->
+                            selectedPlace = place
+                            location = place.name
+                            onClearPlaceSearch()
+                        },
+                        onUseTextOnly = {
+                            selectedPlace = null
+                            onClearPlaceSearch()
+                        },
                     )
                     SlotScheduleField(startAt, !submitting) { startAt = it }
                     Text(stringResource(R.string.field_capacity), color = LinkUpTextDimmed, fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
@@ -196,6 +223,9 @@ fun CreateLinkScreen(
                         if (description.isNotBlank()) Text(description.trim(), color = LinkUpTextDimmed, fontSize = 13.sp)
                         Text(scheduleLabel(startAt), color = LinkUpTextDimmed, fontSize = 12.sp)
                         Text(stringResource(R.string.create_preview_capacity_format, capacity), color = LinkUpTextMuted, fontSize = 11.sp)
+                        selectedPlace?.let {
+                            Text(stringResource(R.string.create_place_selected, it.name), color = LinkUpSuccess, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                        }
                     }
                     Text(
                         stringResource(R.string.create_server_backed_notice),
@@ -228,6 +258,7 @@ fun CreateLinkScreen(
                             activity = selected.key,
                             details = description.trim().ifBlank { null },
                             placeText = location.trim(),
+                            canonicalPlaceId = selectedPlace?.id,
                             capacity = capacity,
                             startAtEpochMillis = startAt,
                         ),
