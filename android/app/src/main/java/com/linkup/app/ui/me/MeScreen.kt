@@ -20,9 +20,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.linkup.app.BuildConfig
+import com.linkup.app.R
 import com.linkup.app.core.network.BlockedUser
 import com.linkup.app.core.network.UserProfile
 import com.linkup.app.core.social.LoadState
@@ -46,8 +50,14 @@ fun MeScreen(
     onEditProfile: () -> Unit,
     onMySlots: () -> Unit,
 ) {
+    val uriHandler = LocalUriHandler.current
+    val privacyUrl = BuildConfig.LINKUP_PRIVACY_URL.trim()
+    val termsUrl = BuildConfig.LINKUP_TERMS_URL.trim()
+    val privacyConfigured = privacyUrl.startsWith("https://")
+    val termsConfigured = termsUrl.startsWith("https://")
+
     Column(Modifier.fillMaxSize().padding(horizontal = 20.dp, vertical = 18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        Text("Me", color = LinkUpTextPrimary, fontWeight = FontWeight.Black, fontSize = 24.sp)
+        Text(stringResource(R.string.me_title), color = LinkUpTextPrimary, fontWeight = FontWeight.Black, fontSize = 24.sp)
         Row(
             Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(LinkUpElevated).border(1.dp, LinkUpBorder, RoundedCornerShape(16.dp)).padding(16.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -64,19 +74,18 @@ fun MeScreen(
             Text(user.profileVisibility, color = LinkUpRed, fontSize = 10.sp, fontWeight = FontWeight.Bold)
         }
 
-        TextButton(onClick = onEditProfile) { Text("Edit profile", color = LinkUpRed) }
-
-        TextButton(onClick = onMySlots) { Text("My LINKs", color = LinkUpRed) }
+        TextButton(onClick = onEditProfile) { Text(stringResource(R.string.me_edit_profile), color = LinkUpRed) }
+        TextButton(onClick = onMySlots) { Text(stringResource(R.string.me_my_links), color = LinkUpRed) }
 
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("Blocked people", color = LinkUpTextPrimary, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
-            TextButton(onClick = onRefreshBlocks) { Text("Refresh", color = LinkUpRed) }
+            Text(stringResource(R.string.me_blocked_people), color = LinkUpTextPrimary, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+            TextButton(onClick = onRefreshBlocks) { Text(stringResource(R.string.common_refresh), color = LinkUpRed) }
         }
 
         when (blocked) {
-            LoadState.Idle -> Text("Open this section to load your server block list.", color = LinkUpTextMuted, fontSize = 12.sp)
+            LoadState.Idle -> Text(stringResource(R.string.me_block_list_idle), color = LinkUpTextMuted, fontSize = 12.sp)
             LoadState.Loading -> CircularProgressIndicator(color = LinkUpRed, modifier = Modifier.size(24.dp))
-            LoadState.Empty -> Text("No blocked accounts", color = LinkUpTextMuted, fontSize = 12.sp)
+            LoadState.Empty -> Text(stringResource(R.string.me_no_blocked_accounts), color = LinkUpTextMuted, fontSize = 12.sp)
             is LoadState.Failure -> Text(blocked.error.message, color = LinkUpWarning, fontSize = 12.sp)
             is LoadState.Content -> blocked.value.forEach { item ->
                 Row(
@@ -87,20 +96,40 @@ fun MeScreen(
                         Text(item.displayName, color = LinkUpTextPrimary, fontWeight = FontWeight.Bold, fontSize = 13.sp)
                         Text("@${item.username}", color = LinkUpTextMuted, fontSize = 11.sp)
                     }
-                    TextButton(onClick = { onUnblock(item.id) }) { Text("Unblock", color = LinkUpRed) }
+                    TextButton(onClick = { onUnblock(item.id) }) { Text(stringResource(R.string.common_unblock), color = LinkUpRed) }
                 }
             }
         }
 
         actionError?.let { Text(it, color = LinkUpWarning, fontSize = 12.sp) }
         Spacer(Modifier.weight(1f))
-        Text("Language: ${user.language.uppercase()}", color = LinkUpTextMuted, fontSize = 11.sp)
-        Text("LinkUp 1.0.0-dev", color = LinkUpTextMuted, fontSize = 10.sp)
+
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            TextButton(
+                onClick = { uriHandler.openUri(privacyUrl) },
+                enabled = privacyConfigured,
+                modifier = Modifier.weight(1f),
+            ) {
+                Text(stringResource(R.string.me_privacy_policy), color = if (privacyConfigured) LinkUpRed else LinkUpTextMuted, fontSize = 11.sp)
+            }
+            TextButton(
+                onClick = { uriHandler.openUri(termsUrl) },
+                enabled = termsConfigured,
+                modifier = Modifier.weight(1f),
+            ) {
+                Text(stringResource(R.string.me_terms_of_service), color = if (termsConfigured) LinkUpRed else LinkUpTextMuted, fontSize = 11.sp)
+            }
+        }
+        if (!privacyConfigured || !termsConfigured) {
+            Text(stringResource(R.string.me_legal_unavailable), color = LinkUpTextMuted, fontSize = 10.sp)
+        }
+        Text(stringResource(R.string.me_language_format, user.language.uppercase()), color = LinkUpTextMuted, fontSize = 11.sp)
+        Text(stringResource(R.string.me_version_format, BuildConfig.VERSION_NAME), color = LinkUpTextMuted, fontSize = 10.sp)
         Box(
             Modifier.fillMaxWidth().height(48.dp).clip(RoundedCornerShape(12.dp)).background(LinkUpZone).border(1.dp, LinkUpBorder, RoundedCornerShape(12.dp)),
             contentAlignment = Alignment.Center,
         ) {
-            TextButton(onClick = onLogout) { Text("Logout", color = LinkUpRed, fontWeight = FontWeight.Bold) }
+            TextButton(onClick = onLogout) { Text(stringResource(R.string.common_logout), color = LinkUpRed, fontWeight = FontWeight.Bold) }
         }
     }
 }
