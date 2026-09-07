@@ -69,10 +69,14 @@ WHERE session_id = $1 AND revoked_at IS NULL`, sessionID)
 
 func (s *PushStore) ActiveTokens(ctx context.Context, userID string) ([]push.StoredToken, error) {
 	rows, err := s.pool.Query(ctx, `
-SELECT installation_id::text, token_ciphertext, token_nonce, key_id
-FROM push_devices
-WHERE user_id = $1 AND revoked_at IS NULL
-ORDER BY updated_at DESC
+SELECT pd.installation_id::text, pd.token_ciphertext, pd.token_nonce, pd.key_id
+FROM push_devices pd
+JOIN user_sessions us ON us.id = pd.session_id AND us.user_id = pd.user_id
+WHERE pd.user_id = $1
+  AND pd.revoked_at IS NULL
+  AND us.revoked_at IS NULL
+  AND us.expires_at > now()
+ORDER BY pd.updated_at DESC
 LIMIT 20`, userID)
 	if err != nil { return nil, err }
 	defer rows.Close()
