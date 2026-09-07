@@ -16,6 +16,19 @@ var (
 	ErrInvalidPassword = errors.New("password must be 8 to 1024 bytes")
 )
 
+const (
+	minMemoryKiB  uint32 = 19 * 1024
+	maxMemoryKiB  uint32 = 256 * 1024
+	minIterations uint32 = 2
+	maxIterations uint32 = 10
+	minParallel   uint8  = 1
+	maxParallel   uint8  = 8
+	minSaltBytes  uint32 = 16
+	maxSaltBytes  uint32 = 64
+	minKeyBytes   uint32 = 32
+	maxKeyBytes   uint32 = 64
+)
+
 type Params struct {
 	MemoryKiB  uint32
 	Iterations uint32
@@ -25,12 +38,15 @@ type Params struct {
 }
 
 func OWASPMinimum() Params {
-	return Params{MemoryKiB: 19 * 1024, Iterations: 2, Parallel: 1, SaltBytes: 16, KeyBytes: 32}
+	return Params{MemoryKiB: minMemoryKiB, Iterations: minIterations, Parallel: minParallel, SaltBytes: minSaltBytes, KeyBytes: minKeyBytes}
 }
 
 func (p Params) Validate() error {
-	if p.MemoryKiB < 19*1024 || p.Iterations < 2 || p.Parallel < 1 || p.SaltBytes < 16 || p.KeyBytes < 32 {
+	if p.MemoryKiB < minMemoryKiB || p.Iterations < minIterations || p.Parallel < minParallel || p.SaltBytes < minSaltBytes || p.KeyBytes < minKeyBytes {
 		return errors.New("argon2id parameters are below the project security floor")
+	}
+	if p.MemoryKiB > maxMemoryKiB || p.Iterations > maxIterations || p.Parallel > maxParallel || p.SaltBytes > maxSaltBytes || p.KeyBytes > maxKeyBytes {
+		return errors.New("argon2id parameters exceed the project safety ceiling")
 	}
 	return nil
 }
@@ -51,6 +67,9 @@ func Hash(raw string, p Params) (string, error) {
 }
 
 func Verify(encoded, raw string) (bool, error) {
+	if len(raw) < 8 || len(raw) > 1024 {
+		return false, ErrInvalidPassword
+	}
 	parts := strings.Split(encoded, "$")
 	if len(parts) != 6 || parts[1] != "argon2id" {
 		return false, ErrInvalidHash
@@ -64,11 +83,11 @@ func Verify(encoded, raw string) (bool, error) {
 		return false, ErrInvalidHash
 	}
 	salt, err := base64.RawStdEncoding.DecodeString(parts[4])
-	if err != nil || len(salt) < 16 {
+	if err != nil || len(salt) < int(minSaltBytes) || len(salt) > int(maxSaltBytes) {
 		return false, ErrInvalidHash
 	}
 	expected, err := base64.RawStdEncoding.DecodeString(parts[5])
-	if err != nil || len(expected) < 32 {
+	if err != nil || len(expected) < int(minKeyBytes) || len(expected) > int(maxKeyBytes) {
 		return false, ErrInvalidHash
 	}
 	p.SaltBytes = uint32(len(salt))

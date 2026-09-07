@@ -7,6 +7,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/vbdondarenko-cell/qweqwe/backend/internal/password"
 )
 
 type Config struct {
@@ -82,6 +84,15 @@ func Load() (Config, error) {
 		return Config{}, err
 	}
 	cfg.ArgonParallel = uint8(parallel)
+	if err := (password.Params{
+		MemoryKiB: cfg.ArgonMemoryKiB,
+		Iterations: cfg.ArgonIterations,
+		Parallel: cfg.ArgonParallel,
+		SaltBytes: 16,
+		KeyBytes: 32,
+	}).Validate(); err != nil {
+		return Config{}, fmt.Errorf("invalid Argon2id configuration: %w", err)
+	}
 	if cfg.AuthRateLimit, err = positiveIntEnv("LINKUP_AUTH_RATE_LIMIT", cfg.AuthRateLimit); err != nil {
 		return Config{}, err
 	}
@@ -122,7 +133,11 @@ func durationEnv(key string, fallback time.Duration) (time.Duration, error) {
 	if v == "" {
 		return fallback, nil
 	}
-	if seconds, err := strconv.ParseInt(v, 10, 64); err == nil && seconds > 0 {
+	if seconds, err := strconv.ParseInt(v, 10, 64); err == nil {
+		const maxDurationSeconds = int64(^uint64(0)>>1) / int64(time.Second)
+		if seconds <= 0 || seconds > maxDurationSeconds {
+			return 0, fmt.Errorf("%s integer seconds are outside time.Duration range", key)
+		}
 		return time.Duration(seconds) * time.Second, nil
 	}
 	d, err := time.ParseDuration(v)
