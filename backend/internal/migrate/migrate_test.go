@@ -2,6 +2,7 @@ package migrate
 
 import (
 	"context"
+	"crypto/sha256"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -36,6 +37,47 @@ func TestDiscoverSortsAndHashesSQLOnly(t *testing.T) {
 	}
 }
 
+func TestExecutionSQLStripsLegacyWrapperWithoutChangingLedgerChecksum(t *testing.T) {
+	raw := "BEGIN;\n\nCREATE TABLE wrapped_probe (id integer);\n\nCOMMIT;\n"
+	executable, err := executionSQL(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if executable != "CREATE TABLE wrapped_probe (id integer);" {
+		t.Fatalf("unexpected executable SQL: %q", executable)
+	}
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, "000007_wrapped.sql")
+	if err := os.WriteFile(path, []byte(raw), 0600); err != nil {
+		t.Fatal(err)
+	}
+	items, err := discover(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(items) != 1 {
+		t.Fatalf("expected one migration, got %d", len(items))
+	}
+	want := sha256.Sum256([]byte(raw))
+	if items[0].Checksum != want {
+		t.Fatal("execution normalization changed the immutable ledger checksum")
+	}
+}
+
+func TestExecutionSQLRejectsUnbalancedTransactionWrapper(t *testing.T) {
+	for _, raw := range []string{
+		"BEGIN;\nSELECT 1;",
+		"SELECT 1;\nCOMMIT;",
+		"BEGIN;\nCOMMIT;",
+		"   ",
+	} {
+		if _, err := executionSQL(raw); err == nil {
+			t.Fatalf("expected rejection for %q", raw)
+		}
+	}
+}
+
 func TestApplySerializesRepeatAndDetectsDrift(t *testing.T) {
 	dsn := os.Getenv("LINKUP_TEST_DATABASE_URL")
 	if dsn == "" {
@@ -54,7 +96,7 @@ func TestApplySerializesRepeatAndDetectsDrift(t *testing.T) {
 	name := fmt.Sprintf("999999_probe_%d.sql", suffix)
 	dir := t.TempDir()
 	path := filepath.Join(dir, name)
-	migrationSQL := fmt.Sprintf("CREATE TABLE %s (id integer PRIMARY KEY); INSERT INTO %s(id) VALUES (1); SELECT pg_sleep(0.1);", table, table)
+	migrationSQL := fmt.Sprintf("BEGIN;\nCREATE TABLE %s (id integer PRIMARY KEY); INSERT INTO %s(id) VALUES (1); SELECT pg_sleep(0.1);\nCOMMIT;\n", table, table)
 	if err := os.WriteFile(path, []byte(migrationSQL), 0600); err != nil {
 		t.Fatal(err)
 	}
