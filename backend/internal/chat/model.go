@@ -7,8 +7,10 @@ import (
 )
 
 const (
-	MaxMessageRunes = 2000
-	MaxRecent       = 100
+	MaxMessageRunes      = 2000
+	MaxRecent            = 100
+	MinIdempotencyKeyLen = 16
+	MaxIdempotencyKeyLen = 128
 )
 
 var (
@@ -26,14 +28,15 @@ type Author struct {
 }
 
 type Message struct {
-	ID        string    `json:"id"`
-	SlotID    string    `json:"slotId"`
-	Author    Author    `json:"author"`
-	Text      string    `json:"text"`
-	CreatedAt time.Time `json:"createdAt"`
+	ID             string    `json:"id"`
+	SlotID         string    `json:"slotId"`
+	Author         Author    `json:"author"`
+	Text           string    `json:"text"`
+	IdempotencyKey string    `json:"idempotencyKey"`
+	CreatedAt      time.Time `json:"createdAt"`
 }
 
 type Store interface {
-	Send(ctx context.Context, actorID, slotID, messageID, text string) (Message, error)
+	Send(ctx context.Context, actorID, slotID, messageID, idempotencyKey, text string) (Message, error)
 	ListRecent(ctx context.Context, actorID, slotID string, limit int) ([]Message, error)
 }
