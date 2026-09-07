@@ -6,10 +6,15 @@ import (
 	"time"
 
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/citymap"
+	"github.com/vbdondarenko-cell/qweqwe/backend/internal/slot"
 )
 
 type mapViewportResponse struct {
 	Items []citymap.Cluster `json:"items"`
+}
+
+type mapPlaceSlotsResponse struct {
+	Items []slot.Slot `json:"items"`
 }
 
 func (s *Server) mapViewport(w http.ResponseWriter, r *http.Request) {
@@ -53,4 +58,41 @@ func (s *Server) mapViewport(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, mapViewportResponse{Items: items})
+}
+
+func (s *Server) mapPlaceSlots(w http.ResponseWriter, r *http.Request) {
+	auth, ok := authFrom(r)
+	if !ok {
+		writeProblem(w, r, http.StatusUnauthorized, "unauthorized", "authentication required")
+		return
+	}
+	if s.deps.Map == nil {
+		writeProblem(w, r, http.StatusServiceUnavailable, "not_ready", "map service is unavailable")
+		return
+	}
+
+	from, err1 := time.Parse(time.RFC3339, r.URL.Query().Get("from"))
+	to, err2 := time.Parse(time.RFC3339, r.URL.Query().Get("to"))
+	limit := 50
+	var err3 error
+	if raw := r.URL.Query().Get("limit"); raw != "" {
+		limit, err3 = strconv.Atoi(raw)
+	}
+	if err1 != nil || err2 != nil || err3 != nil {
+		writeProblem(w, r, http.StatusBadRequest, "invalid_map_place", "invalid map place query")
+		return
+	}
+
+	items, err := s.deps.Map.PlaceSlots(r.Context(), auth.User.ID, citymap.PlaceSlotsQuery{
+		PlaceID: r.PathValue("placeID"), From: from, To: to, Limit: limit,
+	})
+	if err != nil {
+		if err == citymap.ErrInvalidViewport {
+			writeProblem(w, r, http.StatusBadRequest, "invalid_map_place", "invalid map place query")
+		} else {
+			writeProblem(w, r, http.StatusInternalServerError, "internal_error", "request failed")
+		}
+		return
+	}
+	writeJSON(w, http.StatusOK, mapPlaceSlotsResponse{Items: items})
 }
