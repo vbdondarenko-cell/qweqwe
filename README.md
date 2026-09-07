@@ -1,96 +1,49 @@
-# LinkUp — UNIFIED VERSION 1 PRODUCT & ENGINEERING CONTRACT
+# LinkUp — PRODUCT & ENGINEERING CONTRACT
 
-Статус: **canonical product/release contract після `PROJECT_RULES.md`**.
+Статус: **canonical product/engineering contract після `PROJECT_RULES.md`**.
 
-Поточна й єдина цільова версія: **LinkUp Version 1 (`1.0.0`) — Unified Product Scope**.
+Поточний release train: **v1.0 → v1.1 → v1.2**.
 
-Увесь scope цього README входить до **єдиного релізу LinkUp Version 1.0.0**. Історичні заголовки `VERSION 1.0.0` → `VERSION 2.12.0` нижче збережено лише як traceability IDs і dependency-ordered capability blocks; вони **не є окремими product releases і не дозволяють відкладати функціональність за межі `1.0.0`**.
+Поточна активна версія для розробки: **LinkUp v1.0**.
 
-> **CANONICAL VERSION RULE:** кожна вимога, feature, invariant, UI surface, backend contract, migration/test requirement і Definition of Done, описані будь-де в цьому `README.md`, є обов'язковою частиною **LinkUp Version 1.0.0**. Формулювання нижче на кшталт «later version», «target version», «пізніша version» або історичний номер capability-block не змінюють release scope: вони означають лише внутрішній dependency order усередині того самого `1.0.0`. Повний `1.0.0` не вважається Done, доки не закритий увесь README scope.
+`PROJECT_RULES.md` має найвищий пріоритет. `README.md` визначає product scope, architecture, version scope, invariants, test/release contract і Definition of Done. `IMPLEMENTATION_STATUS.md` є єдиним фактичним журналом того, **що реально вже зроблено, перевірено або ще не зроблено**.
+
+> README більше не є implementation ledger. У ньому не повинно бути історичних тверджень на кшталт “already implemented”, старих migration IDs як доказу готовності або псевдо-версій `1.0.1 … 2.12.0`. Реальний стан завжди перевіряється в `IMPLEMENTATION_STATUS.md` та в коді `main`.
 
 Основна навігація продукту: **Pulse · Map · LINK · Fly · Me**.
 
 ---
 
-# 0. ГОЛОВНІ ПРАВИЛА VERSION 1 DELIVERY
+# 0. VERSION MODEL
 
-LinkUp Version 1 містить увесь описаний нижче product scope. Щоб не ламати server authority, privacy та Android/iOS parity, одна product version реалізується послідовними dependency-safe capability-блоками.
+LinkUp Version 1 складається з трьох реальних послідовних product releases:
 
-## 0.1. Нічого не викидаємо
+| Release | Назва | Головна мета |
+|---|---|---|
+| **v1.0** | Core Social Network | реальна Android соціальна мережа: account → Slot → REQUEST → APPROVE → chat → real meeting lifecycle |
+| **v1.1** | Realtime City Network | realtime/offline, City Context, Map, Waitlist, BUMP/Reliability, City BPM, swarms, Fly, Me 2.0, AR/ranking |
+| **v1.2** | Real-World Ecosystem + LinkUp+ | venue/BLE/safety/media/adaptive systems, advanced discovery/hosting/privacy, billing, rewarded access, ecosystem hardening |
 
-Цей roadmap є **dependency-ordered розподілом вимог усередині одного релізу `1.0.0`**, а не поділом на окремі product releases і не скороченням продукту.
+## 0.1. Release boundary rule
 
-- Жодна описана можливість LinkUp не може бути перенесена за межі `1.0.0` лише через історичний номер або пізніший capability-block.
-- Жодну вже реалізовану або частково реалізовану фічу не потрібно видаляти тільки тому, що вона не входить у поточний release surface.
-- Capability дозволено реалізовувати dependency-safe блоками і тимчасово тримати за feature flag під час розробки, але перед фінальним `1.0.0` Done весь обов'язковий README scope має бути інтегрований у release surface там, де README цього вимагає.
-- Applied migrations залишаються forward-only.
-- Історичне переміщення фічі між capability-блоками змінює лише **внутрішній порядок реалізації**, а не release target: release target завжди `1.0.0`.
+- **v1.0 не блокується вимогами v1.1 або v1.2.**
+- **v1.1 починається тільки поверх стабільного v1.0 foundation.**
+- **v1.2 починається тільки поверх стабільного v1.1 foundation.**
+- Функція, що належить v1.1/v1.2, може мати ранній foundation у коді, але це не переносить її release requirement назад у v1.0.
+- Не можна оголошувати feature готовою через scaffold, mock, decorative UI або документацію.
+- Якщо capability вже реально реалізована раніше свого release, її не видаляють: вона просто проходить свій повний DoD у відповідному release gate.
 
-## 0.2. Межі Version 1
+## 0.2. Active platform gate
 
-- Єдина активна product version: **LinkUp Version 1 (`1.0.0`)**.
-- Усі capability-блоки від історичного `1.0.0` до `2.12.0` входять до обов'язкового scope саме **LinkUp `1.0.0`** і мають бути закриті до фінального Version 1 Definition of Done.
-- Нові product version numbers не створюються для проміжних capability-блоків.
-- Історичні номери залишаються в заголовках і тестових назвах лише для traceability та безпечної міграції наявного коду/даних.
+Поки користувач прямо не скаже працювати над iOS:
 
-## 0.3. Active capability-block rule
-
-У кожен момент є одна active product version і один основний dependency-safe capability block усередині неї.
-
-Поки Version 1 не виконала свій Definition of Done:
-
-- не перескакувати на далекі красиві фічі;
-- не роздувати work block усім roadmap;
-- не позначати capability реалізованою через scaffolding, mock або декоративний UI;
-- після завершення блока наступний dependency block стає основним, але product version лишається Version 1.
-
-## 0.4. Незмінний foundation Version 1
-
-Історичний scope `1.0.0` — **мінімальний реальний foundation Version 1, який працює end-to-end на Android та iOS**. Він не є повним Done об'єднаної Version 1, але не може бути послаблений або видалений.
-
-На foundation-рівні користувач повинен мати можливість:
-
-```text
-зареєструватися / увійти
-  ↓
-мати базовий профіль
-  ↓
-створити повноцінний PUBLIC + APPROVAL Slot
-  ↓
-бачити назву / опис / місце / час / організатора / capacity / state
-  ↓
-як host — редагувати дозволені поля або скасувати свій Slot
-  ↓
-інший користувач бачить Slot у Pulse
-  ↓
-подає REQUEST
-  ↓
-host бачить заявника та APPROVE / REJECT
-  ↓
-після APPROVE користувач стає accepted participant
-  ↓
-accepted participants + host отримують temporary text chat
-  ↓
-host START → ACTIVE → COMPLETE або CANCEL
-  ↓
-terminal Slot закриває доступ і physically purges ephemeral chat rows
-  ↓
-користуватися базовими block/privacy/security controls
-```
-
-Basic Approval та basic ephemeral chat є частиною **foundation milestone** `1.0.0`. Map, push, Waitlist, realtime chat delivery, durable offline chat, BUMP, City BPM, Fly, AR, Plus та всі інші capability з цього README можуть не блокувати завершення саме foundation milestone, але **обов'язково блокують фінальний LinkUp Version `1.0.0` Done**, доки не реалізовані відповідно до свого контракту.
-
-## 0.5. Roadmap rebase після розширення `1.0.0`
-
-Щоб нічого не видалити після перенесення частини social loop у `1.0.0`:
-
-- basic Approval/REQUEST/APPROVE/REJECT тепер стартує в `1.0.0`;
-- `1.1.0` **не видаляється** і стає Approval/Waitlist/Host Control V2: Waitlist, promotion, richer roster/host control, configurable access expansion, race hardening;
-- basic accepted-only text chat тепер стартує в `1.0.0`;
-- `1.2.0` **не видаляється** і стає Zero-Trace Coordination V2: realtime messages, offline/idempotent retry, system messages, stronger revocation/retention tooling;
-- existing Instant access engine **не видаляється**; він лишається canonical domain mode і повертається у richer access-mode surfaces пізніших capability-блоків **усередині того самого `1.0.0`**;
-- усі вимоги `1.3.0` → `2.12.0` зберігаються;
-- уже написані realtime, city/user channels, outbox, locality, Waitlist та інші пізніші foundations не видаляються через те, що UI активної версії їх ще не повністю exposes.
+- active mobile platform: **Android**;
+- Android/client implementation: **Kotlin + Jetpack Compose**;
+- backend/domain authority: **Go**;
+- database: **PostgreSQL/PostGIS**;
+- iOS: **frozen** і не є release blocker;
+- відсутність iOS parity не знижує Android readiness;
+- Kotlin Multiplatform дозволений лише там, де він не створює iOS work block.
 
 ---
 
@@ -98,71 +51,105 @@ Basic Approval та basic ephemeral chat є частиною **foundation milest
 
 LinkUp — real-world social operating system.
 
-Його задача — максимально швидко перетворювати намір людини на безпечну реальну взаємодію з іншими людьми.
+Мета продукту — максимально швидко й безпечно перетворити намір людини на реальну взаємодію з іншими людьми.
 
-Повна продуктова петля, обов'язкова для фінального `1.0.0` scope:
+Canonical product loop:
 
 ```text
-намір
+intent
   ↓
-City Context
+local/city context
   ↓
 Pulse / Map / Fly discovery
   ↓
-Slot
+canonical Slot
   ↓
 JOIN / REQUEST / WAITLIST
   ↓
-тимчасова координація
+temporary coordination
   ↓
-реальна зустріч
+real-world meeting
   ↓
-Trust / Reliability / verified real-world signals
+verified trust / reliability signals
 ```
 
-## 1.1. Незмінні принципи
+## 1.1. Product principles
 
 1. **Real World First** — продукт веде до реальної дії, а не нескінченного скролу.
-2. **Local Context First** — місто, район, час і рух є основним контекстом там, де версія це використовує.
-3. **Zero-Friction** — ключові дії мають займати мінімум кроків.
+2. **Local Context First** — місто, район, час і physical context використовуються там, де capability це потребує.
+3. **Zero-Friction** — ключові дії мають мінімальну кількість кроків.
 4. **Privacy by Architecture** — немає public exact stranger GPS або continuous public tracks.
-5. **Server Authority** — capacity, lifecycle, block, reliability, BUMP, access і критичний social state вирішує backend.
+5. **Server Authority** — capacity, lifecycle, access, block, billing, reliability, BUMP і critical social state вирішує backend.
+6. **No Fake Production State** — fake users, fake Slots, fake online counts, fake City BPM, fake reliability або decorative “working” interactions заборонені.
 
 ---
 
-# 2. CANONICAL ARCHITECTURE
+# 2. DESIGN CONTRACT
 
-## Mobile
+Поточний React/TypeScript дизайн у repository є **frozen canonical visual/UI contract**.
 
-- Kotlin Multiplatform для shared domain/data logic;
-- Android: Kotlin + Jetpack Compose;
-- iOS: Swift + SwiftUI;
-- Coroutines/Flow;
-- native Android/iOS lifecycle, location, notifications, BLE, camera/audio та security APIs відповідно до target version;
-- Android Keystore;
-- iOS Keychain/Secure Enclave-compatible storage where appropriate.
+- Не редизайнити.
+- Не робити facelift/visual cleanup замість функціоналу.
+- Не міняти navigation model `Pulse · Map · LINK · Fly · Me` без прямої команди користувача.
+- Не переносити нову production business logic у React/TypeScript.
+- Android Compose implementation відтворює затверджений visual language, layout hierarchy, interaction language, colors, cards, sheets, chips, buttons, states та screen structure настільки точно, наскільки це дозволяє native Android.
+- Якщо design показує capability, якої ще немає server-side, production Android не підставляє fake data. Surface або неактивний, або показує чесний unavailable/not-yet-active state до відповідного release.
 
-## Backend
+Canonical design tokens включають dark/black surfaces, LinkUp red accent, semantic success/warning/info colors, Outfit/Inter/JetBrains Mono typography contract і відповідні spacing/radius/animation patterns із design reference.
+
+---
+
+# 3. CANONICAL ARCHITECTURE
+
+## 3.1. Android
+
+- Kotlin;
+- Jetpack Compose;
+- Coroutines + Flow;
+- Android lifecycle/process-death handling;
+- Android Keystore для secure local secrets/session material;
+- native Android APIs для location, camera, BLE, notifications, audio та device security, коли відповідний release їх активує;
+- no WebView-first / web-first production app.
+
+## 3.2. Backend
 
 - provider-neutral Go API;
-- PostgreSQL + PostGIS як source of truth;
-- transactional outbox;
-- idempotent mutations;
-- realtime snapshot + ordered delta model там, де realtime вже активований;
-- object/media provider behind replaceable abstraction when media arrives;
-- push providers behind platform adapters when notifications arrive.
+- Go API — єдина app-facing authority для auth/domain/data decisions;
+- PostgreSQL/PostGIS — source of truth;
+- explicit transactions для race-sensitive mutations;
+- idempotent critical commands;
+- transactional outbox, коли realtime стає active;
+- replaceable adapters для push, mail, map/place, media, translation, weather, billing verification та rewarded providers;
+- structured logs без bearer/body/location-secret leakage;
+- request IDs, bounded timeouts, abuse/rate limits і explicit error contract.
 
-**Render.com не використовується. Для `1.0.0` Supabase використовується як managed PostgreSQL/PostGIS infrastructure; Go API залишається єдиним app-facing auth/domain/data authority. Supabase Auth/Data API/Realtime/Storage не є authority або mobile dependency, якщо це окремо не активовано в майбутній версії.**
+## 3.3. Infrastructure
+
+Canonical stack:
+
+- **GitHub** — source control, direct work in `main`;
+- **Supabase project `oavnrlwsfiiehluubwjk`** — managed PostgreSQL/PostGIS infrastructure;
+- **Firebase** — дозволений platform service layer для явно інтегрованих Android capabilities;
+- **separate Ubuntu server** — майбутній Go API runtime тільки після прямої deployment-команди користувача.
+
+Заборонено як canonical infrastructure без нового прямого рішення користувача:
+
+- Render.com;
+- Google Cloud Build;
+- Cloud Run;
+- Cloud Deploy;
+- Artifact Registry;
+- GitHub Actions build/test/deploy pipeline.
+
+Supabase Auth/Data API/Realtime/Storage не є product authority автоматично. Android не отримує database/service-role secrets.
 
 ---
 
-# 3. CORE DOMAIN CONTRACT
+# 4. CANONICAL DOMAIN — SLOT
 
-Canonical social aggregate — **Slot**.
+Pulse, Map, LINK і Fly працюють навколо **одного canonical Slot aggregate**. Вони не створюють несумісні паралельні event models.
 
-Pulse, Map, LINK і Fly не створюють несумісні дублікати event model.
-
-## Full Slot lifecycle target
+## 4.1. Lifecycle
 
 ```text
 DRAFT
@@ -180,430 +167,443 @@ COMPLETED
 
 Terminal alternatives:
 
-- CANCELLED;
-- EXPIRED;
-- MODERATED.
+- `CANCELLED`;
+- `EXPIRED`;
+- `MODERATED`.
 
-## Core invariants
+## 4.2. Access modes
 
-- `accepted_count <= capacity`;
-- last seat allocation atomic;
-- duplicate JOIN/REQUEST заборонений;
-- mutation idempotency обов'язкова;
-- blocked pair не може взаємодіяти через query/ranking/realtime/chat;
-- cancelled/expired/moderated/completed Slot не приймає нові JOIN/REQUEST;
-- FULL може повернутися у FILLING після LEAVE;
-- client ніколи не є authority для Slot version/capacity;
-- pending requester не має chat access;
-- basic `1.0.0` chat доступний тільки host або accepted participant;
-- LEAVE/revocation прибирає participant chat authorization;
-- terminal Slot (`COMPLETED`, `CANCELLED`, `EXPIRED`, `MODERATED`) закриває chat і physically purges його ephemeral message rows у canonical PostgreSQL storage.
+Canonical modes:
 
-## Full access target
+- `INSTANT`;
+- `APPROVAL`;
+- `WAITLIST`.
 
-- Instant;
-- Approval;
-- Waitlist.
+v1.0 release path використовує **APPROVAL** як primary social path. `INSTANT` лишається canonical domain mode. `WAITLIST` стає user-facing production capability у v1.1.
 
-`1.0.0` release surface використовує **Approval** як базовий social path. Instant engine та Waitlist requirements не видаляються.
+## 4.3. Visibility model
 
-## Full visibility target
+Canonical target:
 
 - Public;
 - Friends/Links;
 - Selected people;
 - City-only;
-- Lasso/geo scoped;
+- Lasso/geo-scoped;
 - Travel corridor;
-- Private/Invite-only там, де це передбачено відповідним capability-блоком `1.0.0`.
+- Private / invite-only.
 
-Visibility ніколи не обходить block/privacy/safety.
+v1.0 обов’язково має Public. Розширена visibility активується за scope v1.1/v1.2.
 
-Не всі ці режими мають бути ввімкнені вже на foundation milestone, але всі режими, які README вимагає для release surface, мають бути активовані за dependency-order нижче **до фінального `1.0.0` Done**.
+## 4.4. Core invariants
+
+Ці правила діють у всіх releases:
+
+- `accepted_count <= capacity`;
+- last-seat allocation atomic;
+- duplicate JOIN/REQUEST/membership заборонені;
+- critical mutation idempotency обов’язкова;
+- stale client version не може тихо перетерти новішу server state;
+- client ніколи не є authority для capacity/state/version/entitlement/reliability;
+- blocked pair не може взаємодіяти через discovery/query/ranking/realtime/chat;
+- terminal Slot не приймає нові JOIN/REQUEST;
+- `FULL → FILLING` можливий після LEAVE або authorized removal;
+- pending requester не має chat access;
+- host/current accepted participant мають chat access тільки доки relationship valid;
+- LEAVE/block/kick/revocation прибирає chat authorization;
+- terminal Slot закриває chat;
+- ephemeral chat rows physically purge на terminal transition, де contract цього вимагає;
+- exact location/privacy policy ніколи не обходиться visibility/access mode.
 
 ---
 
-# 4. VERSION 1.0.0 — SOCIALLY COMPLETE WORKING LINKUP
+# 5. VERSION v1.0 — CORE SOCIAL NETWORK
 
-**Мета:** найменший production-safe LinkUp, який уже можна реально встановити й використовувати двом людям не як demo, а як базову соціальну мережу для реальної зустрічі.
+## 5.1. Goal
 
-## 4.1. Account
+v1.0 — найменша **реально працююча production-safe Android соціальна мережа LinkUp**, якою можуть користуватися щонайменше дві реальні людини end-to-end без demo/mock social behavior.
 
-Обов'язково:
+Canonical v1.0 flow:
+
+```text
+register/login
+  ↓
+Me/profile/session
+  ↓
+create PUBLIC + APPROVAL Slot
+  ↓
+real Pulse discovery
+  ↓
+REQUEST
+  ↓
+host APPROVE / REJECT
+  ↓
+accepted membership
+  ↓
+temporary coordination chat
+  ↓
+START → ACTIVE → COMPLETE
+  ↓
+terminal chat purge
+```
+
+## 5.2. Account & session
+
+Required:
 
 - registration;
-- login/logout;
-- secure bearer session;
-- session restore після process death;
-- базовий recovery/reset flow;
-- username/display name;
-- базовий avatar/profile identity;
-- Android + iOS parity.
-
-Розширене керування sessions/export/account lifecycle може розвиватися далі, але security основи не відкладаються.
-
-## 4.2. Basic Me
-
-- profile view/edit;
-- basic account info;
-- базова privacy visibility PUBLIC/HIDDEN;
-- базовий block list/control;
-- language baseline;
+- login;
 - logout;
-- legal/version surface;
-- зрозумілий session/account state.
+- secure opaque bearer session;
+- session restore після process death;
+- password recovery/reset;
+- username;
+- display name;
+- optional avatar identity field;
+- PUBLIC/HIDDEN profile visibility;
+- uk/en language preference baseline;
+- server-side block list/control;
+- secure Android local session storage;
+- auth abuse/rate-limit foundation;
+- sensitive-log prevention.
 
-## 4.3. Basic Event Core + Slot Engine
+## 5.3. Basic Me
 
-У `1.0.0` активний простий, але **не урізаний** social path:
+Required:
+
+- own profile view;
+- edit display name/avatar reference/profile visibility/language preference;
+- block list + unblock;
+- basic account/session state;
+- My LINKs dashboard;
+- Hosting / Joined / Requests views using real server data;
+- logout;
+- legal/version surface.
+
+No fake Reliability/BUMP/Passport metrics in v1.0 unless corresponding server capability is actually active.
+
+## 5.4. LINK / Event Core
+
+Required:
 
 - create PUBLIC Slot;
-- release access mode: `APPROVAL`;
-- existing `INSTANT` access engine не видаляється з domain/data/tests;
-- create/publish як один простий user flow, навіть якщо backend internally зберігає DRAFT/PUBLISHED;
-- Event Core: title/activity, optional description/details, place/zone, optional start date/time, organizer identity, capacity, state;
-- get/read;
-- host edit дозволених полів: title/details/place/start time/capacity;
-- optimistic concurrency через server-authoritative Slot version;
-- capacity при edit не може бути меншою за вже accepted count;
-- host cancel через canonical `CANCEL`; UI може називати це «Видалити», але сам Slot не hard-delete-иться: переходить у `CANCELLED` та зникає з normal Pulse discovery;
-- JOIN для `APPROVAL` створює pending REQUEST, а не instant membership;
-- pending user може скасувати свою заявку через canonical LEAVE semantics;
-- host бачить pending requester identity (`displayName`, `@username`);
-- host APPROVE / REJECT;
-- APPROVE переводить requester у accepted membership тільки server-side;
-- REJECT прибирає pending request без membership;
-- accepted participant може LEAVE;
-- host START переводить eligible Slot у `ACTIVE`;
-- host COMPLETE переводить `ACTIVE` Slot у `COMPLETED`;
+- APPROVAL access path;
+- title;
+- activity/scenario;
+- optional details/description;
+- place/zone text;
+- optional date/time;
+- organizer identity;
 - capacity;
-- atomic seat allocation при approval;
-- duplicate JOIN/REQUEST protection;
-- idempotent create/request/approve/reject/leave/start/complete/cancel;
-- host/member authorization;
-- basic block enforcement;
-- server-authoritative version/state;
-- PostgreSQL transaction safety.
+- server lifecycle state;
+- create/publish may be one simple v1.0 flow;
+- host read/edit/cancel;
+- edit title/details/place/time/capacity;
+- capacity edit cannot drop below accepted count;
+- `expectedVersion` optimistic concurrency;
+- cancel is canonical state transition, not hard-delete;
+- cancelled Slot disappears from normal Pulse;
+- critical create/edit/cancel mutation idempotency.
 
-Waitlist, advanced visibility, explicit DRAFT/preview/publish tooling, co-hosting, expanded roster management та інше **advanced host tooling** переходять у наступні versions. Базове edit/cancel, Approval та start/complete lifecycle власного Slot є частиною `1.0.0`.
+## 5.5. Approval social loop
 
-## 4.4. Basic Pulse
+Required:
+
+- non-member → REQUEST;
+- REQUEST creates pending relation only;
+- pending user can withdraw via LEAVE semantics;
+- duplicate REQUEST protection;
+- host sees pending requester `displayName/@username`;
+- host APPROVE;
+- host REJECT;
+- approval creates membership only server-side;
+- atomic last seat;
+- accepted roster for host;
+- accepted participant LEAVE;
+- authorized host remove participant;
+- block checks on every transition;
+- `FULL → FILLING` reopen;
+- host START;
+- START → `ACTIVE`;
+- host COMPLETE;
+- COMPLETE → `COMPLETED`;
+- version/state/capacity remain server-authoritative.
+
+## 5.6. Pulse
+
+Required:
 
 - real server data only;
-- простий список доступних PUBLIC Slots;
-- Slot card;
-- title/activity;
-- description/details where available;
-- basic place/zone text where available;
-- date/time where available;
+- PUBLIC Slot list;
+- title/activity/details;
+- place/zone;
+- date/time when present;
 - organizer identity;
 - capacity `x/y`;
-- server-authoritative state;
-- host Edit / Delete(cancel) actions для власного Slot;
-- host бачить pending request list із requester identity;
-- host Accept / Decline actions;
-- non-member бачить `Подати заявку` / `Request to join`;
-- pending viewer бачить `Заявку надіслано` і може cancel request;
-- accepted participant бачить Chat + LEAVE;
-- host бачить Chat після появи accepted participant;
-- host може START, а після `ACTIVE` — COMPLETE;
-- active Slot лишається доступним host/accepted participants, але не відкривається стороннім як новий request target;
-- loading/content/empty/error;
-- manual/normal refresh достатній для `1.0.0`;
-- ніяких fake users/Slots/online numbers.
+- server state;
+- viewer relationship state;
+- Request / Pending / Leave / Host actions відповідно до authority;
+- active Slot remains resolvable for host/current members but is not a new-request target for strangers;
+- Loading / Content / Empty / Error / Refreshing states;
+- bounded manual refresh is sufficient for v1.0;
+- search/filter only over real returned data;
+- no fake city/BPM/online/reliability numbers.
 
-Realtime без manual refresh буде окремим update.
+## 5.7. Basic Zero-Trace Coordination Chat
 
-## 4.5. Basic Zero-Trace Coordination Chat
+For host + current accepted participants:
 
-Для host та **accepted** Slot participants:
-
-- ephemeral text chat;
-- pending requester не має доступу;
-- stranger/non-member не має доступу;
-- author display name;
-- author username;
-- server-created message timestamp;
-- send text;
-- normal/manual refresh достатній для `1.0.0`;
+- ephemeral text messages;
+- author display name + username;
+- server-created timestamp;
+- send;
 - bounded message length;
-- bounded recent thread response;
-- server authorization на read/send;
-- LEAVE прибирає member access;
-- terminal Slot закриває chat;
-- PostgreSQL trigger physically deletes chat rows when Slot becomes `COMPLETED`, `CANCELLED`, `EXPIRED` або `MODERATED`;
-- chat не є permanent social-message archive.
+- bounded recent thread;
+- manual refresh / bounded foreground refresh is sufficient;
+- pending/stranger/left user denied even with known `slotId`;
+- block/revocation immediately removes authorization;
+- terminal state closes chat;
+- PostgreSQL physically purges message rows on `COMPLETED`, `CANCELLED`, `EXPIRED`, `MODERATED`;
+- chat is not a permanent messenger/archive.
 
-Realtime delivery, durable offline retry, system messages, richer coordination і stronger revocation tooling розвиваються у `1.2.0`, але basic working chat уже обов'язковий у `1.0.0`.
+## 5.8. v1.0 safety/privacy/security
 
-## 4.6. Basic safety/privacy/security
+Required before release:
 
-До release обов'язково:
-
-- server authorization;
-- basic block enforcement;
+- server authorization for every sensitive action;
+- bidirectional block enforcement;
 - no public exact stranger GPS;
 - no public continuous tracks;
+- no client role/state/capacity authority;
 - secrets/config separation;
-- secure local session storage;
-- rate-limit foundation;
-- sensitive logs prevention;
+- secure session storage;
+- bounded auth/social abuse controls;
+- no bearer/body/sensitive location logging;
+- IDOR protection;
+- replay/idempotency protection;
 - production data only;
-- chat access не можна отримати лише через знання `slotId`;
-- pending/declined/left user не є accepted chat participant.
+- no fake success path.
 
-## 4.7. Release engineering
+## 5.9. v1.0 stability & release engineering
 
-`1.0.0` не випускається без:
+v1.0 includes its own launch stabilization. It is not deferred to a fake `1.0.1` release.
 
+Required:
+
+- crash/ANR fixes;
+- network resilience;
+- bounded GET retry policy;
+- no blind POST/mutation retry;
+- recoverable transport error UX;
+- cached/read content not destroyed by refresh failure where caching exists;
+- performance/query/index review;
+- accessibility baseline;
+- Ukrainian + English user-facing baseline for active v1.0 screens;
+- API latency/error observability;
+- bounded rate-limit storage;
+- backup/recovery procedure;
+- application rollback procedure;
 - Android release build/AAB;
-- iOS release/archive readiness;
 - signing configuration;
 - forward-only migrations;
-- basic Go/KMP/Android/iOS tests для active scope;
-- basic accessibility;
-- Ukrainian + English baseline;
-- release smoke на Android та iOS;
-- real two-user Approval + chat smoke;
-- rollback/recovery path;
-- CI, коли GitHub runner реально доступний.
+- real two-user social-loop regression;
+- no GitHub Actions requirement under current project rules.
 
-## 4.8. Definition of Done — 1.0.0
+## 5.10. Definition of Done — v1.0
 
-1. User A може зареєструватися/увійти.
-2. User A створює PUBLIC Approval Slot з реальною інформацією: title/details/place/time/capacity.
-3. User A може відредагувати дозволені поля власного Slot, а server version не дозволяє тихо перетерти новішу зміну.
-4. User B бачить реальний Slot у Pulse з достатньою інформацією для рішення про REQUEST.
-5. User B натискає `Подати заявку`; server створює pending request, а не accepted membership.
-6. User A бачить User B у pending list із display name/@username та може APPROVE або REJECT.
-7. Після APPROVE User B стає accepted participant, capacity/state залишаються server-authoritative.
-8. До APPROVE User B не може читати/писати chat; після APPROVE A і B можуть обмінятися text messages.
-9. User B може LEAVE; після LEAVE chat access для B зникає.
-10. User A може START подію; під час ACTIVE host/accepted participants зберігають coordination access.
-11. User A може COMPLETE подію; після terminal transition chat закривається, а його message rows physically purged from PostgreSQL.
-12. User A може «видалити» власний Slot через server `CANCEL`; Slot зникає з normal Pulse, а chat також purged.
-13. Concurrent approval/last-seat allocation не перевищує capacity; edit capacity не може впасти нижче accepted count.
-14. Duplicate request/command replay не створює duplicate membership або duplicate critical mutation.
-15. Block/security/privacy foundation працює server-side, включно з social/chat authorization boundary.
-16. Немає fake/demo production data.
-17. Android та iOS проходять однаковий release smoke для цього flow.
+v1.0 is Done only when all below are real and verified on Android + Go + PostgreSQL:
 
-## 4.9. Реально доданий implementation baseline для `1.0.0`
-
-Цей roadmap відображає вже додану implementation direction, яку заборонено мовчки відкотити:
-
-- full Event Core fields у mobile/shared/server flow;
-- host edit endpoint + optimistic version check;
-- cancel/delete semantics;
-- Approval request/approve/reject domain path;
-- pending requester summaries для host;
-- temporary chat API read/send;
-- accepted-only chat authorization;
-- automatic first-accepted-participant chat activation plus explicit activation/expiry metadata;
-- idempotent offline-safe send identity, reconnect polling and duplicate convergence;
-- block/kick relationship revocation and blocked-identity thread filtering/purge;
-- finite mode-aware Slot/chat TTL, automatic `EXPIRED` transition and physical retention cleanup;
-- server-authored Slot lifecycle system messages;
-- START/COMPLETE lifecycle;
-- forward-only migration `000012` для Slot details;
-- forward-only migration `000013` для ephemeral Slot chat + terminal purge trigger;
-- forward-only migrations `000016`, `000018` та `000020` для safe resend, system messages і finite expiry/retention;
-- Android `1.0.0` surface для Event Core / Approval / host controls / temporary chat;
-- Android BUMP surface з P-256 Android Keystore proof, fresh precise foreground GPS, server-only verification, anti-replay/anti-farm та self-only Reliability Vault;
-- forward-only migration `000022` для BUMP/reliability; exact challenge geography очищається після використання, а guarded PUBLIC Pulse index перенесено без зміни SQL у reserved tail `999999`;
-- iOS має отримати еквівалентний native SwiftUI surface до Done `1.0.0`.
+1. User A registers/logs in and session restore works after process death.
+2. User A creates a real PUBLIC Approval Slot with title/details/place/time/capacity.
+3. User A can edit allowed fields; stale version conflict is rejected server-side.
+4. User B sees the Slot in real Pulse.
+5. User B submits REQUEST and remains pending.
+6. User A sees B in pending list and can APPROVE or REJECT.
+7. APPROVE produces accepted membership without exceeding capacity under race.
+8. Host can see accepted roster; authorized removal/LEAVE correctly updates capacity/state.
+9. Pending/stranger cannot use chat; host + accepted can exchange real messages.
+10. Block/LEAVE/removal revokes social/chat access.
+11. Host can START; current host/accepted participants keep coordination access while ACTIVE.
+12. Host can COMPLETE; chat closes and canonical message rows are physically purged.
+13. Host can CANCEL; Slot leaves normal discovery and chat rows purge.
+14. Duplicate/replayed critical commands do not create duplicate state.
+15. Me/profile/block/Hosting/Joined/Requests surfaces use real server data.
+16. Loading/content/empty/error/recovery states work without fake data.
+17. Android build/tests, Go tests, PostgreSQL integration/race tests and real two-user smoke are actually executed successfully.
+18. Security/privacy/accessibility/localization/recovery/rollback gates pass for active v1.0 scope.
 
 ---
 
-# 5. VERSION 1.0.1 — LAUNCH STABILIZATION
+# 6. VERSION v1.1 — REALTIME CITY NETWORK
 
-- crash fixes;
-- ANR/hang fixes;
-- network resilience;
-- basic offline/retry UX;
-- query/index tuning;
-- performance profiling;
-- accessibility fixes;
-- localization fixes;
-- abuse/rate-limit tuning;
-- UX friction cleanup;
-- basic observability dashboards;
-- API latency/error metrics;
-- backup/recovery procedure;
-- release rollback procedure hardening;
-- Approval request/approve/reject error-state polish;
-- temporary chat transport/error-state polish;
-- lifecycle START/COMPLETE/CANCEL recovery UX;
-- two-user social-loop regression stabilization.
+## 6.1. Goal
 
-Done: basic create → discover → REQUEST → APPROVE/REJECT → accepted chat → START/COMPLETE/CANCEL flow стабільний у production conditions.
+v1.1 перетворює core social network на **live city network**: realtime convergence, durable offline behavior, location-aware discovery, richer access/coordination, verified real-world signals та advanced discovery surfaces.
 
----
+v1.0 capabilities залишаються mandatory regression baseline.
 
-# 6. VERSION 1.0.2 — REALTIME + DURABLE OFFLINE
+## 6.2. Realtime + durable offline
 
+Required:
+
+- PostgreSQL transactional outbox;
 - Slot realtime events;
-- city activity channel;
 - user channel;
+- city activity channel;
 - authoritative snapshot;
-- ordered delta;
-- monotonic cursor/version handling;
+- ordered delta stream;
+- monotonic cursor/version;
 - duplicate/out-of-order protection;
-- reconnect;
+- reconnect convergence;
 - foreground/background lifecycle;
 - process-death recovery;
-- durable mutation outbox;
-- exact idempotent replay;
+- Android durable mutation outbox;
+- exact idempotent pending-command replay;
 - airplane-mode recovery;
-- current block/access re-evaluation while stream is open;
-- two-client REQUEST/APPROVE/REJECT/JOIN/LEAVE/FULL/REOPEN/START/COMPLETE convergence;
-- realtime pending-request visibility for host;
-- realtime membership/access revocation;
-- basic chat realtime delivery baseline on top of the `1.0.0` persistent ephemeral thread;
-- PostgreSQL transactional outbox;
-- controlled realtime fan-out / LISTEN-NOTIFY wake where appropriate.
+- current block/access re-evaluation while stream active;
+- REQUEST/APPROVE/REJECT/LEAVE/FULL/REOPEN/START/COMPLETE convergence between clients;
+- realtime pending/roster/access revocation;
+- controlled fan-out/LISTEN-NOTIFY wake where appropriate.
 
-Done: два клієнти бачать один server-authoritative Slot/social state без divergence після reconnect.
+Canonical client model:
 
----
+```text
+server snapshot
++ ordered deltas
++ local pending/idempotent command state
+```
 
-# 7. VERSION 1.0.3 — CITY CONTEXT + SCHEDULED FOUNDATION
+After reconnect:
 
-- physical locality resolution;
+1. resubscribe;
+2. obtain authoritative snapshot/cursor;
+3. replay pending exact idempotent commands;
+4. reconcile UI;
+5. ignore stale/duplicate deltas.
+
+## 6.3. City Context + scheduled foundation
+
+Required:
+
+- PostGIS locality resolution;
 - locality polygons;
-- PostGIS City Context;
 - freshness/accuracy policy;
-- approximate/precise classes;
+- approximate/precise permission classes;
 - City-Lock;
-- boundary stability/hysteresis;
-- stale/fake/low-accuracy rejection rules;
+- boundary hysteresis/stability;
+- stale/fake/low-accuracy rejection;
 - privacy-safe city context;
-- Android + iOS synchronization;
 - NOW / Scheduled separation;
-- timezone-aware scheduled time;
-- basic expiry rules;
-- city-only visibility foundation.
+- timezone/DST-safe scheduling;
+- expiry policy;
+- city-only visibility foundation;
+- no public exact stranger coordinates.
 
-Немає public exact stranger coordinates.
+## 6.4. Map v1
 
----
+Required:
 
-# 8. VERSION 1.0.4 — MAP V1
-
-- Google Maps native SDK;
-- Google Places canonical place identities;
-- real server viewport queries;
-- Slot pins/aggregates, а не public people pins;
-- privacy-safe map exposure;
-- shared city/time scope з Pulse;
-- open Slot from map;
-- JOIN/REQUEST from map відповідно до access mode;
+- native Android map surface preserving frozen design;
+- replaceable map/place provider adapter;
+- canonical place identities;
+- server viewport queries;
+- Slot pins/aggregates, never public people pins;
+- privacy-safe exposure;
+- shared city/time scope with Pulse;
+- open Slot from Map;
+- JOIN/REQUEST according to access mode;
 - clustering/viewport performance;
 - no raw full-city user download.
 
-Advanced Vibe Topology, Lasso, Hotspots і AR лишаються далі.
+Google Maps/Places may be used as an Android mapping/place provider if configured, but they are not domain authority and do not change the canonical no-GCP-build/deploy rule.
 
----
+## 6.5. LINK / hosting expansion
 
-# 9. VERSION 1.0.5 — LINK CREATION + HOSTING V1 EXPANSION
+Required:
 
 - explicit DRAFT;
 - preview;
 - separate publish;
-- expanded edit surface/history beyond the `1.0.0` basic fields;
-- Now / Scheduled explicit mode separation;
-- activity/scenario selection;
-- visibility baseline expansion;
-- canonical location/place identity;
-- structured vibe tags baseline;
-- create request survives network loss/process death without duplicate Slot;
-- basic Hosting/Joined dashboard;
-- configurable basic access choice foundation while preserving canonical Instant + Approval domain modes;
-- clearer roster/request/accepted summaries without yet taking over the advanced `1.1.0` host-control scope.
+- richer edit/history surface;
+- explicit Now / Scheduled modes;
+- canonical place identity;
+- structured vibe tags;
+- advanced visibility baseline;
+- create command survives network loss/process death without duplicate Slot;
+- richer Hosting/Joined dashboard;
+- configurable access mode surface preserving Instant + Approval;
+- advanced roster/request summaries.
 
----
+## 6.6. Approval + Waitlist + Host Control V2
 
-# 10. VERSION 1.1.0 — APPROVAL + WAITLIST + HOST CONTROL V2
+Required:
 
-Basic Approval already exists in `1.0.0`; this version **expands it without deleting the original requirements**:
-
-- Approval access mode expansion/configuration;
-- REQUEST;
-- APPROVE;
-- REJECT;
 - Waitlist;
 - waitlist promotion;
-- FULL → FILLING reopen;
+- request expiry/withdrawal hardening;
+- FULL/reopen race handling;
 - expiry during mutation;
-- host remove where authorized;
-- richer hosting/request/waitlist states;
-- roster management foundation;
-- concurrency-safe Approval/Waitlist transactions;
-- block/authorization checks on every transition;
-- version conflict handling;
-- request expiry/withdrawal UX hardening;
-- advanced host control around capacity, roster and access-mode transitions.
+- richer host removal/control;
+- capacity/access transitions;
+- concurrency-safe approval/waitlist transactions;
+- block/authorization on every transition;
+- version conflict UX;
+- complete roster/request/waitlist states.
 
----
+## 6.7. Coordination Chat V2
 
-# 11. VERSION 1.2.0 — ZERO-TRACE COORDINATION V2
+Still zero-trace by product design:
 
-Basic accepted-only text chat already exists in `1.0.0`; this version **extends it without converting LinkUp into a permanent messenger**.
+- realtime delivery;
+- offline/idempotent send retry;
+- duplicate convergence;
+- activation/expiry/retention rules;
+- system messages for important Slot lifecycle events;
+- reconnect thread convergence;
+- stronger kick/block/revocation handling;
+- physical terminal cleanup verification;
+- no permanent social-message archive by default.
 
-Для accepted Slot participants:
+## 6.8. Notifications
 
-- ephemeral text chat;
-- membership authorization;
-- realtime messages;
-- offline retry/idempotency;
-- block/kick revokes access;
-- activation rules;
-- expiry/retention;
-- system messages for important Slot state;
-- no permanent social-message archive as default product behavior;
-- reconnect/thread convergence;
-- message duplicate protection;
-- stronger terminal cleanup verification;
-- chat state transitions tied to host/member lifecycle.
+Required:
 
----
-
-# 12. VERSION 1.3.0 — NOTIFICATIONS
-
-- platform push integration;
-- JOIN/REQUEST approval;
-- Slot cancellation;
+- Android push adapter;
+- request/approval decisions;
+- cancellation;
 - starting soon;
 - reopened seat / waitlist promotion;
-- safety/moderation messages;
-- chat/coordination notification baseline where policy allows;
+- safety/moderation notices;
+- coordination notification where policy allows;
 - dedupe key;
 - TTL;
 - deep links;
-- user preferences;
+- preferences;
 - quiet-hours foundation;
-- notification reliability metrics.
+- delivery/reliability metrics.
 
----
+## 6.9. BUMP + Reliability
 
-# 13. VERSION 1.4.0 — VERIFIED REAL-WORLD + RELIABILITY
+Required:
 
-- BUMP baseline;
+- BUMP proof baseline;
 - verified attendance;
 - server-verified proof;
-- anti-replay/anti-farm;
+- Android Keystore-backed device proof where applicable;
+- anti-replay;
+- anti-farm;
+- one-event/one-contribution protections;
 - reliability events;
 - private/public reliability bands;
 - BUMP Vault baseline;
 - after-check flow;
-- verified real-world completion metrics;
-- one event/one contribution protections.
+- verified real-world completion metrics.
 
-Guardrail: local client tap не може сам нарахувати trust/reliability.
+Client tap alone can never increase trust/reliability.
 
----
+## 6.10. City BPM + map intelligence
 
-# 14. VERSION 1.5.0 — CITY ENERGY
+Required:
 
 - City BPM;
 - activity buckets;
@@ -613,16 +613,9 @@ Guardrail: local client tap не може сам нарахувати trust/reli
 - dominant categories/tags;
 - privacy suppression;
 - realtime city telemetry;
-- Kinetic Proof generation/presentation;
+- Kinetic Proof presentation;
 - spatial/time blur;
-- anti-manipulation weighting.
-
-Done: city activity explainable, stable і не дозволяє інферити малу групу/окрему людину.
-
----
-
-# 15. VERSION 1.6.0 — MAP INTELLIGENCE
-
+- anti-manipulation weighting;
 - privacy hex grid;
 - Vibe Topology;
 - Echo Hotspots;
@@ -630,28 +623,29 @@ Done: city activity explainable, stable і не дозволяє інферит�
 - shared GeoTemporalScope Pulse ↔ Map;
 - Time-Lapse baseline;
 - Dark Zone Ignition;
-- advanced map privacy thresholds;
-- accessibility labels/patterns, не тільки колір.
+- accessibility labels/patterns beyond color.
 
----
+Low cohorts must be suppressed so a small group or person cannot be inferred.
 
-# 16. VERSION 1.7.0 — AUTO-SWARMS
+## 6.11. Auto-Swarms
+
+Required:
 
 - normalized intent taxonomy;
 - clustering;
 - confidence score;
 - proposal lifecycle;
-- consent;
+- explicit consent;
 - neutral meeting zone;
 - realtime proposal UI;
 - false-positive analytics;
-- privacy/safety/block filters before candidate grouping.
+- privacy/safety/block filters before grouping.
 
-Guardrail: Auto-Swarm ніколи не auto-joins users.
+Auto-Swarm never auto-joins users.
 
----
+## 6.12. Fly
 
-# 17. VERSION 1.8.0 — FLY NOW
+### Fly Now
 
 - MICRO Slots;
 - Flash Drops;
@@ -666,9 +660,7 @@ Guardrail: Auto-Swarm ніколи не auto-joins users.
 - server-time countdown;
 - no public live GPS track.
 
----
-
-# 18. VERSION 1.9.0 — FLY TRAVEL
+### Fly Travel
 
 - Astral remote-city context;
 - remote scheduled joins;
@@ -679,13 +671,11 @@ Guardrail: Auto-Swarm ніколи не auto-joins users.
 - Local Ambassador;
 - Highway Flare / non-emergency road help;
 - Nomad/Home Cities;
-- Macro city activity map.
+- macro city activity map.
 
-Guardrail: ASTRAL context ніколи не маскується під physical presence.
+ASTRAL context must never pretend to be physical presence.
 
----
-
-# 19. VERSION 1.10.0 — FLY MOTION
+### Fly Motion
 
 - activity recognition;
 - motion confidence;
@@ -693,23 +683,23 @@ Guardrail: ASTRAL context ніколи не маскується під physical
 - low-interaction HUD;
 - trajectory Slot discovery;
 - safe-state interaction;
-- anonymous Fly encounter tokens;
+- anonymous encounter tokens;
 - Slipstream aggregates;
 - battery profiling.
 
-Guardrail: probable driver не отримує UX, який заохочує tap/swipe/typing while driving.
+Probable driver state must not encourage tapping/swiping/typing while driving.
 
----
+## 6.13. Me 2.0 + Squad Radar
 
-# 20. VERSION 1.11.0 — ME 2.0 + SQUAD RADAR
+Required:
 
 - Social Passport;
 - Links Graph;
-- expanded Reliability Card;
+- Reliability Card;
 - Now Card;
 - Activity Cockpit;
 - Real-World Footprint;
-- BUMP Vault expansion;
+- expanded BUMP Vault;
 - achievements;
 - personal templates;
 - home cities;
@@ -720,21 +710,20 @@ Guardrail: probable driver не отримує UX, який заохочує tap
 - notification intelligence;
 - Data Transparency;
 - private Squad Radar;
-- OFF / ETA_ONLY / APPROXIMATE / LIVE_PRECISE;
+- sharing modes `OFF / ETA_ONLY / APPROXIMATE / LIVE_PRECISE`;
 - exact sharing opt-in + TTL + instant revoke;
-- blocked/kicked membership revocation.
+- block/kick membership revocation.
 
----
+## 6.14. AR + Ranking V2
 
-# 21. VERSION 1.12.0 — AR + RANKING V2
-
-**Остання версія лінійки `1.x`.**
+Required:
 
 - AR Slot/Place beacons;
 - capability detection;
 - camera/IMU;
-- coarse slot anchors;
-- accessibility/fallback;
+- coarse anchors;
+- non-AR fallback;
+- accessibility fallback;
 - learned ranking;
 - preference modeling;
 - notification intelligence V2;
@@ -742,33 +731,62 @@ Guardrail: probable driver не отримує UX, який заохочує tap
 - explainability/debug tooling;
 - opt-in personalization.
 
-ML ніколи не замінює deterministic eligibility/privacy filters.
+ML never overrides deterministic eligibility/privacy/block/safety filters.
+
+## 6.15. Definition of Done — v1.1
+
+v1.1 is Done only when:
+
+- v1.0 regression remains green;
+- two Android clients converge after stream loss/reconnect/process death/airplane mode;
+- durable commands do not duplicate Slot/membership/chat state;
+- City Context obeys accuracy/privacy boundaries;
+- Pulse/Map share canonical server scope;
+- Waitlist/host-control races are transaction-safe;
+- Chat V2 converges without becoming permanent storage;
+- push deep links/dedupe/TTL/preferences work;
+- BUMP/Reliability cannot be forged by client-only actions;
+- City BPM/Hotspots suppress low cohorts;
+- Swarms never auto-join;
+- Fly respects driver/location/privacy guardrails;
+- Squad/Guardian-style sharing is explicit, revocable and TTL-bound where active;
+- AR/ranking has privacy-safe fallback and deterministic eligibility boundary;
+- Android/Go/PostgreSQL integration, offline/realtime/device tests and security/privacy tests are executed successfully.
 
 ---
 
-# 22. VERSION 2.0.0 — COLD START + VENUE ECOSYSTEM
+# 7. VERSION v1.2 — REAL-WORLD ECOSYSTEM + LINKUP+
+
+## 7.1. Goal
+
+v1.2 expands LinkUp from a city social network into a broader **real-world ecosystem** with venue integrations, offline proximity proof, richer safety/accessibility/media, adaptive experiences and server-authoritative LinkUp+ monetization.
+
+v1.0 + v1.1 remain mandatory regression baselines.
+
+## 7.2. Cold start + venue ecosystem
+
+Required:
 
 - Ignite City;
 - launch pool anti-sybil;
 - activation fan-out;
 - verified venue identity;
 - Venue Perks;
-- perk qualification/redemption;
-- Venue Vibe feedback;
-- Venue Vibe snapshots;
+- qualification/redemption;
+- Venue Vibe feedback/snapshots;
 - accessibility venue attributes;
 - venue fraud protection;
-- canonical Google Place ID + internal venue identity.
+- canonical external place identity + internal venue identity.
 
 Guardrails:
 
-- немає fake users/Slots/online count;
-- Venue Perks не купують organic Hotspot/City BPM/ranking;
-- venue feedback не розкриває individual participant identity.
+- no fake users/Slots/online counts;
+- venue payment/perk cannot buy organic Hotspot/City BPM/ranking;
+- venue feedback never leaks individual participant identity.
 
----
+## 7.3. Offline real-world operations
 
-# 23. VERSION 2.1.0 — OFFLINE REAL-WORLD OPS
+Required:
 
 - device public keys;
 - BLE Outbox Mesh;
@@ -780,54 +798,53 @@ Guardrails:
 - ACTIVE Slot hot seats;
 - process-death/background sync;
 - anti-replay/anti-farm;
-- cross-platform real-device BLE tests.
+- real Android BLE/device tests.
 
-Offline proof створює лише pending proof; trust виникає після server verification.
+Offline proof is pending until server verification; offline device data alone cannot create trust.
 
----
+## 7.4. Safety + accessibility expansion
 
-# 24. VERSION 2.2.0 — SAFETY + ACCESSIBILITY EXPANSION
+Required:
 
 - Ghost Guardian;
 - temporary opaque guardian links;
-- STATUS_ONLY;
-- ETA_APPROXIMATE;
-- SAFETY_RADAR;
-- explicit LIVE_PRECISE;
-- burned/indistinguishable 404 after expiry/revoke/completion;
+- `STATUS_ONLY`;
+- `ETA_APPROXIMATE`;
+- `SAFETY_RADAR`;
+- explicit `LIVE_PRECISE`;
+- indistinguishable/burned access after expiry/revoke/completion;
 - Barrier-Free Mode;
 - strict/highlight accessibility filtering;
 - privacy-safe accessibility preferences;
-- stronger home/private scenario policies;
-- Guardian abuse/rate-limit protections.
+- stronger home/private scenario policy;
+- guardian abuse/rate limits.
 
----
+Exact location sharing is always explicit, temporary, revocable and minimized.
 
-# 25. VERSION 2.3.0 — EPHEMERAL MEDIA & COMMUNICATION
+## 7.5. Ephemeral media & communication
+
+Required:
 
 - Slot Cam;
 - transient encrypted media relay;
 - Memory Drop;
 - local final gallery/collage;
 - server cleanup verification;
-- Auto-Translate Hub;
-- original text remains canonical;
-- Sonic Vibes;
-- max short audio intent;
-- Bill Splitter calculator;
-- deterministic minor-unit rounding;
+- Auto-Translate Hub with original text canonical;
+- Sonic Vibes / short audio intent;
+- Bill Splitter calculator with deterministic minor-unit rounding;
 - chat/media offline/reconnect integration.
 
 Guardrails:
 
-- no permanent cloud album;
-- no permanent translation-only message copy;
+- no permanent cloud album by default;
+- no permanent translation-only copy;
 - no background microphone;
-- Bill Splitter не є payment processor.
+- Bill Splitter is not a payment processor.
 
----
+## 7.6. Adaptive experience
 
-# 26. VERSION 2.4.0 — ADAPTIVE EXPERIENCE
+Required:
 
 - Host Perks;
 - Zen Mode;
@@ -840,36 +857,35 @@ Guardrails:
 
 Guardrails:
 
-- Host Perks не купуються;
-- Zen не карає user і не збирає invasive raw device history;
-- Surprise Me не обходить Approval/physical presence;
-- Weather Swarms не auto-join;
-- Asset Match не стає marketplace небезпечних/регульованих предметів.
+- Host Perks are not purchasable ranking power;
+- Zen does not penalize or collect invasive raw device history;
+- Surprise Me cannot bypass Approval/eligibility/physical-presence rules;
+- Weather Swarms never auto-join;
+- Asset Match must reject unsafe/regulated asset categories according to product safety policy.
 
----
+## 7.7. LinkUp+ billing foundation
 
-# 27. VERSION 2.5.0 — LINKUP+ BILLING FOUNDATION
+Android release scope:
 
 - MONTHLY / ANNUAL products;
-- canonical base pricing policy;
 - Google Play purchase/restore;
-- App Store purchase/restore;
-- server purchase validation adapters;
-- store notifications/webhooks;
+- server purchase validation adapter;
+- Play billing notifications/webhook verification where applicable;
 - entitlement state machine;
-- ACTIVE / GRACE / BILLING_RETRY / EXPIRED / REVOKED;
+- `ACTIVE / GRACE / BILLING_RETRY / EXPIRED / REVOKED`;
 - account/device switching;
 - subscription management in Me;
 - refund/revoke/grace handling;
-- billing observability.
+- billing observability;
+- entitlement cache expiry/offline behavior.
 
-Guardrail: client `isPlus=true` ніколи не є authority.
+Client `isPlus=true` is never authority.
 
-Free core safety/privacy/create/join ніколи не закриваються за Plus.
+Free core safety/privacy/create/join functionality must not be paywalled.
 
----
+## 7.8. LinkUp+ Travel Pro
 
-# 28. VERSION 2.6.0 — LINKUP+ TRAVEL PRO
+Required:
 
 - Global Astral Jump;
 - supported-locality remote exploration;
@@ -882,47 +898,46 @@ Free core safety/privacy/create/join ніколи не закриваються 
 - translated transcript presentation;
 - no permanent voice archive.
 
----
+## 7.9. LinkUp+ Host Power Tools
 
-# 29. VERSION 2.7.0 — LINKUP+ HOST POWER TOOLS
+Required:
 
 - Mega-Slots up to product ceiling;
-- scalable membership/pagination/realtime;
+- scalable roster/pagination/realtime;
 - Stealth Slots / invite-link-only visibility;
 - opaque revocable invite tokens;
 - advanced Slot Blueprints;
-- no old participant/token/private-location cloning;
+- no cloning of old participants/private locations/tokens;
 - Co-Hosting;
 - granular organizer permissions;
 - owner protection;
-- audited grant/revoke.
+- audited grants/revokes.
 
----
+## 7.10. LinkUp+ Advanced Discovery
 
-# 30. VERSION 2.8.0 — LINKUP+ ADVANCED DISCOVERY
+Required:
 
-- Radius Overdrive;
-- bounded 20–30 km class discovery where policy allows;
+- Radius Overdrive with bounded policy-defined radius;
 - viewport/cursor/aggregate queries;
 - Vibe-Match Filters;
-- languages/interests/assets/accessibility-compatible filters;
+- language/interests/assets/accessibility-compatible filters;
 - Auto-Pilot Join rules;
 - explicit automation scope;
-- Approval → REQUEST;
+- Approval → REQUEST only;
 - Instant auto-JOIN only with explicit opt-in;
-- daily caps/cooldown/dedupe;
+- daily caps/cooldowns/dedupe;
 - Pulse Time-Machine;
 - historical privacy-safe aggregate city/map data;
 - no individual route reconstruction.
 
----
+## 7.11. LinkUp+ Privacy & QoL
 
-# 31. VERSION 2.9.0 — LINKUP+ PRIVACY & QUALITY OF LIFE
+Required:
 
 - Ghost Mode;
-- no passive public presence/BPM contribution;
-- Priority Boarding visual/request aid with no seat/waitlist advantage;
-- Oops-Rewind via compensating commands;
+- no passive public presence/BPM contribution while Ghost active;
+- Priority Boarding visual/request aid without seat/waitlist advantage;
+- Oops-Rewind through compensating commands;
 - Multi-Threading / intent groups;
 - atomic winner lock;
 - no silent cancellation after external commitment;
@@ -930,12 +945,12 @@ Free core safety/privacy/create/join ніколи не закриваються 
 - trusted guardian contacts;
 - no automatic LIVE_PRECISE without explicit consent.
 
----
+## 7.12. Identity, analytics & themes
 
-# 32. VERSION 2.10.0 — LINKUP+ IDENTITY, ANALYTICS & THEMES
+Required:
 
-- Hex-Aura cosmetic treatment;
-- no ranking/BPM/Hotspot benefit;
+- Hex-Aura cosmetic treatment only;
+- no ranking/BPM/Hotspot benefit from cosmetics;
 - BUMP Vault Pro self-only analytics;
 - unique people met;
 - repeat BUMPs;
@@ -943,28 +958,26 @@ Free core safety/privacy/create/join ніколи не закриваються 
 - activity/city trends;
 - no exact route reconstruction;
 - Custom App Icons;
-- themes including OLED Black / Neon Cyberpunk class packs;
-- contrast/font scaling/Reduce Motion accessibility QA.
+- OLED Black / Neon Cyberpunk class themes where included by frozen product design;
+- contrast/font scaling/Reduce Motion QA.
 
----
+## 7.13. Forgiveness + billing hardening
 
-# 33. VERSION 2.11.0 — LINKUP+ FORGIVENESS + BILLING HARDENING
+Required:
 
 - No-Strike Forgiveness;
-- maximum one non-stacking eligible credit per policy period;
-- real cancellation event remains in audit;
+- max one non-stacking eligible credit per policy period;
+- original cancellation event remains auditable;
 - no no-show/safety/moderation forgiveness;
 - bounded reliability modifier;
-- billing sandbox matrix Android+iOS;
 - webhook replay/idempotency;
-- refund/chargeback/revoke;
+- renewal/expiry/refund/chargeback/revoke;
 - grace/billing retry;
 - restore after reinstall/device change;
-- account switch;
-- entitlement cache expiry/offline behavior;
+- account switching;
 - Mega-Slot load tests;
 - Stealth penetration tests;
-- Auto-Pilot abuse/rate limits;
+- Auto-Pilot abuse/rate tests;
 - Ghost privacy audit;
 - Guardian delivery/privacy audit;
 - historical Map inference/privacy tests;
@@ -972,19 +985,15 @@ Free core safety/privacy/create/join ніколи не закриваються 
 - feature flag rollback;
 - production smoke.
 
----
+## 7.14. LinkUp+ Free Day / rewarded access
 
-# 34. VERSION 2.12.0 — LINKUP+ FREE DAY + ECOSYSTEM FINAL HARDENING
+Required:
 
-**Це максимальна версія всього поточного roadmap.**
-
-## LinkUp+ Free Day / rewarded access
-
-- opt-in rewarded-ad quest only inside LinkUp+ surface;
+- rewarded quest available only inside LinkUp+ surface;
 - five verified rewarded views;
-- minimum 4h between verified steps;
-- 24h quest window;
-- fifth view → atomic 24h Plus access grant;
+- minimum 4 hours between verified steps;
+- 24-hour quest window;
+- fifth verified view → atomic 24-hour Plus grant;
 - 7-day cooldown after reward expiry;
 - provider server-side verification;
 - one-time challenge model;
@@ -996,12 +1005,23 @@ Free core safety/privacy/create/join ніколи не закриваються 
 - kill switches;
 - server-authoritative timestamps;
 - no client `watched=true` authority;
-- paid subscription precedence without grant stacking.
+- paid subscription precedence without reward stacking.
 
-## Final ecosystem hardening
+Guardrails:
 
-- cross-platform BLE real-device matrix;
-- Keychain/Keystore key-loss/reinstall flows;
+- no ads in Pulse/Map/LINK/Fly/chat/safety flows;
+- no forced interstitials;
+- no click/install/purchase requirement;
+- no precise social/location data for ad targeting;
+- probable driver state never launches rewarded video;
+- an already valid earned grant is not silently removed by feature kill-switch.
+
+## 7.15. Final ecosystem hardening
+
+Required:
+
+- Android real-device BLE matrix;
+- Keystore key-loss/reinstall flows;
 - Guardian penetration/abuse tests;
 - media deletion audit;
 - translation privacy audit;
@@ -1013,280 +1033,357 @@ Free core safety/privacy/create/join ніколи не закриваються 
 - push storm protection;
 - observability dashboards;
 - feature flag rollback drills;
-- Android/iOS production smoke;
-- store/release validation.
+- billing/store validation;
+- Android production smoke.
 
-Guardrails for rewarded access:
+## 7.16. Definition of Done — v1.2
 
-- no ads in Pulse/Map/LINK/Fly/chat/safety flows;
-- no forced interstitials;
-- no ad-click/install/purchase requirement;
-- no precise social/location data sent for ad targeting;
-- probable driver state never launches rewarded video;
-- already validly earned grant is not silently removed by feature kill-switch.
+v1.2 is Done only when:
+
+- v1.0 and v1.1 regression suites remain green;
+- venue/cold-start systems contain no fake social state;
+- BLE/offline proof cannot mint trust before server verification;
+- Guardian/accessibility/location policies pass abuse/privacy tests;
+- ephemeral media and translation cleanup is verifiably bounded;
+- adaptive features cannot bypass deterministic safety/access rules;
+- Play Billing entitlement is server-authoritative across renew/refund/revoke/restore/account switch;
+- Plus never paywalls free core safety/social access;
+- Stealth/co-host/automation/ghost/time-machine flows pass security/privacy/race testing;
+- rewarded access is server-verified, replay-safe and isolated from core social surfaces;
+- full Android/Go/PostgreSQL/Firebase/provider integration and restore/rollback/security/load smoke gates are executed successfully.
 
 ---
 
-# 35. CROSS-VERSION NON-NEGOTIABLES
+# 8. CROSS-VERSION PRIVACY / SAFETY / SECURITY
 
-Ці правила діють у **кожній** версії.
+These are non-negotiable in every active release.
 
-## Privacy
+## 8.1. Privacy
 
 - no public exact stranger GPS;
 - no public continuous tracks;
-- block applied server-side at every layer that exists in the active version;
-- exact location sharing тільки opt-in і temporary;
+- exact sharing only opt-in, temporary and revocable;
 - raw location retention minimized;
 - low-cohort aggregates suppressed;
-- private/home Slots не повинні інферитися через heatmaps/history.
+- private/home Slot inference through heatmaps/history forbidden;
+- blocked users filtered server-side from every active social/query/realtime/chat layer;
+- sensitive location never sent to unrelated analytics/ad targeting.
 
-## Security
+## 8.2. Security
 
-- server authorization on every sensitive operation;
+- server authorization for every sensitive operation;
 - no trusted client role/entitlement/capacity flags;
-- secrets never shipped in mobile app;
-- session/device lifecycle controlled;
-- rate limits;
-- abuse protection;
-- idempotency;
-- audit/domain events for critical mutations.
+- secrets never embedded in Android/Git history;
+- strong opaque tokens/invite/challenge identifiers;
+- bounded session/device lifecycle;
+- rate limits and abuse protection;
+- mutation idempotency;
+- replay protection where applicable;
+- critical mutation audit/domain events;
+- IDOR tests;
+- sensitive logging prevention;
+- fail-closed provider/security boundaries.
 
-## Realtime
+## 8.3. Anti-stalking
 
-Коли realtime feature вже входить у active version, canonical rule:
+Location, Fly, Squad, Guardian, Map, history and ranking features must be designed so a stranger cannot derive a person’s continuous route, home pattern, exact current position or private gathering from public/aggregate surfaces.
 
-```text
-server snapshot
-+ ordered realtime deltas
-+ local optimistic/pending command state
-```
+---
 
-Після reconnect:
+# 9. UX STATE CONTRACT
 
-1. resubscribe;
-2. authoritative snapshot/cursor;
-3. replay exact pending idempotent commands;
-4. reconcile UI;
-5. ignore stale/duplicate deltas.
-
-`1.0.0` може працювати через normal refresh і не зобов'язаний чекати повного realtime stack; це стосується і basic temporary chat.
-
-## UX state
-
-Кожна production screen/feature має релевантні explicit states:
+Every production screen/feature must expose relevant explicit states instead of silent failure:
 
 - Loading;
 - Content;
 - Empty;
-- OfflineCached / OfflinePending where relevant;
 - Refreshing where relevant;
+- OfflineCached where relevant;
+- OfflinePending where relevant;
 - ErrorRecoverable;
 - ErrorBlocking.
 
-## Android + iOS
+Rules:
 
-Фіча не вважається завершеною у своїй target version, якщо заявлена для обох платформ, але реально працює тільки на одній.
+- mutation success comes only from server-authoritative response;
+- stale responses cannot restore disposed/account-old UI state;
+- double taps cannot create duplicate critical mutations;
+- cancelled coroutines/requests must not keep locks forever;
+- process death/recreation must not lose security-critical session state or duplicate durable commands;
+- accessibility cannot rely only on color.
 
 ---
 
-# 36. TEST CONTRACT
+# 10. API CONTRACT
 
-Тести додаються до release gate тоді, коли відповідна feature стає active production scope. Уже написані майбутні тести не видаляються.
+## 10.1. General
 
-## Basic `1.0.0`
+- HTTPS outside explicit local emulator development;
+- bearer auth for protected routes;
+- bounded request bodies;
+- unknown-field handling is explicit;
+- generic auth errors avoid account enumeration where required;
+- error responses expose stable machine code + safe user message + request ID;
+- server timestamps are canonical;
+- client-supplied actor/user IDs never replace authenticated actor identity.
 
-- registration/login/session restore;
+## 10.2. Mutations
+
+Critical mutations require:
+
+- idempotency key;
+- actor authorization;
+- block/privacy/eligibility check;
+- state/version precondition where relevant;
+- transaction boundary for multi-row/race-sensitive state;
+- deterministic conflict semantics;
+- no blind transport retry.
+
+## 10.3. Reads
+
+- bounded pagination/limits;
+- privacy-aware filtering server-side;
+- no full-city raw people dump;
+- no reliance on client filtering to enforce sensitive visibility;
+- GET retry only within bounded policy.
+
+---
+
+# 11. DATABASE / MIGRATION CONTRACT
+
+- PostgreSQL/PostGIS is canonical storage;
+- schema changes only through **forward-only migrations**;
+- already-applied migrations are never silently edited;
+- migration ledger/checksum drift must fail closed;
+- DB constraints backstop critical invariants where possible;
+- row locks/transactions are explicit for capacity/waitlist/winner races;
+- ephemeral retention/purge rules must exist at canonical storage boundary when required;
+- indexes are reviewed for active release query patterns;
+- production database changes are not applied until the user explicitly authorizes the relevant environment/deployment work.
+
+---
+
+# 12. ANDROID CONTRACT
+
+## 12.1. Lifecycle
+
+Required as relevant to release:
+
+- process death;
+- configuration recreation;
+- foreground/background;
+- network loss/reconnect;
+- expired/revoked session;
+- Keystore key loss;
+- account switching;
+- permission denied/approximate permission;
+- battery-safe polling/realtime behavior.
+
+## 12.2. Build/security
+
+- release API endpoint is build-time/config supplied;
+- release must fail closed if production API URL is absent;
+- cleartext traffic disabled in release;
+- debug localhost/emulator exception is explicit only;
+- release signing material never enters Git;
+- APK/AAB is not committed to Git or stored in Supabase;
+- release artifact handoff follows `PROJECT_RULES.md`.
+
+## 12.3. Accessibility/localization
+
+Every active release must maintain:
+
+- touch target correctness;
+- screen-reader labels;
+- non-color-only state cues;
+- font scaling;
+- contrast;
+- Reduce Motion handling where animations exist;
+- Ukrainian + English baseline for active product surfaces;
+- equivalent safety/error meaning across supported language strings.
+
+---
+
+# 13. TEST CONTRACT
+
+Documentation or source test files do not count as verification until actually executed.
+
+## 13.1. v1.0 mandatory matrix
+
+At minimum:
+
+- registration/login/logout/session restore;
+- recovery/reset;
+- block/unblock;
 - create idempotency;
-- Slot details serialization/readback;
+- Slot serialization/readback;
 - host edit authorization;
-- edit version conflict;
-- edit capacity cannot fall below accepted count;
-- host CANCEL removes Slot from normal discovery without hard-delete;
-- Approval request creation;
-- pending requester cannot become accepted without host approval;
-- host-only APPROVE/REJECT authorization;
-- approval last-seat/capacity race;
-- duplicate request protection;
-- request cancellation through LEAVE semantics;
-- accepted member LEAVE;
-- host START/COMPLETE authorization and state transitions;
-- pending/stranger chat rejection;
-- accepted/member chat read/send;
-- chat access revoked after LEAVE;
-- terminal chat purge on COMPLETE/CANCEL/EXPIRED/MODERATED;
-- chat table/function authorization boundary;
-- blocked actor;
-- Pulse real-data loading/empty/error/request/host-state surfaces;
-- Android release smoke;
-- iOS release smoke;
-- real two-account Approval + chat end-to-end smoke.
+- stale version conflict;
+- capacity edit floor;
+- CANCEL state/discovery removal;
+- request/withdraw;
+- pending cannot self-accept;
+- host-only APPROVE/REJECT;
+- last-seat concurrency;
+- duplicate request/membership prevention;
+- accepted LEAVE;
+- host participant removal;
+- START/COMPLETE transitions;
+- pending/stranger/left chat rejection;
+- host/member chat send/read;
+- block/LEAVE revocation;
+- terminal physical chat purge;
+- IDOR/replay/rate-limit/log secrecy;
+- Pulse/Me/My LINKs loading/empty/error states;
+- Android unit/UI/instrumentation where risk requires it;
+- Go unit/integration/race tests;
+- PostgreSQL migration/integration tests;
+- real two-account Android ↔ Go ↔ PostgreSQL smoke.
 
-## Launch stabilization `1.0.1`
+## 13.2. v1.1 mandatory matrix
 
-- GET/read network failures retry only within bounded timeout/retry policy;
-- POST/mutation requests are never blindly auto-retried by transport policy;
-- timeout/network/5xx failures map to recoverable user-facing errors rather than raw transport codes;
-- successful cached/read content is not discarded just because a refresh fails;
-- request ID, HTTP status and latency are emitted by API observability without logging query/body/bearer secrets;
-- rate-limit bucket storage is bounded/cleaned so long-running API memory usage cannot grow forever from stale entries;
-- performance advisor has no actionable missing-FK index for active `1.0.1` tables;
-- two-user PUBLIC + APPROVAL social loop regression covers REQUEST → APPROVE/REJECT → chat → START/COMPLETE/CANCEL and terminal chat purge;
-- Android touch targets/backup rules and active accessibility fixes pass build/lint checks;
-- Ukrainian + English active surfaces keep equivalent error/recovery meaning;
-- Android debug/release compile and iOS simulator/device-archive preflight use `1.0.1` version metadata;
-- backup/recovery and application rollback procedures are documented and exercised non-destructively before production release;
-- real Android/iOS production-condition smoke includes temporary network loss and recovery without duplicate critical mutation.
+Includes v1.0 regression plus:
 
-## Slot expansion
-
-- JOIN + cancel race;
-- approval race;
-- waitlist promotion race;
-- expiry during mutation;
-- duplicate idempotency key;
-- lost response replay.
-
-## Realtime/offline
-
-- stream drop;
-- duplicate event;
-- out-of-order event;
-- background/foreground;
-- process kill;
-- airplane mode;
-- reconnect to FULL;
-- reopen while offline;
+- stream drop/duplicate/out-of-order;
+- background/foreground/process kill/airplane mode;
+- pending command replay;
 - two-client convergence;
-- request/approval convergence;
-- chat realtime reconnect/duplicate convergence once `1.0.2`/`1.2.0` scope is active.
+- city boundary jitter/accuracy/stale location;
+- permission denied/approximate mode;
+- Map privacy/viewport/low cohort;
+- Waitlist promotion/concurrency/expiry;
+- Chat V2 reconnect/duplicate/system-message/retention;
+- notification dedupe/TTL/deep-link/preferences;
+- BUMP replay/anti-farm/device proof;
+- City BPM manipulation/low cohort;
+- Swarm consent/false-positive/block filters;
+- Fly driver/passenger safety;
+- Squad precise-share expiry/revoke;
+- AR fallback/ranking explainability/privacy filters.
 
-## Geo/privacy
+## 13.3. v1.2 mandatory matrix
 
-- city boundary jitter;
-- low accuracy;
-- stale sample;
-- approximate permission;
-- permission denied;
-- rural/transit;
-- blocked user same geo scope;
-- low cohort;
-- precise share expiry.
+Includes v1.0 + v1.1 regression plus:
 
-## Safety/security
-
-- unauthorized actor;
-- block mid-session;
-- deleted account/session;
-- rate-limit abuse;
-- token guessing for opaque links;
-- replay attacks;
-- sensitive data leakage tests.
-
-## Version 1 advanced-capability matrices
-
-Усі матриці нижче обов'язкові для LinkUp Version 1; їх виконують у відповідному dependency-safe capability block:
-
-- Chat V2 activation/expiry/offline/duplicate/kick/block/realtime/system-message scenarios;
-- BUMP replay/anti-farm/offline/device-key scenarios;
-- Swarm BUMP quorum/concurrency/replay;
-- Second Wind capacity/realtime/expiry;
-- Guardian token/expiry/revoke/cache/permission tests;
+- BLE offline proof/reconciliation/replay;
+- Swarm BUMP quorum/concurrency;
+- Guardian token/expiry/revoke/cache/abuse;
 - Barrier-Free strict/highlight/privacy consistency;
-- Slot Cam/Memory Drop permission/encryption/cleanup/process-death;
-- Auto-Translate provider/reconnect/retention/original-text;
-- Sonic Vibe duration/media/permission/driver/offline;
-- Bill Splitter rounding/authorization/version races;
+- media permission/encryption/cleanup/process death;
+- translation provider/reconnect/retention/original-text;
+- audio duration/permission/driver/offline;
+- Bill Splitter rounding/auth/version races;
 - Host Perks farm/moderation/ranking cap;
-- Zen no-penalty/privacy/offline;
-- Surprise Me eligibility/idempotency/explainability;
-- Weather stale/duplicate/outage/quiet-hours/consent;
+- Zen privacy/no penalty;
+- Surprise Me eligibility/idempotency;
+- weather stale/duplicate/outage/quiet hours/consent;
 - Asset Match TTL/privacy/unsafe-asset rejection;
-- Plus billing replay/renewal/expiry/grace/refund/restore/account switch;
-- Mega-Slot 50-person class load and 51st rejection;
-- Stealth token guessing/revoke/rotation/no-discovery-leakage;
+- Play Billing replay/renewal/expiry/grace/refund/restore/account switch;
+- Mega-Slot load/capacity ceiling;
+- Stealth token guessing/revoke/rotation/discovery leakage;
 - Co-Host permission escalation/revoke/audit;
 - Auto-Pilot duplicate/cap/quiet-hours/block/disable race;
 - Ghost presence/privacy audit;
-- Oops-Rewind expiry/irreversible/version conflict;
-- Multi-Threading simultaneous winners/external commitment/process death;
-- Free Day state machine, 4-hour boundary, provider verification, multi-device race, fifth-view atomic grant, reward expiry and cooldown.
+- Oops-Rewind expiry/irreversible/version conflicts;
+- Multi-Threading simultaneous winner/process-death;
+- rewarded Free Day timing/provider verification/multi-device race/atomic grant/cooldown.
 
 ---
 
-# 37. RELEASE DEFINITION OF DONE
+# 14. RELEASE ENGINEERING
 
-Для єдиної LinkUp Version 1:
+For every version:
 
-- увесь scope цього README реалізований end-to-end;
-- migrations forward-only;
-- Android/iOS parity для заявлених flows;
-- privacy/security reviewed;
-- offline/reconnect behavior визначений для кожного Version 1 capability block;
-- відповідні tests реально виконані;
-- CI green, коли runner доступний;
-- no fake/mock production flow;
-- accessibility/localization оновлені для всіх Version 1 surfaces;
-- observability достатня для всього Version 1 release scope;
-- release smoke completed;
-- rollback path exists.
-
-Capability block можна перевірити й зафіксувати окремо, але незавершений блок із цього README завжди блокує загальний статус `VERSION 1 PRODUCTION DONE`.
+- release decision is based on executed evidence, not source presence;
+- migrations are forward-only;
+- privacy/security review required;
+- test matrix for active release executed;
+- Android build/AAB produced and signing verified;
+- artifact integrity/SHA-256 recorded when release artifact is produced;
+- no fake/mock production path;
+- accessibility/localization checked;
+- observability sufficient for active scope;
+- backup/recovery/rollback path exists;
+- no GitHub Actions or Google Cloud build/deploy unless `PROJECT_RULES.md` is explicitly changed;
+- Ubuntu runtime/deployment is not touched until direct user command.
 
 ---
 
-# 38. VERSION 1 CAPABILITY ORDER
+# 15. DEPENDENCY ORDER
+
+Canonical work order:
 
 ```text
-LINKUP VERSION 1 (single product release)
-  ↓
-foundation 1.0.0 + stabilization 1.0.1
-  ↓
-realtime/offline + city + map + hosting (legacy 1.0.2–1.0.5)
-  ↓
-approval/waitlist + coordination + notifications (legacy 1.1.0–1.3.0)
-  ↓
-verified real world + city intelligence + swarms (legacy 1.4.0–1.7.0)
-  ↓
-Fly + Me/Squad + AR/ranking (legacy 1.8.0–1.12.0)
-  ↓
-venue/offline/safety/media/adaptive systems (legacy 2.0.0–2.4.0)
-  ↓
-Plus billing/travel/host/discovery/privacy/identity (legacy 2.5.0–2.10.0)
-  ↓
-billing hardening + rewarded access + ecosystem hardening (legacy 2.11.0–2.12.0)
-  ↓
-VERSION 1 PRODUCTION DONE
+v1.0
+  account/session/security
+  → Slot core
+  → Approval/membership/roster
+  → Pulse/LINK/Me native binding
+  → basic zero-trace chat
+  → lifecycle + block/revocation
+  → build/DB/device verification
+  → v1.0 release gates
+
+v1.1
+  transactional outbox + durable Android outbox
+  → realtime convergence
+  → City Context + scheduled/expiry
+  → Map + place identities
+  → hosting/access/waitlist expansion
+  → Chat V2 + notifications
+  → BUMP/Reliability
+  → City BPM + Map intelligence
+  → Auto-Swarms
+  → Fly Now/Travel/Motion
+  → Me 2.0/Squad
+  → AR/ranking
+  → v1.1 release gates
+
+v1.2
+  venue/cold start
+  → offline BLE proof
+  → safety/accessibility expansion
+  → ephemeral media/translation/audio
+  → adaptive experience
+  → Play Billing foundation
+  → Plus travel/host/discovery/privacy/identity
+  → billing hardening
+  → rewarded Free Day
+  → final ecosystem hardening
+  → v1.2 release gates
 ```
 
-Якщо з'являється нова ідея:
-
-1. вона не додається мовчки до active version;
-2. визначається dependency;
-3. призначається конкретний dependency/capability block усередині Version 1;
-4. README оновлюється без видалення існуючих roadmap requirements;
-5. active version не роздувається без необхідності.
-
-Поточне розширення Approval + basic ephemeral chat у `1.0.0` є **явною зміною product requirement**, а не мовчазним scope creep, тому downstream roadmap вище rebased без видалення старих вимог.
+Не перескакувати fundamental dependency заради видимого feature, якщо це створює другу authority або майбутню переробку.
 
 ---
 
-# 39. CURRENT TARGET
+# 16. CURRENT IMPLEMENTATION STATUS
 
-**Active release: LinkUp Version 1 (`1.0.0`) — Unified Product Scope.**
+README навмисно **не дублює** implementation status.
 
-Увесь README є release scope цієї однієї версії. Наявний social baseline не видаляється й не переписується; він є перевіреним foundation, поверх якого послідовно інтегруються всі capability-блоки.
+Перед будь-яким work block обов’язково читати:
 
-Поточний dependency order:
+1. `PROJECT_RULES.md` — non-negotiable rules;
+2. `README.md` — release/product contract;
+3. `IMPLEMENTATION_STATUS.md` — що реально вже зроблено, які commit SHA, які verification gates відкриті;
+4. `REPOSITORY_AUDIT.md`, якщо він існує — відомі дефекти/ризики, які ще не виправлені.
 
-1. зберегти green account/Approval/chat/lifecycle foundation;
-2. завершити stabilization, backup/restore та реальні Android/iOS build/smoke gates;
-3. завершити realtime/offline + City Context foundations;
-4. активувати Map, hosting/access/waitlist, coordination і notifications;
-5. реалізувати verified real-world, city intelligence, swarms, Fly, Me/Squad та AR;
-6. реалізувати venue, offline mesh, safety/accessibility, ephemeral media й adaptive systems;
-7. реалізувати Plus billing/travel/host/discovery/privacy/identity та rewarded access;
-8. виконати повний cross-platform, privacy, abuse, billing, restore й ecosystem hardening;
-9. release decision приймати тільки після фактичних test/build/device/production-smoke results для всього Version 1 scope.
+Якщо README каже, що capability required, а `IMPLEMENTATION_STATUS.md` каже “не verified” — capability **не вважається готовою**.
 
-Уже написані realtime, city/user channels, outbox, locality, Instant engine, Waitlist та інші foundations **не видаляються**. Жоден майбутній surface не вважається готовим, доки його server/data/native flow не працює end-to-end.
+---
+
+# 17. CURRENT TARGET
+
+**Active release target: LinkUp v1.0 — Android + Go.**
+
+Поточний priority до переходу на v1.1:
+
+1. не змінювати frozen design;
+2. завершити й перевірити v1.0 account/social/chat/lifecycle flow;
+3. довести Android/Go build/test infrastructure до reproducible green state;
+4. виконати PostgreSQL migrations/integration/race tests у дозволеному environment;
+5. виконати реальний two-user Android ↔ Go ↔ PostgreSQL smoke;
+6. закрити v1.0 security/privacy/accessibility/localization/recovery/rollback gates;
+7. лише після green v1.0 перейти до v1.1 transactional outbox/realtime/City Context dependency chain.
+
+**iOS не чіпати до прямої команди користувача.**
