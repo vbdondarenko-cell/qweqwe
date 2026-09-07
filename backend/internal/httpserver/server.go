@@ -75,6 +75,7 @@ func New(deps Dependencies) *Server {
 	mux.Handle("PUT /v1/me/blocks/{userID}", s.requireAuth(http.HandlerFunc(s.blockUser)))
 	mux.Handle("DELETE /v1/me/blocks/{userID}", s.requireAuth(http.HandlerFunc(s.unblockUser)))
 	mux.Handle("GET /v1/me/monetization", s.requireAuth(http.HandlerFunc(s.getMonetization)))
+	mux.Handle("POST /v1/me/referral", s.requireAuth(http.HandlerFunc(s.bindReferral)))
 
 	mux.Handle("POST /v1/slots", s.requireAuth(http.HandlerFunc(s.createSlot)))
 	mux.Handle("GET /v1/slots/{slotID}", s.requireAuth(http.HandlerFunc(s.getSlot)))
@@ -212,8 +213,6 @@ func decodeJSON(w http.ResponseWriter, r *http.Request, dst any) error {
 	if err := dec.Decode(dst); err != nil {
 		return err
 	}
-	// Consume the entire bounded body: a valid prefix must not hide another
-	// command, malformed trailing bytes, or a payload beyond MaxBytesReader.
 	var extra any
 	if err := dec.Decode(&extra); !errors.Is(err, io.EOF) {
 		if err != nil { return err }
