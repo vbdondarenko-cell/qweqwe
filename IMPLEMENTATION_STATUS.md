@@ -555,3 +555,29 @@ README §§4.9/6 coordination delivery and reconnect scope now has lifecycle-awa
 Executed: source/lifecycle/call-site review and git diff --check. Kotlin tests, compilation, device foreground/background/network behavior and two-client convergence remain unexecuted because toolchains are unavailable. No new dependency, backend endpoint, deployment, migration, iOS or canonical design-reference change. This is polling, not an ordered realtime stream, durable offline outbox or push notification implementation.
 
 Next: continue durable coordination delivery foundations with persisted send identity and server idempotency before claiming offline retry. Verified production readiness remains 0% pending executed end-to-end evidence.
+
+## 26. 2026-09-07 — current executed v1.0 verification status
+
+Earlier sections that state the Gradle wrapper, Go tests, PostgreSQL execution or Android build are unavailable are historical and superseded by this dated evidence.
+
+Green with executed evidence on the Ubuntu release host:
+
+- Gradle wrapper/JAR tracked and runnable;
+- Android debug unit tests, lint and assemble;
+- Go unit/integration graph, vet and race suite;
+- disposable PostgreSQL migrations `000001..000011`;
+- PostgreSQL social lifecycle, revocation, replay, purge and last-seat concurrency tests;
+- bounded-query and foreign-key index review;
+- disposable database custom-format backup + restore drill;
+- current live-design English/Ukrainian resource-key parity;
+- current frozen-design layer bound to real v1.0 state/callbacks instead of the former fake profile/Pulse/Fly fixtures.
+
+Not green / requires external production evidence:
+
+- release Privacy Policy and Terms URLs/content;
+- signed production AAB after legal URLs are supplied;
+- Android device/instrumentation and physical two-user end-to-end runtime verification;
+- live Supabase migration-ledger reconciliation and `spatial_ref_sys` privilege hardening (read-only audit found the ledger absent and broad PostGIS grants still present);
+- production recovery-delivery smoke and production backup/restore operational evidence.
+
+No percentage is assigned here: release status is gate-based. v1.0 remains **NOT DONE** until every required release gate above is closed, even though the previously unexecuted build/test/database gates are now green.

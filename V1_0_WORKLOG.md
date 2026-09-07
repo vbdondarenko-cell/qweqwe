@@ -255,3 +255,44 @@ Execution evidence: source/tests committed. Migration `000006`, Go tests, Androi
 **Bound remaining v1.0 query surfaces and perform query/index review, while continuing P0 toolchain recovery where the available environment permits.**
 
 Do not start v1.1 capability work while v1.0 release gates above remain open unless the user explicitly changes the release order.
+
+---
+
+## 2026-09-07 — executed v1.0 release-gate verification
+
+This section supersedes the older “unexecuted/toolchain unavailable” notes above where the same gates now have real evidence.
+
+Executed on the Ubuntu release host:
+
+- official Gradle 9.6.0 wrapper JAR is now present in the repository and tracked; SHA-256 `497c8c2a7e5031f6aa847f88104aa80a93532ec32ee17bdb8d1d2f67a194a9c7`;
+- `backend/go.sum` is present and Go 1.27.1 is available;
+- `./gradlew --no-daemon --stacktrace :app:testDebugUnitTest :app:lintDebug :app:assembleDebug` passed;
+- `go test -count=1 ./...`, `go vet ./...` and `go test -race -count=1 ./...` passed;
+- PostgreSQL 16.15 was installed locally only for disposable release verification; production Supabase was not mutated;
+- canonical migrations `000001..000011` applied successfully to disposable PostgreSQL;
+- real PostgreSQL tests passed for accepted roster, block revocation, idempotency replay authorization, terminal chat purge and concurrent last-seat capacity;
+- a migration-ledger test bug was found: `LIKE '00000%_%.sql'` counted only migrations 000001..000009. The assertion now matches six-digit migration names and correctly verifies all 11 migrations;
+- full PostgreSQL-backed Go race execution passed after the assertion fix;
+- v1.0 query surfaces are bounded: Pulse/My LINKs/block/chat via explicit limits, pending requests at 100, accepted roster by v1.0 capacity ceiling 100;
+- query/index review confirmed the pending/chat indexes and every current public foreign key in the disposable schema has a valid leading index;
+- backup/restore drill passed using a custom-format `pg_dump` and `pg_restore`; restored schema contained 11 migration ledger rows through `000011_android_push_devices.sql` and 18 public tables, then the restore DB and temporary dump were deleted;
+- English/Ukrainian live-design string resource files contain the same 35 keys; active v1.0 design screens no longer contain the previously frozen fake account/metric/slot fixtures.
+
+Read-only live Supabase verification:
+
+- runtime `DATABASE_URL` resolves to the expected Supabase project reference;
+- active application tables are not granted directly to `anon` or `authenticated`;
+- live schema contains the current application tables including `push_devices`, but `public.linkup_schema_migrations` is absent;
+- `anon` and `authenticated` still hold broad privileges on `public.spatial_ref_sys`, so the PostGIS hardening represented by migration `000010_v1_database_hardening.sql` is not fully reflected in live state.
+
+The Supabase findings are evidence only. No live database migration or grant change was made because production Supabase writes require explicit authorization.
+
+### Remaining release blockers after executed verification
+
+- production Privacy Policy and Terms HTTPS URLs/content are not supplied; the release build intentionally fails closed without them;
+- a signed release AAB is therefore not yet claimable even though API/reset/Firebase/signing inputs are otherwise configured;
+- Android runtime/instrumentation and real two-device user-flow verification remain open because the release host has no connected Android device/emulator;
+- live Supabase migration ledger and PostGIS grant hardening need an explicitly authorized production migration/reconciliation step;
+- production password-recovery delivery and live backup/restore must be treated as production-operation gates, not inferred from source or the local disposable drill.
+
+Do not call v1.0 100% production-ready until those external/live gates are closed with evidence. Source/build/database verification is materially ahead of the historical status notes above.

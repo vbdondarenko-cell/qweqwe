@@ -376,11 +376,11 @@ func registerIntegrationUser(t *testing.T, ctx context.Context, service *account
 		username = username[:30]
 	}
 	result, err := service.Register(ctx, account.Registration{
-		Email: username + "@integration.test",
-		Username: username,
+		Email:       username + "@integration.test",
+		Username:    username,
 		DisplayName: "Integration " + prefix,
-		Password: "CorrectHorseBattery1!",
-		Language: "en",
+		Password:    "CorrectHorseBattery1!",
+		Language:    "en",
 		DeviceLabel: "postgres-integration",
 	})
 	if err != nil {
@@ -401,7 +401,7 @@ func containsSlotWithViewer(items []slot.Slot, id string, viewer slot.ViewerStat
 func assertMigrationCount(t *testing.T, ctx context.Context, pool *pgxpool.Pool, want int) {
 	t.Helper()
 	var count int
-	if err := pool.QueryRow(ctx, `SELECT count(*) FROM linkup_schema_migrations WHERE name LIKE '00000%_%.sql'`).Scan(&count); err != nil {
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM linkup_schema_migrations WHERE name ~ '^[0-9]{6}_.+\.sql$'`).Scan(&count); err != nil {
 		t.Fatal(err)
 	}
 	if count < want {
