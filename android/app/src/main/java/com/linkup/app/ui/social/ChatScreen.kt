@@ -19,6 +19,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -52,7 +53,25 @@ fun ChatScreen(
     onSend: (String) -> Unit,
 ) {
     var text by remember { mutableStateOf("") }
+    var submittedText by remember { mutableStateOf<String?>(null) }
     val busy = mutation is MutationState.Running
+
+    // Do not discard the draft before the server has acknowledged the mutation.
+    // On an ambiguous network failure the same text stays in the composer; the
+    // API client reuses the pending Idempotency-Key when the user taps Send again.
+    LaunchedEffect(mutation) {
+        when (mutation) {
+            MutationState.Idle -> {
+                val submitted = submittedText
+                if (submitted != null) {
+                    if (text.trim() == submitted) text = ""
+                    submittedText = null
+                }
+            }
+            is MutationState.Failed -> submittedText = null
+            MutationState.Running -> Unit
+        }
+    }
 
     Column(Modifier.fillMaxSize()) {
         Row(
@@ -111,8 +130,8 @@ fun ChatScreen(
                 onClick = {
                     val outgoing = text.trim()
                     if (outgoing.isNotEmpty()) {
+                        submittedText = outgoing
                         onSend(outgoing)
-                        text = ""
                     }
                 },
                 enabled = !busy && (state is LoadState.Content || state is LoadState.Empty) && text.trim().isNotEmpty(),
