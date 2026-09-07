@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="slot_load_error">Couldn’t load LINK</string>
+    <string name="slot_host">Host</string>
+    <string name="slot_going_format">%1$d/%2$d going</string>
+    <string name="slot_server_version_format">Server version %1$d</string>
+    <string name="slot_cancel_request">Cancel request</string>
+    <string name="slot_open_chat">Open Chat</string>
+    <string name="slot_leave_link">Leave LINK</string>
+    <string name="slot_requests">Requests</string>
+    <string name="slot_no_pending_requests">No pending requests</string>
+    <string name="slot_decline">Decline</string>
+    <string name="slot_accept">Accept</string>
+    <string name="slot_delete_cancel">Delete / Cancel LINK</string>
+    <string name="slot_state_draft">DRAFT</string>
+    <string name="slot_state_published">PUBLISHED</string>
+    <string name="slot_state_filling">FILLING</string>
+    <string name="slot_state_full">FULL</string>
+    <string name="slot_state_active">ACTIVE</string>
+    <string name="slot_state_completed">COMPLETED</string>
+    <string name="slot_state_cancelled">CANCELLED</string>
+    <string name="slot_state_expired">EXPIRED</string>
+    <string name="slot_state_moderated">MODERATED</string>
+</resources>
