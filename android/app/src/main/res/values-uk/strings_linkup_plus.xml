@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="me_linkup_plus">LinkUp+</string>
+    <string name="plus_title">LinkUp+</string>
+    <string name="plus_subtitle">Преміум, rewarded-доступ і реферальний прогрес — лише з перевіркою сервером.</string>
+    <string name="plus_back">Назад</string>
+    <string name="plus_loading">Завантаження статусу преміуму…</string>
+    <string name="plus_load_failed">Не вдалося завантажити статус LinkUp+.</string>
+    <string name="plus_status_title">Статус преміуму</string>
+    <string name="plus_status_active">Преміум активний</string>
+    <string name="plus_status_inactive">Безкоштовний акаунт</string>
+    <string name="plus_until_format">Преміум до %1$s</string>
+    <string name="plus_plans_title">Тарифні плани</string>
+    <string name="plus_monthly">Помісячний</string>
+    <string name="plus_annual">Річний, передоплата</string>
+    <string name="plus_effective_monthly_format">Ефективно %1$s / міс</string>
+    <string name="plus_annual_saving_format">Економія %1$s на рік (%2$.1f%%)</string>
+    <string name="plus_rewarded_title">Безкоштовний день преміуму</string>
+    <string name="plus_rewarded_policy_format">1 перевірене відео кожні %1$d год · %2$d відео · номінально %3$d год</string>
+    <string name="plus_rewarded_reward">Нагорода: 1 день преміуму</string>
+    <string name="plus_rewarded_progress_format">Перевірений прогрес: %1$d/%2$d відео</string>
+    <string name="plus_next_video_format">Наступне відео після %1$s</string>
+    <string name="plus_next_claim_format">Наступна видача бонусного дня після %1$s</string>
+    <string name="plus_rewarded_weekly_limit">Ліміт: 1 раз на 7 днів (~4 дні преміуму/місяць).</string>
+    <string name="plus_referral_title">Реферальна програма</string>
+    <string name="plus_referral_count_format">Кваліфікованих платних рефералів: %1$d</string>
+    <string name="plus_referral_deadline_format">Реферал зараховується лише після перевіреної оплати в межах %1$d днів від реєстрації.</string>
+    <string name="plus_milestone_format">%1$d рефералів → рефереру %2$d днів · запрошеному, що закрив поріг, %3$d днів</string>
+    <string name="plus_badge">бейдж/статус</string>
+    <string name="plus_verification_title">Перевірка активації</string>
+    <string name="plus_provider_unavailable">Преміум ніколи не нараховується локально. Оплата, rewarded-відео й платна реферальна кваліфікація залишаються заблокованими, доки відповідний server verifier не налаштований.</string>
+    <string name="plus_capability_paid">Перевірка Google Play Billing</string>
+    <string name="plus_capability_rewarded">Перевірка rewarded-реклами</string>
+    <string name="plus_capability_referral">Кваліфікація платного реферала</string>
+    <string name="plus_capability_ready">ГОТОВО</string>
+    <string name="plus_capability_not_ready">ЗАБЛОКОВАНО</string>
+</resources>
