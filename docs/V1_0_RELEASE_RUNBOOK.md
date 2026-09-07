@@ -129,6 +129,8 @@ Apply the complete forward chain to a fresh disposable PostgreSQL database:
 000009_linkup_plus_monetization.sql
 000010_v1_database_hardening.sql
 000011_android_push_devices.sql
+000012_postgis_public_surface_hardening.sql
+000013_disable_public_data_api_roles.sql
 ```
 
 Preferred verification through the Go migration runner:
@@ -147,7 +149,7 @@ ORDER BY name;
 
 Required:
 
-- all eleven migrations recorded once;
+- all thirteen migrations recorded once;
 - concurrent migration startup test passes;
 - checksum drift test passes;
 - terminal chat purge test passes;

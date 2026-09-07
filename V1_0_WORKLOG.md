@@ -318,3 +318,24 @@ A fresh audit was run against GitHub `main`, the Ubuntu runtime, live Supabase a
 - The release runbook migration chain was corrected from the stale `000001..000007` list to the actual `000001..000011` chain.
 
 No production Supabase DDL/grant mutation was performed in this audit.
+
+
+---
+
+## 2026-09-07 — production Supabase boundary repair and 13-migration regression
+
+Production hardening was continued with explicit authorization.
+
+- Added forward migrations `000012_postgis_public_surface_hardening.sql` and `000013_disable_public_data_api_roles.sql`.
+- The first repair confirmed an important Supabase ownership constraint: PostGIS objects such as `public.spatial_ref_sys` and `public.st_estimatedextent(...)` are owned/granted by `supabase_admin`, so project-role object-level REVOKE does not remove owner-issued ACL entries. This is recorded rather than misreported as fixed.
+- The effective application boundary is now enforced at schema level: `USAGE` on `public` is revoked from `PUBLIC`, `anon` and `authenticated`, while `linkup_api`, `service_role` and `postgres` retain the access required by the architecture.
+- Live verification after migration: `anon` public-schema usage = false, `authenticated` public-schema usage = false, `linkup_api` public-schema usage = true, and `linkup_api` retains application-table SELECT authority.
+- The Go API remained healthy after the production grant change: `/healthz` and `/livez` both returned HTTP 200.
+- Supabase managed migration history now contains the original `000001..000011` chain plus the two production hardening migrations.
+- The PostgreSQL integration assertion was advanced from 11 to 13 canonical migration files. A fresh disposable database successfully applied the full repository migration chain.
+- Fresh `go test -count=1 ./...`, `go vet ./...` and `go test -race -count=1 ./...` passed with the destructive PostgreSQL integration gate enabled.
+- Fresh Android `:app:testDebugUnitTest :app:lintDebug :app:assembleDebug` passed after the database hardening changes.
+
+The Supabase linter can still report extension/RLS warnings for objects physically located in the exposed `public` schema. For active v1.0, direct client resolution of that schema is now denied to `anon`/`authenticated`; do not enable blanket RLS or relocate/drop PostGIS without a separate dependency-tested migration.
+
+Remaining external release evidence: production SMTP recovery, real Android FCM device registration/delivery, physical two-user Android end-to-end flow, Privacy/Terms HTTPS destinations, and the final signed release APK/AAB gate.

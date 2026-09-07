@@ -596,3 +596,16 @@ Current executed state superseding older audit assumptions:
 - Firebase project/config identity is consistent across service account, backend and Android build configuration; physical FCM delivery remains unverified because no device token is registered.
 
 Remaining production gates are concrete rather than source-completeness claims: physical two-user Android regression/instrumentation, a registered FCM device and delivered push, production SMTP password recovery, Privacy/Terms HTTPS endpoints, signed release AAB verification, and remediation/acceptance of the remaining Supabase PostGIS public-surface advisories.
+
+
+## 28. 2026-09-07 — production database boundary closed for v1.0 clients
+
+Current verified state after production remediation:
+
+- canonical repository migration chain is now `000001..000013`; fresh disposable PostgreSQL execution and PostgreSQL-backed Go tests pass;
+- Supabase managed production history includes both new hardening changes;
+- `anon` and `authenticated` no longer have `USAGE` on the `public` schema, so they cannot resolve LinkUp or PostGIS objects through the Supabase Data API;
+- `linkup_api` retains `public` schema usage and application-table authority; live API health remains green;
+- Go unit/integration, vet and race gates are green; Android debug unit/lint/assemble is green.
+
+Still not production-complete: SMTP password recovery is unconfigured, no real Android FCM token is registered, physical two-user/device runtime evidence is absent, and release legal URLs are intentionally deferred. The signed release APK/AAB must remain blocked until those release inputs/gates are closed.
