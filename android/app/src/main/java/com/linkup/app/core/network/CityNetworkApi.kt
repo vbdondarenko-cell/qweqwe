@@ -8,4 +8,11 @@ interface CityNetworkApi {
     ): List<CanonicalPlace>
 
     suspend fun mapViewport(query: MapViewportQuery): List<MapCluster>
+
+    suspend fun mapPlaceSlots(
+        placeId: String,
+        fromEpochMillis: Long,
+        toEpochMillis: Long,
+        limit: Int = 50,
+    ): List<SlotModel>
 }
