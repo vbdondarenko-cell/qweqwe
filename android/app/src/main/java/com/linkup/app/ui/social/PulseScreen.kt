@@ -31,10 +31,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.linkup.app.R
 import com.linkup.app.core.network.SlotModel
 import com.linkup.app.core.network.SlotState
 import com.linkup.app.core.network.SlotViewerState
@@ -53,6 +57,8 @@ import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
+private enum class PulseFilter { ALL, SOCIAL, ACTIVE, FOOD }
+
 @Composable
 fun PulseScreen(
     state: LoadState<List<SlotModel>>,
@@ -61,8 +67,9 @@ fun PulseScreen(
     onPrimaryAction: (SlotModel) -> Unit,
 ) {
     var search by remember { mutableStateOf("") }
-    var selectedFilter by remember { mutableStateOf("All") }
-    val filters = listOf("All", "Social", "Active", "Food")
+    var selectedFilter by remember { mutableStateOf(PulseFilter.ALL) }
+    val filters = listOf(PulseFilter.ALL, PulseFilter.SOCIAL, PulseFilter.ACTIVE, PulseFilter.FOOD)
+    val searchHint = stringResource(R.string.pulse_search_hint)
 
     Column {
         Column(
@@ -74,18 +81,18 @@ fun PulseScreen(
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(modifier = Modifier.weight(1f)) {
-                    Text("Pulse", color = LinkUpTextPrimary, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-                    Text("Real nearby LinkUps", color = LinkUpTextMuted, fontSize = 11.sp)
+                    Text(stringResource(R.string.nav_pulse), color = LinkUpTextPrimary, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                    Text(stringResource(R.string.pulse_subtitle), color = LinkUpTextMuted, fontSize = 11.sp)
                 }
-                TextButton(onClick = onRefresh) { Text("Refresh", color = LinkUpRed, fontWeight = FontWeight.Bold) }
+                TextButton(onClick = onRefresh) { Text(stringResource(R.string.common_refresh), color = LinkUpRed, fontWeight = FontWeight.Bold) }
             }
             Spacer(Modifier.height(10.dp))
             OutlinedTextField(
                 value = search,
                 onValueChange = { search = it.take(120) },
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().semantics { contentDescription = searchHint },
                 singleLine = true,
-                placeholder = { Text("Search activities, places...", color = LinkUpTextMuted, fontSize = 13.sp) },
+                placeholder = { Text(searchHint, color = LinkUpTextMuted, fontSize = 13.sp) },
                 shape = RoundedCornerShape(12.dp),
             )
         }
@@ -95,30 +102,36 @@ fun PulseScreen(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             items(filters) { filter ->
-                FilterChip(filter, selectedFilter == filter) { selectedFilter = filter }
+                val label = when (filter) {
+                    PulseFilter.ALL -> stringResource(R.string.filter_all)
+                    PulseFilter.SOCIAL -> stringResource(R.string.filter_social)
+                    PulseFilter.ACTIVE -> stringResource(R.string.filter_active)
+                    PulseFilter.FOOD -> stringResource(R.string.filter_food)
+                }
+                FilterChip(label, selectedFilter == filter) { selectedFilter = filter }
             }
         }
 
         when (state) {
             LoadState.Idle -> Box(Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
-                TextButton(onClick = onRefresh) { Text("Load Pulse", color = LinkUpRed) }
+                TextButton(onClick = onRefresh) { Text(stringResource(R.string.pulse_load), color = LinkUpRed) }
             }
             LoadState.Loading -> Box(Modifier.fillMaxWidth().padding(40.dp), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator(color = LinkUpRed)
             }
-            LoadState.Empty -> EmptyState("Quiet around here", "No public LinkUps are available right now.", onRefresh)
-            is LoadState.Failure -> EmptyState("Couldn't load Pulse", state.error.message, onRefresh)
+            LoadState.Empty -> EmptyState(stringResource(R.string.pulse_quiet_title), stringResource(R.string.pulse_quiet_body), onRefresh)
+            is LoadState.Failure -> EmptyState(stringResource(R.string.pulse_error_title), state.error.message, onRefresh)
             is LoadState.Content -> {
                 val query = search.trim().lowercase()
                 val filtered = state.value.filter { slot ->
-                    val categoryMatch = selectedFilter == "All" || activityCategory(slot.activity) == selectedFilter
+                    val categoryMatch = selectedFilter == PulseFilter.ALL || activityCategory(slot.activity) == selectedFilter
                     val searchMatch = query.isBlank() || slot.title.lowercase().contains(query) ||
                         slot.activity.lowercase().contains(query) || slot.placeText.lowercase().contains(query) ||
                         slot.details.orEmpty().lowercase().contains(query)
                     categoryMatch && searchMatch
                 }
                 if (filtered.isEmpty()) {
-                    EmptyState("No matches", "Try a different filter or search term.", onRefresh)
+                    EmptyState(stringResource(R.string.pulse_no_matches_title), stringResource(R.string.pulse_no_matches_body), onRefresh)
                 } else {
                     LazyColumn(
                         modifier = Modifier.fillMaxWidth(),
@@ -166,7 +179,7 @@ fun SlotCard(slot: SlotModel, onSlotClick: () -> Unit, onPrimaryAction: () -> Un
             Column(modifier = Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     StatusBadge(slot)
-                    Text(timeLabel(slot.startAtEpochMillis), color = LinkUpTextMuted, fontSize = 11.sp)
+                    Text(timeLabel(slot.startAtEpochMillis, stringResource(R.string.common_now)), color = LinkUpTextMuted, fontSize = 11.sp)
                 }
                 Spacer(Modifier.height(4.dp))
                 Text(slot.title, color = LinkUpTextPrimary, fontWeight = FontWeight.Bold, fontSize = 16.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -182,7 +195,7 @@ fun SlotCard(slot: SlotModel, onSlotClick: () -> Unit, onPrimaryAction: () -> Un
             }
             Spacer(Modifier.width(8.dp))
             Text(slot.organizer.displayName, color = LinkUpTextDimmed, fontSize = 12.sp, modifier = Modifier.weight(1f), maxLines = 1)
-            Text("${slot.acceptedCount}/${slot.capacity}", color = LinkUpTextMuted, fontSize = 11.sp)
+            Text(stringResource(R.string.slot_capacity_format, slot.acceptedCount, slot.capacity), color = LinkUpTextMuted, fontSize = 11.sp)
         }
         CapacityBar(slot.acceptedCount, slot.capacity)
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -197,10 +210,10 @@ private fun StatusBadge(slot: SlotModel) {
     val label: String
     val color: Color
     when {
-        slot.state == SlotState.ACTIVE -> { label = "LIVE"; color = LinkUpSuccess }
-        slot.state == SlotState.FULL -> { label = "FULL"; color = LinkUpTextMuted }
-        slot.viewerState == SlotViewerState.PENDING -> { label = "APPROVAL"; color = LinkUpWarning }
-        else -> { label = "OPEN"; color = LinkUpInfo }
+        slot.state == SlotState.ACTIVE -> { label = stringResource(R.string.slot_badge_live); color = LinkUpSuccess }
+        slot.state == SlotState.FULL -> { label = stringResource(R.string.slot_badge_full); color = LinkUpTextMuted }
+        slot.viewerState == SlotViewerState.PENDING -> { label = stringResource(R.string.slot_badge_approval); color = LinkUpWarning }
+        else -> { label = stringResource(R.string.slot_badge_open); color = LinkUpInfo }
     }
     Box(Modifier.clip(RoundedCornerShape(6.dp)).background(color.copy(alpha = 0.15f)).border(1.dp, color.copy(alpha = 0.3f), RoundedCornerShape(6.dp)).padding(horizontal = 8.dp, vertical = 3.dp)) {
         Text(label, color = color, fontSize = 10.sp, fontWeight = FontWeight.Bold)
@@ -210,10 +223,10 @@ private fun StatusBadge(slot: SlotModel) {
 @Composable
 private fun PrimarySlotButton(slot: SlotModel, onClick: () -> Unit) {
     val (label, color) = when (slot.viewerState) {
-        SlotViewerState.NONE -> "Request to join" to LinkUpWarning
-        SlotViewerState.PENDING -> "Request sent" to LinkUpWarning
-        SlotViewerState.ACCEPTED -> "Open" to LinkUpRed
-        SlotViewerState.HOST -> "Manage" to LinkUpRed
+        SlotViewerState.NONE -> stringResource(R.string.slot_request_to_join) to LinkUpWarning
+        SlotViewerState.PENDING -> stringResource(R.string.slot_request_sent) to LinkUpWarning
+        SlotViewerState.ACCEPTED -> stringResource(R.string.common_open) to LinkUpRed
+        SlotViewerState.HOST -> stringResource(R.string.common_manage) to LinkUpRed
     }
     Box(
         modifier = Modifier.clip(RoundedCornerShape(12.dp)).background(color.copy(alpha = if (slot.viewerState == SlotViewerState.NONE) 0.15f else 1f))
@@ -238,7 +251,7 @@ private fun EmptyState(title: String, subtitle: String, onRetry: () -> Unit) {
         Spacer(Modifier.height(7.dp))
         Text(subtitle, color = LinkUpTextDimmed, fontSize = 13.sp)
         Spacer(Modifier.height(12.dp))
-        TextButton(onClick = onRetry) { Text("Retry", color = LinkUpRed, fontWeight = FontWeight.Bold) }
+        TextButton(onClick = onRetry) { Text(stringResource(R.string.common_retry), color = LinkUpRed, fontWeight = FontWeight.Bold) }
     }
 }
 
@@ -253,13 +266,13 @@ private fun activityEmoji(activity: String): String = when (activity.lowercase()
     else -> "🎯"
 }
 
-private fun activityCategory(activity: String): String = when (activity.lowercase()) {
-    "running", "run", "gym", "workout", "fitness", "walk" -> "Active"
-    "food", "dinner", "lunch" -> "Food"
-    else -> "Social"
+private fun activityCategory(activity: String): PulseFilter = when (activity.lowercase()) {
+    "running", "run", "gym", "workout", "fitness", "walk" -> PulseFilter.ACTIVE
+    "food", "dinner", "lunch" -> PulseFilter.FOOD
+    else -> PulseFilter.SOCIAL
 }
 
-private fun timeLabel(epochMillis: Long?): String {
-    if (epochMillis == null) return "Now"
+private fun timeLabel(epochMillis: Long?, nowLabel: String): String {
+    if (epochMillis == null) return nowLabel
     return DateTimeFormatter.ofPattern("EEE HH:mm").withZone(ZoneId.systemDefault()).format(Instant.ofEpochMilli(epochMillis))
 }
