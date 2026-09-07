@@ -44,6 +44,7 @@ fun MeScreen(
     onUnblock: (String) -> Unit,
     onLogout: () -> Unit,
     onEditProfile: () -> Unit,
+    onMySlots: () -> Unit,
 ) {
     Column(Modifier.fillMaxSize().padding(horizontal = 20.dp, vertical = 18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Text("Me", color = LinkUpTextPrimary, fontWeight = FontWeight.Black, fontSize = 24.sp)
@@ -64,6 +65,8 @@ fun MeScreen(
         }
 
         TextButton(onClick = onEditProfile) { Text("Edit profile", color = LinkUpRed) }
+
+        TextButton(onClick = onMySlots) { Text("My LINKs", color = LinkUpRed) }
 
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text("Blocked people", color = LinkUpTextPrimary, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))

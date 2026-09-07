@@ -1,5 +1,6 @@
 package com.linkup.app.core.social
 
+import com.linkup.app.core.network.MySlotsView
 import com.linkup.app.core.network.ChatMessage
 import com.linkup.app.core.network.CreateSlotInput
 import com.linkup.app.core.network.EditSlotInput
@@ -151,7 +152,29 @@ class SocialCoordinatorTest {
         assertIs<LoadState.Idle>(coordinator.selectedSlot.value)
     }
 
+    @Test
+    fun mySlotsIgnoresPreviousViewAndDisposedAccount() = runBlocking {
+        val response = CompletableDeferred<List<SlotModel>>()
+        val api = FakeSocialApi().apply { mySlotsResponse = response }
+        val coordinator = SocialCoordinator(api)
+        val oldView = launch(start = CoroutineStart.UNDISPATCHED) { coordinator.refreshMySlots(MySlotsView.HOSTING) }
+        api.mySlotsResponse = null
+        coordinator.refreshMySlots(MySlotsView.JOINED)
+        response.complete(listOf(slot(SlotViewerState.HOST)))
+        oldView.join()
+        assertIs<LoadState.Empty>(coordinator.mySlots.value)
+
+        val late = CompletableDeferred<List<SlotModel>>()
+        api.mySlotsResponse = late
+        val read = launch(start = CoroutineStart.UNDISPATCHED) { coordinator.refreshMySlots(MySlotsView.HOSTING) }
+        coordinator.clearAll()
+        late.complete(listOf(slot(SlotViewerState.HOST)))
+        read.join()
+        assertIs<LoadState.Idle>(coordinator.mySlots.value)
+    }
+
     private class FakeSocialApi : SocialApi {
+        var mySlotsResponse: CompletableDeferred<List<SlotModel>>? = null
         var pulseResponse: CompletableDeferred<List<SlotModel>>? = null
         var chatResponse: CompletableDeferred<List<ChatMessage>>? = null
         var requestResponse: CompletableDeferred<SlotModel>? = null
@@ -160,6 +183,13 @@ class SocialCoordinatorTest {
         var mutationResult: SlotModel = slot(viewer = SlotViewerState.HOST)
         var messages: List<ChatMessage> = emptyList()
 
+        override suspend fun mySlots(view: MySlotsView) = mySlotsResponse?.await() ?: pulseItems.filter {
+            when (view) {
+                MySlotsView.HOSTING -> it.viewerState == SlotViewerState.HOST
+                MySlotsView.JOINED -> it.viewerState == SlotViewerState.ACCEPTED
+                MySlotsView.REQUESTED -> it.viewerState == SlotViewerState.PENDING
+            }
+        }
         override suspend fun pulse() = pulseResponse?.await() ?: pulseItems
         override suspend fun createSlot(input: CreateSlotInput) = mutationResult
         override suspend fun getSlot(slotId: String) = mutationResult

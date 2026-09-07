@@ -1,6 +1,7 @@
 package com.linkup.app.core.social
 
 import com.linkup.app.core.network.ApiException
+import com.linkup.app.core.network.MySlotsView
 import com.linkup.app.core.network.ChatMessage
 import com.linkup.app.core.network.CreateSlotInput
 import com.linkup.app.core.network.EditSlotInput
@@ -44,6 +45,7 @@ class SocialCoordinator(
     // access changes, or account disposal; cancellation alone cannot do that.
     private var selectionGeneration = 0L
     private var pulseRequest = 0L
+    private var mySlotsRequest = 0L
     private var pulseItems = emptyList<SlotModel>()
     private var slotRequest = 0L
     private var pendingRequest = 0L
@@ -63,6 +65,23 @@ class SocialCoordinator(
 
     private val mutableMutation = MutableStateFlow<MutationState>(MutationState.Idle)
     val mutation: StateFlow<MutationState> = mutableMutation.asStateFlow()
+
+    private val mutableMySlots = MutableStateFlow<LoadState<List<SlotModel>>>(LoadState.Idle)
+    val mySlots: StateFlow<LoadState<List<SlotModel>>> = mutableMySlots.asStateFlow()
+
+    suspend fun refreshMySlots(view: MySlotsView) {
+        val request = ++mySlotsRequest
+        mutableMySlots.value = LoadState.Loading
+        try {
+            val items = api.mySlots(view)
+            if (request == mySlotsRequest) mutableMySlots.value = if (items.isEmpty()) LoadState.Empty else LoadState.Content(items)
+        } catch (error: CancellationException) {
+            if (request == mySlotsRequest) mutableMySlots.value = LoadState.Idle
+            throw error
+        } catch (error: Exception) {
+            if (request == mySlotsRequest) mutableMySlots.value = LoadState.Failure(error.toSocialError())
+        }
+    }
 
     suspend fun refreshPulse() {
         val request = ++pulseRequest
@@ -192,6 +211,8 @@ class SocialCoordinator(
     }
 
     fun clearAll() {
+        ++mySlotsRequest
+        mutableMySlots.value = LoadState.Idle
         ++pulseRequest
         pulseItems = emptyList()
         mutablePulse.value = LoadState.Idle

@@ -379,3 +379,28 @@ func TestEditRequiresExpectedVersion(t *testing.T) {
 		t.Fatalf("expected version validation, got %v", err)
 	}
 }
+
+func (m *memoryStore) ListMine(_ context.Context, actorID, view string, _ int) ([]Slot, error) {
+    m.ensure()
+    out := m.created
+    out.ViewerState = m.viewer(actorID)
+    if out.ID == "" || (out.State != StateFilling && out.State != StateFull && out.State != StatePublished && out.State != StateActive) { return []Slot{}, nil }
+    matches := view == "HOSTING" && out.ViewerState == ViewerHost || view == "JOINED" && out.ViewerState == ViewerAccepted || view == "REQUESTED" && out.ViewerState == ViewerPending && out.State != StateActive
+    if !matches { return []Slot{}, nil }
+    return []Slot{out}, nil
+}
+
+func TestListMineIncludesActiveRelationships(t *testing.T) {
+    store := &memoryStore{created: Slot{ID:"slot", Organizer:Organizer{ID:"host"}, State:StateActive}, members:map[string]bool{"member":true}}
+    svc, err := NewService(store)
+    if err != nil { t.Fatal(err) }
+    for _, tc := range []struct{ actor, view string; count int }{
+        {"host","HOSTING",1}, {"member","JOINED",1}, {"stranger","JOINED",0},
+        {"member","HOSTING",0}, {"host","JOINED",0},
+    } {
+        got, err := svc.ListMine(context.Background(),tc.actor,tc.view)
+        if err != nil || len(got)!=tc.count { t.Fatalf("%s/%s count=%d err=%v",tc.actor,tc.view,len(got),err) }
+    }
+    if _, err := svc.ListMine(context.Background(),"host","ALL_USERS"); !errors.Is(err,ErrInvalidInput) { t.Fatal("invalid scope accepted") }
+    if _, err := svc.ListMine(context.Background(),"","HOSTING"); !errors.Is(err,ErrInvalidInput) { t.Fatal("empty actor accepted") }
+}

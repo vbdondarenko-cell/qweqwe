@@ -20,6 +20,8 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.key
+import com.linkup.app.core.network.MySlotsView
+import com.linkup.app.ui.social.MySlotsScreen
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -153,6 +155,7 @@ private fun SignedInRoot(
 ) {
     val scope = rememberCoroutineScope()
     val pulse by social.pulse.collectAsState()
+    val mySlots by social.mySlots.collectAsState()
     val selected by social.selectedSlot.collectAsState()
     val pending by social.pending.collectAsState()
     val chat by social.chat.collectAsState()
@@ -160,6 +163,8 @@ private fun SignedInRoot(
 
     var tab by remember { mutableStateOf(MainTab.PULSE) }
     var detailOpen by remember { mutableStateOf(false) }
+    var mySlotsOpen by remember { mutableStateOf(false) }
+    var myView by remember { mutableStateOf(MySlotsView.HOSTING) }
     var chatSlotId by remember { mutableStateOf<String?>(null) }
     var editTarget by remember { mutableStateOf<SlotModel?>(null) }
     var blockedState by remember { mutableStateOf<LoadState<List<BlockedUser>>>(LoadState.Idle) }
@@ -186,6 +191,10 @@ private fun SignedInRoot(
     DisposableEffect(user.id) {
         onDispose { social.clearAll() }
     }
+    LaunchedEffect(mySlotsOpen, detailOpen, myView) {
+        if (mySlotsOpen && !detailOpen) social.refreshMySlots(myView)
+    }
+
     LaunchedEffect(user.id) {
         social.refreshPulse()
     }
@@ -252,6 +261,17 @@ private fun SignedInRoot(
                     scope.launch { social.refreshChat(id, 100) }
                 },
             )
+            mySlotsOpen -> MySlotsScreen(
+                state = mySlots,
+                view = myView,
+                onViewChange = { myView = it },
+                onBack = { mySlotsOpen = false },
+                onRefresh = { scope.launch { social.refreshMySlots(myView) } },
+                onSlotClick = { item ->
+                    detailOpen = true
+                    scope.launch { social.openSlot(item.id) }
+                },
+            )
             else -> {
                 Column(Modifier.fillMaxSize()) {
                     Box(Modifier.weight(1f).fillMaxWidth()) {
@@ -290,6 +310,7 @@ private fun SignedInRoot(
                                 actionError = meError,
                                 onRefreshBlocks = ::refreshBlocks,
                                 onEditProfile = { profileError = null; profileOpen = true },
+                                onMySlots = { mySlotsOpen = true },
                                 onUnblock = { userId ->
                                     scope.launch {
                                         try { api.unblockUser(userId); meError = null; refreshBlocks() }

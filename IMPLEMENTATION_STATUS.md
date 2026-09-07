@@ -497,3 +497,16 @@ Next functionality in the active foundation: date/time selection for create/edit
 Validation: source/API wiring review and git diff --check passed; Kotlin unit/device tests not run (toolchain unavailable). No server, migration, iOS or React/TS design modifications. This is optional start-time functionality, not full City Context/scheduled-expiry policy.
 
 Next functionality: server-backed Hosting/Joined navigation, including ACTIVE Slots. Existing audit corrections remain deferred by user direction. Verified production readiness stays 0% pending full end-to-end execution.
+
+
+## 22. 2026-09-07 — Current Hosting/Joined/Requests dashboard
+
+- Me → My LINKs opens Hosting, Joined and Requests using authenticated GET /v1/me/slots?view=HOSTING|JOINED|REQUESTED (default HOSTING).
+- Go derives the actor only from the bearer session. PostgreSQL selects the actor's own hosting, accepted memberships or pending requests and excludes blocks in either direction.
+- Hosting/Joined include ACTIVE Slots absent from Pulse. Cancelled/completed Slots are excluded; Requests excludes ACTIVE Slots. Results are ordered by update time and bounded to the latest 100 per view; history and pagination are not implemented.
+- Android reuses SlotCard and existing detail/manage/chat flows, loads again when returning from detail, and provides loading/content/empty/error/retry states. Request tokens discard responses from previous views and disposed accounts.
+- Added HTTP test cases for bearer/default/invalid-view/ignored actor override, service relationship cases and Android delayed-response cases. Production uses the real PostgreSQL store; test doubles are only test fixtures.
+
+Validation: source review and git diff --check passed. Go/Kotlin tests, PostgreSQL execution and Android device navigation remain unexecuted because the required local toolchains are unavailable. No deployment, live DB changes, iOS or design-reference changes. Existing audit fixes remain deferred per user instruction.
+
+Next: extend current LINK management with participant visibility consistent with README privacy rules. Verified production readiness remains 0% pending full Android/Go end-to-end evidence.

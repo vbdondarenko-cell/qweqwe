@@ -93,6 +93,11 @@ class LinkUpApiClient(
         request("DELETE", "/v1/me/blocks/${uuid(userId)}", null, true)
     }
 
+    override suspend fun mySlots(view: MySlotsView): List<SlotModel> {
+        val items = request("GET", "/v1/me/slots?view=${view.name}", null, true)!!.getJSONArray("items")
+        return buildList(items.length()) { for (index in 0 until items.length()) add(parseSlot(items.getJSONObject(index))) }
+    }
+
     override suspend fun pulse(): List<SlotModel> {
         val items = request("GET", "/v1/pulse", null, true)!!.getJSONArray("items")
         return buildList(items.length()) { for (index in 0 until items.length()) add(parseSlot(items.getJSONObject(index))) }

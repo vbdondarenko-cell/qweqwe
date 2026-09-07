@@ -76,6 +76,7 @@ func New(deps Dependencies) *Server {
 	mux.Handle("GET /v1/slots/{slotID}", s.requireAuth(http.HandlerFunc(s.getSlot)))
 	mux.Handle("PATCH /v1/slots/{slotID}", s.requireAuth(http.HandlerFunc(s.editSlot)))
 	mux.Handle("POST /v1/slots/{slotID}/cancel", s.requireAuth(http.HandlerFunc(s.cancelSlot)))
+	mux.Handle("GET /v1/me/slots", s.requireAuth(http.HandlerFunc(s.listMySlots)))
 	mux.Handle("GET /v1/pulse", s.requireAuth(http.HandlerFunc(s.listPulse)))
 	mux.Handle("POST /v1/slots/{slotID}/request", s.requireAuth(http.HandlerFunc(s.requestSlot)))
 	mux.Handle("POST /v1/slots/{slotID}/leave", s.requireAuth(http.HandlerFunc(s.leaveSlot)))

@@ -97,6 +97,26 @@ func TestSlotCreatePulseEditCancelHTTPFlow(t *testing.T) {
 	if err := json.NewDecoder(createRec.Body).Decode(&created); err != nil { t.Fatal(err) }
 	if created.AccessMode != slot.AccessApproval || created.Visibility != slot.VisibilityPublic || created.ViewerState != slot.ViewerHost { t.Fatalf("unexpected create contract: %#v", created) }
 
+	for _, tc := range []struct { path, bearer string; status, count int }{
+        {"/v1/me/slots?view=HOSTING&actorId=another-user", token, http.StatusOK, 1},
+        {"/v1/me/slots", token, http.StatusOK, 1},
+        {"/v1/me/slots?view=JOINED", token, http.StatusOK, 0},
+        {"/v1/me/slots?view=REQUESTED", token, http.StatusOK, 0},
+        {"/v1/me/slots?view=ALL_USERS", token, http.StatusBadRequest, 0},
+        {"/v1/me/slots", "", http.StatusUnauthorized, 0},
+    } {
+        req := httptest.NewRequest(http.MethodGet, tc.path, nil)
+        if tc.bearer != "" { req.Header.Set("Authorization", "Bearer "+tc.bearer) }
+        rec := httptest.NewRecorder()
+        server.Handler().ServeHTTP(rec, req)
+        if rec.Code != tc.status { t.Fatalf("%s status=%d body=%s", tc.path, rec.Code, rec.Body.String()) }
+        if tc.status == http.StatusOK {
+            var body pulseResponse
+            if err := json.NewDecoder(rec.Body).Decode(&body); err != nil { t.Fatal(err) }
+            if body.Items == nil || len(body.Items) != tc.count { t.Fatalf("%s items=%#v", tc.path, body.Items) }
+        }
+    }
+
 	pulse := httptest.NewRequest(http.MethodGet, "/v1/pulse", nil)
 	pulse.Header.Set("Authorization", "Bearer "+token)
 	pulseRec := httptest.NewRecorder(); server.Handler().ServeHTTP(pulseRec, pulse)
@@ -160,4 +180,9 @@ func registerHTTPUser(t *testing.T, server *Server) string {
 	var auth account.AuthResult
 	if err := json.NewDecoder(rec.Body).Decode(&auth); err != nil { t.Fatal(err) }
 	return auth.Token
+}
+
+func (s *slotHTTPStore) ListMine(_ context.Context, actorID, view string, _ int) ([]slot.Slot, error) {
+    if s.current.ID != "" && s.current.Organizer.ID == actorID && view == "HOSTING" { return []slot.Slot{s.current},nil }
+    return []slot.Slot{},nil
 }

@@ -1,5 +1,7 @@
 package com.linkup.app.core.network
 
+enum class MySlotsView { HOSTING, JOINED, REQUESTED }
+
 enum class SlotState {
     DRAFT,
     PUBLISHED,
