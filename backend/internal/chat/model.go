@@ -29,12 +29,11 @@ type Author struct {
 }
 
 type Message struct {
-	ID             string    `json:"id"`
-	SlotID         string    `json:"slotId"`
-	Author         Author    `json:"author"`
-	Text           string    `json:"text"`
-	IdempotencyKey string    `json:"idempotencyKey"`
-	CreatedAt      time.Time `json:"createdAt"`
+	ID        string    `json:"id"`
+	SlotID    string    `json:"slotId"`
+	Author    Author    `json:"author"`
+	Text      string    `json:"text"`
+	CreatedAt time.Time `json:"createdAt"`
 }
 
 type Store interface {
