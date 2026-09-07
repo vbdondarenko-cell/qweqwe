@@ -25,7 +25,7 @@ import kotlinx.coroutines.runBlocking
 
 class SocialCoordinatorTest {
     @Test
-    fun refreshPulseUsesServerDataAndEmptyState() = runBlocking {
+    fun refreshPulseUsesServerDataAndEmptyState(): Unit = runBlocking {
         val api = FakeSocialApi()
         val coordinator = SocialCoordinator(api)
 
@@ -39,7 +39,7 @@ class SocialCoordinatorTest {
     }
 
     @Test
-    fun requestUsesServerReturnedViewerState() = runBlocking {
+    fun requestUsesServerReturnedViewerState(): Unit = runBlocking {
         val api = FakeSocialApi().apply {
             mutationResult = slot(viewer = SlotViewerState.PENDING, version = 2)
         }
@@ -54,7 +54,7 @@ class SocialCoordinatorTest {
     }
 
     @Test
-    fun terminalServerStateClearsChatState() = runBlocking {
+    fun terminalServerStateClearsChatState(): Unit = runBlocking {
         val api = FakeSocialApi().apply {
             messages = listOf(ChatMessage("m1", "slot-1", com.linkup.app.core.network.ChatAuthor("u", "u", "User", null), "hello", 1))
         }
@@ -69,7 +69,7 @@ class SocialCoordinatorTest {
     }
 
     @Test
-    fun lateChatReadCannotRestoreTerminalThread() = runBlocking {
+    fun lateChatReadCannotRestoreTerminalThread(): Unit = runBlocking {
         val response = CompletableDeferred<List<ChatMessage>>()
         val api = FakeSocialApi().apply { chatResponse = response }
         val coordinator = SocialCoordinator(api)
@@ -82,7 +82,7 @@ class SocialCoordinatorTest {
     }
 
     @Test
-    fun lateResponsesCannotRestoreDisposedAccount() = runBlocking {
+    fun lateResponsesCannotRestoreDisposedAccount(): Unit = runBlocking {
         val pulseResponse = CompletableDeferred<List<SlotModel>>()
         val chatResponse = CompletableDeferred<List<ChatMessage>>()
         val api = FakeSocialApi().apply {
@@ -101,7 +101,7 @@ class SocialCoordinatorTest {
     }
 
     @Test
-    fun duplicateTapDoesNotQueueSecondMutation() = runBlocking {
+    fun duplicateTapDoesNotQueueSecondMutation(): Unit = runBlocking {
         val response = CompletableDeferred<SlotModel>()
         val api = FakeSocialApi().apply { requestResponse = response }
         val coordinator = SocialCoordinator(api)
@@ -115,7 +115,7 @@ class SocialCoordinatorTest {
     }
 
     @Test
-    fun cancelledMutationReleasesLockAndPropagatesCancellation() = runBlocking {
+    fun cancelledMutationReleasesLockAndPropagatesCancellation(): Unit = runBlocking {
         val api = FakeSocialApi().apply { requestResponse = CompletableDeferred() }
         val coordinator = SocialCoordinator(api)
         val action = launch(start = CoroutineStart.UNDISPATCHED) { coordinator.requestSlot("slot-1") }
@@ -128,7 +128,7 @@ class SocialCoordinatorTest {
     }
 
     @Test
-    fun latePulseSnapshotCannotOverwriteMutation() = runBlocking {
+    fun latePulseSnapshotCannotOverwriteMutation(): Unit = runBlocking {
         val response = CompletableDeferred<List<SlotModel>>()
         val api = FakeSocialApi().apply { pulseResponse = response }
         val coordinator = SocialCoordinator(api)
@@ -142,7 +142,7 @@ class SocialCoordinatorTest {
     }
 
     @Test
-    fun lateMutationCannotRestoreClosedSelection() = runBlocking {
+    fun lateMutationCannotRestoreClosedSelection(): Unit = runBlocking {
         val response = CompletableDeferred<SlotModel>()
         val api = FakeSocialApi().apply { requestResponse = response }
         val coordinator = SocialCoordinator(api)
@@ -154,7 +154,7 @@ class SocialCoordinatorTest {
     }
 
     @Test
-    fun mySlotsIgnoresPreviousViewAndDisposedAccount() = runBlocking {
+    fun mySlotsIgnoresPreviousViewAndDisposedAccount(): Unit = runBlocking {
         val response = CompletableDeferred<List<SlotModel>>()
         val api = FakeSocialApi().apply { mySlotsResponse = response }
         val coordinator = SocialCoordinator(api)
@@ -175,7 +175,7 @@ class SocialCoordinatorTest {
     }
 
     @Test
-    fun lateRosterCannotRestoreAfterCompletionOrNavigation() = runBlocking {
+    fun lateRosterCannotRestoreAfterCompletionOrNavigation(): Unit = runBlocking {
         val api = FakeSocialApi()
         val coordinator = SocialCoordinator(api)
         coordinator.openSlot("slot-1")
@@ -200,7 +200,7 @@ class SocialCoordinatorTest {
     }
 
     @Test
-    fun removingParticipantUsesServerVersionAndReloadsRoster() = runBlocking {
+    fun removingParticipantUsesServerVersionAndReloadsRoster(): Unit = runBlocking {
         val api = FakeSocialApi()
         val coordinator = SocialCoordinator(api)
         coordinator.openSlot("slot-1")
@@ -211,7 +211,7 @@ class SocialCoordinatorTest {
     }
 
     @Test
-    fun oldChatSnapshotCannotEraseAcknowledgedSend() = runBlocking {
+    fun oldChatSnapshotCannotEraseAcknowledgedSend(): Unit = runBlocking {
         val response = CompletableDeferred<List<ChatMessage>>()
         val api = FakeSocialApi().apply { chatResponse = response; messages = listOf(message()) }
         val coordinator = SocialCoordinator(api)
@@ -223,7 +223,7 @@ class SocialCoordinatorTest {
     }
 
     @Test
-    fun chatRefreshKeepsContentWhileLoadingAndStopsOnRevocation() = runBlocking {
+    fun chatRefreshKeepsContentWhileLoadingAndStopsOnRevocation(): Unit = runBlocking {
         val api = FakeSocialApi().apply { messages = listOf(message()) }
         val coordinator = SocialCoordinator(api)
         coordinator.refreshChat("slot-1")
