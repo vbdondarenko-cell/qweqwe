@@ -21,7 +21,7 @@ class MonetizationApiClient(
         var lastError: Exception? = null
         repeat(2) { attempt ->
             try {
-                return@withContext requestOnce()
+                return@withContext requestOnce("GET", "/v1/me/monetization", null)
             } catch (error: CancellationException) {
                 throw error
             } catch (error: Exception) {
@@ -38,17 +38,32 @@ class MonetizationApiClient(
         throw lastError ?: IOException("request failed")
     }
 
-    private fun requestOnce(): MonetizationSnapshotModel {
+    suspend fun bindReferral(code: String): MonetizationSnapshotModel = withContext(Dispatchers.IO) {
+        requestOnce(
+            method = "POST",
+            path = "/v1/me/referral",
+            body = JSONObject().put("code", code),
+        )
+    }
+
+    private fun requestOnce(method: String, path: String, body: JSONObject?): MonetizationSnapshotModel {
         val stored = sessions.load() ?: throw ApiException(401, "unauthorized", "authentication required")
-        val connection = (URL("$root/v1/me/monetization").openConnection() as HttpURLConnection).apply {
-            requestMethod = "GET"
+        val connection = (URL("$root$path").openConnection() as HttpURLConnection).apply {
+            requestMethod = method
             connectTimeout = 10_000
             readTimeout = 15_000
             setRequestProperty("Accept", "application/json")
             setRequestProperty("Authorization", "Bearer ${stored.token}")
             useCaches = false
+            if (body != null) {
+                doOutput = true
+                setRequestProperty("Content-Type", "application/json; charset=utf-8")
+            }
         }
         try {
+            if (body != null) {
+                connection.outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) }
+            }
             val status = connection.responseCode
             val input = if (status in 200..299) connection.inputStream else connection.errorStream
             val text = input?.use { readUtf8Bounded(it) }.orEmpty()
@@ -118,6 +133,9 @@ class MonetizationApiClient(
                     nextFreePremiumClaimAtEpochMillis = optionalInstant(rewardedStatus, "nextFreePremiumClaimAt"),
                 ),
                 referral = ReferralStatusModel(
+                    referralCode = referralStatus.getString("referralCode"),
+                    boundReferralCode = optionalString(referralStatus, "boundReferralCode"),
+                    qualifyingDeadlineEpochMillis = optionalInstant(referralStatus, "qualifyingDeadline"),
                     qualifiedReferrals = referralStatus.getInt("qualifiedReferrals"),
                     nextMilestone = if (referralStatus.has("nextMilestone") && !referralStatus.isNull("nextMilestone")) {
                         parseMilestone(referralStatus.getJSONObject("nextMilestone"))
@@ -139,6 +157,9 @@ class MonetizationApiClient(
         badge = json.optBoolean("badge", false),
     )
 
+    private fun optionalString(json: JSONObject, key: String): String? =
+        if (!json.has(key) || json.isNull(key)) null else json.getString(key)
+
     private fun optionalInstant(json: JSONObject, key: String): Long? =
-        if (!json.has(key) || json.isNull(key)) null else Instant.parse(json.getString(key)).toEpochMilli()
+        optionalString(json, key)?.let { Instant.parse(it).toEpochMilli() }
 }
