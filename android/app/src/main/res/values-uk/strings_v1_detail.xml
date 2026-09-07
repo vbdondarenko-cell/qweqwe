@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="slot_load_error">Не вдалося завантажити LINK</string>
+    <string name="slot_host">Організатор</string>
+    <string name="slot_going_format">%1$d/%2$d приєдналися</string>
+    <string name="slot_server_version_format">Версія сервера %1$d</string>
+    <string name="slot_cancel_request">Скасувати запит</string>
+    <string name="slot_open_chat">Відкрити чат</string>
+    <string name="slot_leave_link">Вийти з LINK</string>
+    <string name="slot_requests">Запити</string>
+    <string name="slot_no_pending_requests">Немає запитів, що очікують</string>
+    <string name="slot_decline">Відхилити</string>
+    <string name="slot_accept">Прийняти</string>
+    <string name="slot_delete_cancel">Видалити / скасувати LINK</string>
+    <string name="slot_state_draft">ЧЕРНЕТКА</string>
+    <string name="slot_state_published">ОПУБЛІКОВАНО</string>
+    <string name="slot_state_filling">НАБІР</string>
+    <string name="slot_state_full">ЗАПОВНЕНО</string>
+    <string name="slot_state_active">АКТИВНИЙ</string>
+    <string name="slot_state_completed">ЗАВЕРШЕНО</string>
+    <string name="slot_state_cancelled">СКАСОВАНО</string>
+    <string name="slot_state_expired">ЗАВЕРШИВСЯ</string>
+    <string name="slot_state_moderated">МОДЕРОВАНО</string>
+</resources>
