@@ -12,6 +12,7 @@ struct MeView: View {
     @State private var tab = "Profile"
     @State private var showingMyLinks = false
     @State private var showingEditProfile = false
+    @State private var showingLinkUpPlus = false
 
     init(user: UserProfile, api: LinkUpAPI, session: SessionCoordinator, social: SocialCoordinator) {
         self.user = user
@@ -37,10 +38,12 @@ struct MeView: View {
             }
         }
         .scrollIndicators(.hidden)
-        .refreshable { await coordinator.load() }
+        .refreshable { await refreshAll() }
         .background(LinkUpPalette.background)
         .task {
-            if coordinator.phase == .idle { await coordinator.load() }
+            if coordinator.phase == .idle || coordinator.monetizationPhase == .idle {
+                await refreshAll()
+            }
         }
         .onDisappear { coordinator.dispose() }
         .sheet(isPresented: $showingMyLinks, onDismiss: {
@@ -50,6 +53,9 @@ struct MeView: View {
         }
         .sheet(isPresented: $showingEditProfile) {
             EditProfileView(user: user, session: session)
+        }
+        .sheet(isPresented: $showingLinkUpPlus) {
+            LinkUpPlusView(coordinator: coordinator)
         }
     }
 
@@ -147,6 +153,8 @@ struct MeView: View {
                 .foregroundStyle(LinkUpPalette.textPrimary)
             }
 
+            linkUpPlusSummary
+
             LinkUpCard {
                 HStack {
                     Label("BUMP Vault", systemImage: "heart.fill")
@@ -160,6 +168,54 @@ struct MeView: View {
                 LinkUpErrorState(message: message) { Task { await coordinator.load() } }
             }
         }
+    }
+
+    private var linkUpPlusSummary: some View {
+        LinkUpCard {
+            Button {
+                showingLinkUpPlus = true
+            } label: {
+                HStack(spacing: 12) {
+                    Image(systemName: coordinator.monetization?.status.premiumActive == true ? "checkmark.seal.fill" : "seal")
+                        .font(.system(size: 19))
+                        .foregroundStyle(coordinator.monetization?.status.premiumActive == true ? LinkUpPalette.success : LinkUpPalette.red)
+                        .frame(width: 40, height: 40)
+                        .background(LinkUpPalette.zone)
+                        .clipShape(RoundedRectangle(cornerRadius: LinkUpRadius.control))
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("LinkUp+")
+                            .font(LinkUpTypography.body(14, weight: .semibold))
+                            .foregroundStyle(LinkUpPalette.textPrimary)
+                        Text(linkUpPlusSubtitle)
+                            .font(LinkUpTypography.body(10))
+                            .foregroundStyle(LinkUpPalette.textMuted)
+                    }
+                    Spacer()
+                    if coordinator.monetizationPhase == .loading {
+                        ProgressView().tint(LinkUpPalette.red)
+                    } else {
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(LinkUpPalette.textMuted)
+                    }
+                }
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
+    private var linkUpPlusSubtitle: String {
+        guard let snapshot = coordinator.monetization else {
+            if case .failed = coordinator.monetizationPhase { return "Server status unavailable" }
+            return "Loading server entitlement…"
+        }
+        if snapshot.status.premiumActive {
+            if let until = snapshot.status.premiumUntil {
+                return "Active until \(until.formatted(date: .abbreviated, time: .omitted))"
+            }
+            return "Active"
+        }
+        return "Inactive · referral and catalog available"
     }
 
     private var passport: some View {
@@ -198,14 +254,47 @@ struct MeView: View {
     private var settings: some View {
         VStack(spacing: 16) {
             accountSummary
+            linkUpPlusSettings
             blockedSection
             settingsSection("Privacy & Safety", ["Privacy Center", "Safety Center", "Guardian", "Ghost Mode"])
             settingsSection("Account", ["Notifications", "Accessibility", "Data & Privacy"])
-            settingsSection("LinkUp+", ["Upgrade to LinkUp+", "Rewarded Free Day"])
             settingsSection("App", ["Themes", "Legal", "Version"])
             LinkUpButton(title: "Log out", variant: .danger) {
                 Task { await session.logout() }
             }
+        }
+    }
+
+    private var linkUpPlusSettings: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("LINKUP+")
+                .font(LinkUpTypography.mono(10, weight: .semibold))
+                .foregroundStyle(LinkUpPalette.textMuted)
+                .padding(.horizontal, 4)
+            Button {
+                showingLinkUpPlus = true
+            } label: {
+                HStack {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Subscription & referrals")
+                            .font(LinkUpTypography.body(14, weight: .medium))
+                        Text(linkUpPlusSubtitle)
+                            .font(LinkUpTypography.body(10))
+                            .foregroundStyle(LinkUpPalette.textMuted)
+                    }
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(LinkUpPalette.textMuted)
+                }
+                .foregroundStyle(LinkUpPalette.textPrimary)
+                .padding(.horizontal, 16)
+                .frame(minHeight: 54)
+                .background(LinkUpPalette.elevated)
+                .clipShape(RoundedRectangle(cornerRadius: LinkUpRadius.card))
+                .overlay { RoundedRectangle(cornerRadius: LinkUpRadius.card).stroke(LinkUpPalette.border) }
+            }
+            .buttonStyle(.plain)
         }
     }
 
@@ -279,6 +368,12 @@ struct MeView: View {
                 .overlay { RoundedRectangle(cornerRadius: LinkUpRadius.card).stroke(LinkUpPalette.border) }
             }
         }
+    }
+
+    private func refreshAll() async {
+        async let account: Void = coordinator.load()
+        async let plus: Void = coordinator.loadMonetization()
+        _ = await (account, plus)
     }
 
     private func metric(_ label: String) -> some View {

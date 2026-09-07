@@ -10,16 +10,27 @@ final class MeCoordinator: ObservableObject {
         case failed(String)
     }
 
+    enum MonetizationPhase: Equatable {
+        case idle
+        case loading
+        case content
+        case failed(String)
+    }
+
     @Published private(set) var phase: Phase = .idle
     @Published private(set) var hosting: [SlotModel] = []
     @Published private(set) var joined: [SlotModel] = []
     @Published private(set) var requested: [SlotModel] = []
     @Published private(set) var blockedUsers: [BlockedUser] = []
+    @Published private(set) var monetization: MonetizationSnapshot?
+    @Published private(set) var monetizationPhase: MonetizationPhase = .idle
     @Published private(set) var isMutating = false
+    @Published private(set) var mutationError: String?
 
     private let api: LinkUpAPI
     private let session: SessionCoordinator
     private var generation: UInt64 = 0
+    private var monetizationGeneration: UInt64 = 0
 
     init(api: LinkUpAPI, session: SessionCoordinator) {
         self.api = api
@@ -58,9 +69,60 @@ final class MeCoordinator: ObservableObject {
         }
     }
 
+    func loadMonetization() async {
+        monetizationGeneration &+= 1
+        let requestGeneration = monetizationGeneration
+        monetizationPhase = .loading
+        do {
+            let snapshot = try await api.monetizationSnapshot()
+            guard requestGeneration == monetizationGeneration else { return }
+            monetization = snapshot
+            monetizationPhase = .content
+        } catch is CancellationError {
+            return
+        } catch let error as APIError {
+            guard requestGeneration == monetizationGeneration else { return }
+            if case .unauthorized = error {
+                await session.clearLocalSession()
+            } else {
+                monetizationPhase = .failed(error.localizedDescription)
+            }
+        } catch {
+            guard requestGeneration == monetizationGeneration else { return }
+            monetizationPhase = .failed("Unable to load LinkUp+ status.")
+        }
+    }
+
+    func bindReferral(_ code: String) async -> Bool {
+        guard !isMutating else { return false }
+        isMutating = true
+        mutationError = nil
+        defer { isMutating = false }
+        do {
+            let snapshot = try await api.bindReferral(code: code)
+            monetizationGeneration &+= 1
+            monetization = snapshot
+            monetizationPhase = .content
+            return true
+        } catch is CancellationError {
+            return false
+        } catch let error as APIError {
+            if case .unauthorized = error {
+                await session.clearLocalSession()
+            } else {
+                mutationError = error.localizedDescription
+            }
+            return false
+        } catch {
+            mutationError = "Unable to bind referral code."
+            return false
+        }
+    }
+
     func unblock(_ user: BlockedUser) async {
         guard !isMutating else { return }
         isMutating = true
+        mutationError = nil
         defer { isMutating = false }
         do {
             try await api.unblockUser(user.id)
@@ -69,19 +131,27 @@ final class MeCoordinator: ObservableObject {
             if case .unauthorized = error {
                 await session.clearLocalSession()
             } else {
-                phase = .failed(error.localizedDescription)
+                mutationError = error.localizedDescription
             }
         } catch {
-            phase = .failed("Unable to unblock this account.")
+            mutationError = "Unable to unblock this account."
         }
+    }
+
+    func clearMutationError() {
+        mutationError = nil
     }
 
     func dispose() {
         generation &+= 1
+        monetizationGeneration &+= 1
         hosting = []
         joined = []
         requested = []
         blockedUsers = []
+        monetization = nil
         phase = .idle
+        monetizationPhase = .idle
+        mutationError = nil
     }
 }
