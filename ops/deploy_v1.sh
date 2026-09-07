@@ -5,6 +5,7 @@ ROOT="/opt/linkup"
 SRC="$ROOT/src"
 ARTIFACT_ROOT="$ROOT/artifacts"
 ENV_FILE="/etc/linkup/linkup.env"
+SECRET_ENV_FILE="/etc/linkup/linkup-api-secrets.env"
 SERVICE="linkup-api.service"
 STABLE_LINK="$ARTIFACT_ROOT/stable"
 
@@ -35,7 +36,10 @@ next="$ROOT/bin/.linkup-api.$commit.next"
 grep -qx "commit=$commit" "$artifact_dir/BUILD_METADATA.txt" || fail "artifact metadata commit mismatch"
 grep -qx 'state=stable' "$artifact_dir/BUILD_METADATA.txt" || fail "artifact is not promoted stable"
 sudo test -f "$ENV_FILE" || fail "missing runtime environment file"
-sudo grep -Eq '^DATABASE_URL=postgres(ql)?://' "$ENV_FILE" || fail "DATABASE_URL is not configured"
+if ! sudo grep -Eq '^DATABASE_URL=postgres(ql)?://' "$ENV_FILE" 2>/dev/null && \
+   ! sudo grep -Eq '^DATABASE_URL=postgres(ql)?://' "$SECRET_ENV_FILE" 2>/dev/null; then
+  fail "DATABASE_URL is not configured in runtime environment"
+fi
 
 (
   cd "$artifact_dir"
