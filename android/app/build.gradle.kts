@@ -17,6 +17,8 @@ fun validHttpsHostOnly(value: String): Boolean {
     }.getOrDefault(false)
 }
 
+val debugApiBaseUrl = providers.gradleProperty("LINKUP_DEBUG_API_BASE_URL").orElse("http://10.0.2.2:8080").get().trim()
+val debugResetHost = providers.gradleProperty("LINKUP_DEBUG_RESET_HOST").orElse("reset.invalid").get().trim().lowercase()
 val releaseApiBaseUrl = providers.gradleProperty("LINKUP_API_BASE_URL").orElse("").get().trim()
 val releasePrivacyUrl = providers.gradleProperty("LINKUP_PRIVACY_URL").orElse("").get().trim()
 val releaseTermsUrl = providers.gradleProperty("LINKUP_TERMS_URL").orElse("").get().trim()
@@ -74,10 +76,11 @@ android {
         debug {
             applicationIdSuffix = ".debug"
             versionNameSuffix = "-debug"
-            buildConfigField("String", "LINKUP_API_BASE_URL", quotedBuildConfig("http://10.0.2.2:8080"))
+            buildConfigField("String", "LINKUP_API_BASE_URL", quotedBuildConfig(debugApiBaseUrl))
             buildConfigField("String", "LINKUP_PRIVACY_URL", quotedBuildConfig(""))
             buildConfigField("String", "LINKUP_TERMS_URL", quotedBuildConfig(""))
-            manifestPlaceholders["usesCleartextTraffic"] = "true"
+            manifestPlaceholders["usesCleartextTraffic"] = debugApiBaseUrl.startsWith("http://").toString()
+            manifestPlaceholders["resetHost"] = debugResetHost
         }
         release {
             isMinifyEnabled = false

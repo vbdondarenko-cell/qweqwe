@@ -1,0 +1,82 @@
+package com.linkup.app.ui.design
+
+import com.linkup.app.core.network.SlotAccessMode
+import com.linkup.app.core.network.SlotModel
+import com.linkup.app.core.network.SlotState
+import com.linkup.app.core.network.SlotViewerState
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+
+internal fun SlotModel.toFrozenSlot(): FrozenSlot {
+    val initials = organizer.displayName
+        .trim()
+        .split(Regex("\\s+"))
+        .filter { it.isNotBlank() }
+        .take(2)
+        .joinToString("") { it.take(1).uppercase() }
+        .ifBlank { organizer.username.take(2).uppercase() }
+    val visualStatus = when {
+        state == SlotState.ACTIVE -> LinkUpVisualStatus.LIVE
+        state == SlotState.FULL -> LinkUpVisualStatus.FULL
+        viewerState == SlotViewerState.PENDING || accessMode != SlotAccessMode.INSTANT -> LinkUpVisualStatus.APPROVAL
+        else -> LinkUpVisualStatus.OPEN
+    }
+    val emoji = when (activity.lowercase()) {
+        "coffee" -> "☕"
+        "running", "run" -> "🏃"
+        "gym", "workout", "fitness" -> "🏋️"
+        "food", "dinner", "lunch" -> "🍽️"
+        "walk" -> "🚶"
+        "music" -> "🎵"
+        "games", "gaming" -> "🎮"
+        "travel" -> "✈️"
+        "photo", "photography" -> "📷"
+        else -> "✦"
+    }
+    val time = startAtEpochMillis?.let {
+        DateTimeFormatter.ofPattern("EEE · HH:mm")
+            .withZone(ZoneId.systemDefault())
+            .format(Instant.ofEpochMilli(it))
+    } ?: if (state == SlotState.ACTIVE) "Happening now" else "Open now"
+    val tags = buildList {
+        add(activity)
+        zoneText?.takeIf { it.isNotBlank() }?.let(::add)
+        when (viewerState) {
+            SlotViewerState.HOST -> add("hosting")
+            SlotViewerState.ACCEPTED -> add("joined")
+            SlotViewerState.PENDING -> add("pending")
+            SlotViewerState.NONE -> Unit
+        }
+    }.distinct().take(3)
+    return FrozenSlot(
+        emoji = emoji,
+        status = visualStatus,
+        title = title,
+        location = placeText,
+        time = time,
+        distance = zoneText.orEmpty(),
+        description = details.orEmpty().ifBlank { activity.replaceFirstChar { c -> c.uppercase() } },
+        organizer = FrozenOrganizer(organizer.displayName, initials, 0xFFFF2D35, 0),
+        joined = acceptedCount,
+        capacity = capacity,
+        tags = tags,
+        approval = accessMode != SlotAccessMode.INSTANT,
+    )
+}
+
+internal fun SlotModel.primaryActionLabel(): String = when (viewerState) {
+    SlotViewerState.NONE -> if (accessMode == SlotAccessMode.INSTANT) "Join now" else "Request to join"
+    SlotViewerState.PENDING -> "Request sent"
+    SlotViewerState.ACCEPTED -> "Open"
+    SlotViewerState.HOST -> "Manage"
+}
+
+internal fun SlotModel.canJoin(): Boolean =
+    viewerState == SlotViewerState.NONE && state !in setOf(
+        SlotState.FULL,
+        SlotState.COMPLETED,
+        SlotState.CANCELLED,
+        SlotState.EXPIRED,
+        SlotState.MODERATED,
+    )

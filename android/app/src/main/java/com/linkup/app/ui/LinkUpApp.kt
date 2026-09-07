@@ -246,6 +246,21 @@ private fun SignedInRoot(
     var blockBusy by remember { mutableStateOf(false) }
     var blockError by remember { mutableStateOf<String?>(null) }
 
+    fun openDesignedSlot(slot: SlotModel) {
+        detailOpen = true
+        scope.launch { social.openSlot(slot.id) }
+    }
+
+    fun handleDesignedPrimaryAction(slot: SlotModel) {
+        if (slot.viewerState == SlotViewerState.NONE) {
+            scope.launch {
+                if (social.requestSlot(slot.id)) detailOpen = true
+            }
+        } else {
+            openDesignedSlot(slot)
+        }
+    }
+
     fun refreshBlocks() {
         scope.launch {
             blockedState = LoadState.Loading
@@ -254,6 +269,20 @@ private fun SignedInRoot(
                 blockedState = if (items.isEmpty()) LoadState.Empty else LoadState.Content(items)
             } catch (error: Exception) {
                 blockedState = LoadState.Failure(SocialError("blocks_error", error.userMessage(genericError)))
+            }
+        }
+    }
+
+    fun unblockUser(userId: String) {
+        scope.launch {
+            meError = null
+            try {
+                api.unblockUser(userId)
+                val items = api.blockedUsers()
+                blockedState = if (items.isEmpty()) LoadState.Empty else LoadState.Content(items)
+                social.refreshPulse()
+            } catch (error: Exception) {
+                meError = error.userMessage(genericError)
             }
         }
     }
@@ -337,7 +366,12 @@ private fun SignedInRoot(
                 Column(Modifier.fillMaxSize()) {
                     Box(Modifier.weight(1f).fillMaxWidth()) {
                         when (tab) {
-                            MainTab.PULSE -> FrozenPulseScreen()
+                            MainTab.PULSE -> FrozenPulseScreen(
+                                state = pulse,
+                                onRefresh = { scope.launch { social.refreshPulse() } },
+                                onSlotClick = ::openDesignedSlot,
+                                onPrimaryAction = ::handleDesignedPrimaryAction,
+                            )
                             MainTab.LINK -> CreateLinkScreen(
                                 submitting = mutation is MutationState.Running,
                                 errorMessage = (mutation as? MutationState.Failed)?.error?.message,
@@ -351,9 +385,33 @@ private fun SignedInRoot(
                                     }
                                 },
                             )
-                            MainTab.ME -> FrozenMeScreen()
-                            MainTab.MAP -> FrozenMapScreen()
-                            MainTab.FLY -> FrozenFlyScreen()
+                            MainTab.ME -> FrozenMeScreen(
+                                user = user,
+                                blocked = blockedState,
+                                actionError = meError,
+                                onRefreshBlocks = ::refreshBlocks,
+                                onUnblock = ::unblockUser,
+                                onEditProfile = { profileError = null; profileOpen = true },
+                                onMySlots = { myView = MySlotsView.HOSTING; mySlotsOpen = true },
+                                onLogout = {
+                                    scope.launch {
+                                        try { sessions.logout() }
+                                        finally { social.clearAll() }
+                                    }
+                                },
+                            )
+                            MainTab.MAP -> FrozenMapScreen(
+                                onOpenPulse = {
+                                    tab = MainTab.PULSE
+                                    scope.launch { social.refreshPulse() }
+                                },
+                            )
+                            MainTab.FLY -> FrozenFlyScreen(
+                                onOpenPulse = {
+                                    tab = MainTab.PULSE
+                                    scope.launch { social.refreshPulse() }
+                                },
+                            )
                         }
                     }
                     BottomNav(tab) { selectedTab ->
