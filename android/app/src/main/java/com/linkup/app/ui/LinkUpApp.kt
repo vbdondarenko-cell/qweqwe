@@ -246,6 +246,7 @@ private fun SignedInRoot(
                 pending = pending,
                 accepted = accepted,
                 onRefreshAccepted = { id -> scope.launch { social.refreshAccepted(id) } },
+                onRemoveParticipant = { id, userId, version -> scope.launch { social.removeParticipant(id, userId, version) } },
                 mutation = mutation,
                 onBack = { detailOpen = false; social.clearSelected() },
                 onRefresh = { id -> scope.launch { social.openSlot(id) } },

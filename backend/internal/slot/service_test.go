@@ -428,3 +428,28 @@ func TestAcceptedRosterRequiresCurrentHost(t *testing.T) {
     if _, err := svc.ListAccepted(context.Background(), "host", "slot"); !errors.Is(err, ErrNotFound) { t.Fatal("terminal roster exposed") }
     if _, err := svc.ListAccepted(context.Background(), "", "slot"); !errors.Is(err, ErrInvalidInput) { t.Fatal("empty actor accepted") }
 }
+
+func (m *memoryStore) RemoveMember(_ context.Context, actorID, slotID, memberID string, version int64, _ string, _ []byte, _ time.Time) (Slot, error) {
+    if m.created.ID != slotID { return Slot{}, ErrNotFound }
+    if m.created.Organizer.ID != actorID { return Slot{}, ErrForbidden }
+    if m.created.Version != version { return Slot{}, ErrConflict }
+    if !m.members[memberID] { return Slot{}, ErrNotFound }
+    delete(m.members, memberID)
+    m.created.AcceptedCount--
+    m.created.Version++
+    if m.created.State == StateFull { m.created.State = StateFilling }
+    return m.created, nil
+}
+
+func TestRemoveMemberValidatesVersionAndIdentity(t *testing.T) {
+    store := &memoryStore{created:Slot{ID:"link", Organizer:Organizer{ID:"host"}, Version:3, State:StateFull, AcceptedCount:1}, members:map[string]bool{"member":true}}
+    svc, _ := NewService(store)
+    for _, tc := range []struct { actor, member, key string; version int64 }{
+        {"host","host","remove-member-001",3}, {"host","member","",3}, {"host","member","remove-member-001",0},
+    } {
+        if _, err := svc.RemoveMember(context.Background(),tc.actor,"link",tc.member,tc.version,tc.key); !errors.Is(err,ErrInvalidInput) { t.Fatalf("invalid input: %v",err) }
+    }
+    if _, err := svc.RemoveMember(context.Background(),"host","link","member",2,"remove-member-001"); !errors.Is(err,ErrConflict) { t.Fatal("stale version accepted") }
+    out, err := svc.RemoveMember(context.Background(),"host","link","member",3,"remove-member-001")
+    if err != nil || out.AcceptedCount != 0 || out.State != StateFilling || out.Version != 4 { t.Fatalf("out=%v err=%v",out,err) }
+}

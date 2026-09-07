@@ -6,6 +6,8 @@ import (
 	"errors"
 	"os"
 	"testing"
+    "time"
+    "github.com/vbdondarenko-cell/qweqwe/backend/internal/chat"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/slot"
@@ -30,11 +32,11 @@ func TestAcceptedRosterSQL(t *testing.T) {
 	}
 	defer tx.Rollback(ctx)
 	_, err = tx.Exec(ctx, `
-CREATE TEMP TABLE slots(id text PRIMARY KEY, host_id text, state text) ON COMMIT DROP;
+CREATE TEMP TABLE slots(id text PRIMARY KEY, host_id text, state text, accepted_count integer DEFAULT 1, version bigint DEFAULT 1, updated_at timestamptz) ON COMMIT DROP;
 CREATE TEMP TABLE app_users(id text PRIMARY KEY, username text, display_name text, avatar_url text) ON COMMIT DROP;
 CREATE TEMP TABLE slot_memberships(slot_id text, user_id text) ON COMMIT DROP;
 CREATE TEMP TABLE user_blocks(blocker_id text, blocked_id text) ON COMMIT DROP;
-INSERT INTO pg_temp.slots VALUES ('link','host','ACTIVE'),('empty','host','PUBLISHED');
+INSERT INTO pg_temp.slots(id,host_id,state) VALUES ('link','host','ACTIVE'),('empty','host','PUBLISHED');
 INSERT INTO pg_temp.app_users VALUES ('member','member','Member',NULL),('host','host','Host',NULL);
 INSERT INTO pg_temp.slot_memberships VALUES ('link','member');`)
 	if err != nil {
@@ -86,6 +88,20 @@ INSERT INTO pg_temp.slot_memberships VALUES ('link','member');`)
 		read("host", "link", -1)
 	}
 	exec("UPDATE pg_temp.slots SET state='FILLING' WHERE id='link'")
-	exec("DELETE FROM pg_temp.slot_memberships WHERE user_id='member'")
+    exec("UPDATE pg_temp.slots SET state='FULL' WHERE id='link'")
+    if err := authorizeChatTx(ctx, tx, "member", "link"); err != nil { t.Fatal(err) }
+    if err := removeMemberTx(ctx, tx, "stranger", "link", "member", 1, false, time.Now()); !errors.Is(err,slot.ErrForbidden) { t.Fatal("non-host removal allowed") }
+    if err := removeMemberTx(ctx, tx, "host", "link", "member", 2, false, time.Now()); !errors.Is(err,slot.ErrConflict) { t.Fatal("stale removal allowed") }
+    if err := removeMemberTx(ctx, tx, "host", "link", "member", 1, false, time.Now()); err != nil { t.Fatal(err) }
+    // A replay must not decrement twice and must still authorize the current host.
+    if err := removeMemberTx(ctx, tx, "host", "link", "member", 1, true, time.Now()); err != nil { t.Fatal(err) }
+    if err := removeMemberTx(ctx, tx, "stranger", "link", "member", 1, true, time.Now()); !errors.Is(err,slot.ErrForbidden) { t.Fatal("unauthorized replay allowed") }
+    var count int
+    var version int64
+    var state string
+    if err := tx.QueryRow(ctx,"SELECT accepted_count,version,state FROM pg_temp.slots WHERE id='link'").Scan(&count,&version,&state); err != nil { t.Fatal(err) }
+    if count != 0 || version != 2 || state != "FILLING" { t.Fatalf("count=%d version=%d state=%s",count,version,state) }
+    if err := authorizeChatTx(ctx, tx, "member", "link"); !errors.Is(err,chat.ErrForbidden) { t.Fatalf("removed member chat access: %v",err) }
+
 	read("host", "link", 0)
 }

@@ -130,6 +130,21 @@ func TestSlotCreatePulseEditCancelHTTPFlow(t *testing.T) {
         if tc.status == http.StatusOK && rec.Body.String() != "{\"items\":[]}\n" { t.Fatalf("unexpected roster: %s", rec.Body.String()) }
     }
 
+    for _, tc := range []struct { body, key, bearer string; status int }{
+        {`{"expectedVersion":1}`, "remove-member-http-001", token, http.StatusOK},
+        {`{"expectedVersion":2}`, "remove-member-http-002", token, http.StatusConflict},
+        {`{"expectedVersion":0}`, "remove-member-http-003", token, http.StatusBadRequest},
+        {`{"expectedVersion":1}`, "", token, http.StatusBadRequest},
+        {`{"expectedVersion":1}`, "remove-member-http-004", "", http.StatusUnauthorized},
+    } {
+        req := httptest.NewRequest(http.MethodPost, "/v1/slots/"+created.ID+"/members/00000000-0000-0000-0000-000000000001/remove", bytes.NewBufferString(tc.body))
+        req.Header.Set("Idempotency-Key",tc.key)
+        if tc.bearer != "" { req.Header.Set("Authorization","Bearer "+tc.bearer) }
+        rec := httptest.NewRecorder()
+        server.Handler().ServeHTTP(rec,req)
+        if rec.Code != tc.status { t.Fatalf("remove status=%d want=%d body=%s",rec.Code,tc.status,rec.Body.String()) }
+    }
+
 	pulse := httptest.NewRequest(http.MethodGet, "/v1/pulse", nil)
 	pulse.Header.Set("Authorization", "Bearer "+token)
 	pulseRec := httptest.NewRecorder(); server.Handler().ServeHTTP(pulseRec, pulse)
@@ -203,4 +218,11 @@ func (s *slotHTTPStore) ListMine(_ context.Context, actorID, view string, _ int)
 func (s *slotHTTPStore) ListAccepted(_ context.Context, actorID, slotID string) ([]slot.Organizer, error) {
     if s.current.ID != slotID || s.current.Organizer.ID != actorID { return nil, slot.ErrNotFound }
     return []slot.Organizer{}, nil
+}
+
+func (s *slotHTTPStore) RemoveMember(_ context.Context, actorID, slotID, memberID string, version int64, _ string, _ []byte, _ time.Time) (slot.Slot, error) {
+    if s.current.ID != slotID { return slot.Slot{}, slot.ErrNotFound }
+    if s.current.Organizer.ID != actorID { return slot.Slot{}, slot.ErrForbidden }
+    if s.current.Version != version { return slot.Slot{}, slot.ErrConflict }
+    return s.current, nil
 }

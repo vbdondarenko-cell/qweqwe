@@ -198,7 +198,19 @@ class SocialCoordinatorTest {
         assertIs<LoadState.Idle>(coordinator.accepted.value)
     }
 
+    @Test
+    fun removingParticipantUsesServerVersionAndReloadsRoster() = runBlocking {
+        val api = FakeSocialApi()
+        val coordinator = SocialCoordinator(api)
+        coordinator.openSlot("slot-1")
+        api.mutationResult = slot(SlotViewerState.HOST, SlotState.FILLING, version = 4)
+        assertTrue(coordinator.removeParticipant("slot-1", "member", 3))
+        assertEquals(4, assertIs<LoadState.Content<SlotModel>>(coordinator.selectedSlot.value).value.version)
+        assertIs<LoadState.Empty>(coordinator.accepted.value)
+    }
+
     private class FakeSocialApi : SocialApi {
+        override suspend fun removeParticipant(slotId: String, userId: String, expectedVersion: Long) = mutationResult
         var acceptedResponse: CompletableDeferred<List<SlotOrganizer>>? = null
         override suspend fun acceptedParticipants(slotId: String): List<SlotOrganizer> = acceptedResponse?.await() ?: emptyList()
         var mySlotsResponse: CompletableDeferred<List<SlotModel>>? = null

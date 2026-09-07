@@ -525,3 +525,18 @@ README §9 requires clearer roster/request/accepted summaries. This block adds t
 Executed: git diff --check and source/interface/call-site review. Go, Gradle and Kotlin executables remain unavailable; none of the added tests or Android device flows were executed. No server connection, deployment, live database mutation, migration, iOS or React/TS design change.
 
 Next functionality: continue README host-management scope with authorized participant removal and explicit state/capacity transitions. Existing audit corrections remain deferred by user direction. Verified production readiness stays 0% until Android/Go end-to-end gates have evidence.
+
+
+## 24. 2026-09-07 — Host removes an accepted participant
+
+README §10 host-remove/version-conflict/FULL→FILLING scope now has a Kotlin/Go path:
+
+- POST /v1/slots/{slotID}/members/{userID}/remove requires bearer authentication, Idempotency-Key and a positive expectedVersion. The fingerprint binds Slot, target participant and expected version.
+- PostgreSQL locks the Slot row, verifies current host and bidirectional blocks, rejects stale versions/non-current states, deletes membership, decrements accepted_count, increments version and reopens FULL to FILLING atomically. ACTIVE remains ACTIVE. The existing chat authorization reads membership under the Slot lock, so requests authorized after committed removal are denied.
+- Replay handling rechecks host/block authorization and skips a second deletion/count update. No permanent ban or block is created: the user may request again while the Slot accepts requests.
+- Android accepted roster offers Remove with confirmation, uses the selected Slot version, displays errors through existing mutation state and reloads the roster after success. A conflict requires refreshing the LINK before retrying.
+- Added service/HTTP/Android test cases and extended the opt-in PostgreSQL transaction test with real remove/chat-authorization calls, stale-version/non-host checks, replay branch, count/version/state and revoked chat assertions. This test exercises the transaction helper, not the complete idempotency claim or concurrent connections.
+
+Validation: source/interface review and git diff --check passed. Tests/build remain unexecuted (Go/Gradle/Kotlin/Android SDK unavailable); PostgreSQL concurrency/device evidence remains open. No production DB, deployment, migrations, iOS or design-reference changes. Existing audit work remains deferred by user instruction.
+
+Next: continue host-management requirements, including waitlist and request expiry only with their canonical domain foundations. Verified production readiness remains 0% pending executed end-to-end evidence.

@@ -157,6 +157,12 @@ class SocialCoordinator(
     private val mutableAccepted = MutableStateFlow<LoadState<List<SlotOrganizer>>>(LoadState.Idle)
     val accepted: StateFlow<LoadState<List<SlotOrganizer>>> = mutableAccepted.asStateFlow()
 
+    suspend fun removeParticipant(slotId: String, userId: String, expectedVersion: Long): Boolean {
+        val success = mutateSlot { api.removeParticipant(slotId, userId, expectedVersion) }
+        if (success) refreshAccepted(slotId)
+        return success
+    }
+
     suspend fun refreshAccepted(slotId: String) {
         val current = (mutableSelectedSlot.value as? LoadState.Content)?.value ?: return
         if (current.id != slotId || current.viewerState != SlotViewerState.HOST || current.state in terminalStates) return
