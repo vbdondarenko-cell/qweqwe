@@ -1,0 +1,162 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">LinkUp</string>
+    <string name="tagline_real_world_first">Реальний світ — спочатку.</string>
+
+    <string name="common_back">Назад</string>
+    <string name="common_close">Закрити</string>
+    <string name="common_refresh">Оновити</string>
+    <string name="common_retry">Повторити</string>
+    <string name="common_save">Зберегти</string>
+    <string name="common_cancel">Скасувати</string>
+    <string name="common_remove">Видалити</string>
+    <string name="common_block">Заблокувати</string>
+    <string name="common_unblock">Розблокувати</string>
+    <string name="common_logout">Вийти</string>
+    <string name="common_open">Відкрити</string>
+    <string name="common_manage">Керувати</string>
+    <string name="common_now">Зараз</string>
+    <string name="common_loading">Завантаження…</string>
+    <string name="common_not_available">Недоступно</string>
+
+    <string name="a11y_back">Повернутися назад</string>
+    <string name="a11y_close">Закрити екран</string>
+    <string name="a11y_refresh">Оновити вміст</string>
+
+    <string name="config_required_title">Потрібна конфігурація LinkUp</string>
+    <string name="config_required_body">Для release-збірки потрібна Gradle-властивість LINKUP_API_BASE_URL. Резервна production-адреса не вшита в застосунок.</string>
+    <string name="config_fail_closed">Безпечна відмова</string>
+
+    <string name="auth_login">Увійти</string>
+    <string name="auth_register">Реєстрація</string>
+    <string name="auth_email_or_username">Email або ім’я користувача</string>
+    <string name="auth_email">Email</string>
+    <string name="auth_username">Ім’я користувача</string>
+    <string name="auth_display_name">Ім’я для відображення</string>
+    <string name="auth_password">Пароль</string>
+    <string name="auth_forgot_password">Забули пароль?</string>
+    <string name="auth_create_account">Створити акаунт</string>
+    <string name="auth_password_recovery">Відновлення пароля</string>
+    <string name="auth_recovery_description">Ми надішлемо одноразове посилання для скидання, якщо доставку recovery налаштовано.</string>
+    <string name="auth_send_reset_link">Надіслати посилання</string>
+    <string name="auth_have_reset_link">У мене є посилання</string>
+    <string name="auth_back_to_login">Назад до входу</string>
+    <string name="auth_set_new_password">Встановити новий пароль</string>
+    <string name="auth_reset_description">Вставте посилання з листа або код скидання.</string>
+    <string name="auth_reset_link_or_code">Посилання або код скидання</string>
+    <string name="auth_new_password">Новий пароль</string>
+    <string name="auth_confirm_password">Підтвердіть пароль</string>
+    <string name="auth_invalid_reset">Вставте повне посилання або код скидання.</string>
+    <string name="auth_passwords_mismatch">Паролі не збігаються.</string>
+    <string name="auth_password_hint">Використайте щонайменше 8 символів для нового пароля.</string>
+    <string name="auth_change_password">Змінити пароль</string>
+
+    <string name="nav_pulse">Pulse</string>
+    <string name="nav_map">Map</string>
+    <string name="nav_link">LINK</string>
+    <string name="nav_fly">Fly</string>
+    <string name="nav_me">Me</string>
+
+    <string name="pulse_subtitle">Реальні LinkUp поруч</string>
+    <string name="pulse_search_hint">Пошук активностей і місць…</string>
+    <string name="pulse_load">Завантажити Pulse</string>
+    <string name="pulse_quiet_title">Тут поки тихо</string>
+    <string name="pulse_quiet_body">Зараз немає доступних публічних LinkUp.</string>
+    <string name="pulse_error_title">Не вдалося завантажити Pulse</string>
+    <string name="pulse_no_matches_title">Нічого не знайдено</string>
+    <string name="pulse_no_matches_body">Спробуйте інший фільтр або пошуковий запит.</string>
+    <string name="filter_all">Усі</string>
+    <string name="filter_social">Спілкування</string>
+    <string name="filter_active">Активне</string>
+    <string name="filter_food">Їжа</string>
+    <string name="slot_badge_live">LIVE</string>
+    <string name="slot_badge_full">FULL</string>
+    <string name="slot_badge_approval">APPROVAL</string>
+    <string name="slot_badge_open">OPEN</string>
+    <string name="slot_request_to_join">Подати запит</string>
+    <string name="slot_request_sent">Запит надіслано</string>
+
+    <string name="slot_title">LINK</string>
+    <string name="slot_edit">Редагувати</string>
+    <string name="slot_cancel_link">Скасувати LINK</string>
+    <string name="slot_start">Почати</string>
+    <string name="slot_complete">Завершити</string>
+    <string name="slot_leave">Вийти</string>
+    <string name="slot_chat">Чат</string>
+    <string name="slot_pending_requests">Запити на приєднання</string>
+    <string name="slot_accepted_participants">Прийняті учасники</string>
+    <string name="slot_show">Показати</string>
+    <string name="slot_capacity_format">%1$d/%2$d</string>
+    <string name="slot_hosted_by_format">Організатор: %1$s</string>
+    <string name="slot_version_format">Версія %1$d</string>
+    <string name="slot_state_format">Стан: %1$s</string>
+    <string name="slot_request">Запит</string>
+    <string name="slot_withdraw_request">Відкликати запит</string>
+    <string name="slot_block_user">Заблокувати користувача</string>
+
+    <string name="chat_title">Координація</string>
+    <string name="chat_subtitle">Тимчасовий · лише прийняті учасники</string>
+    <string name="chat_no_messages">Повідомлень ще немає</string>
+    <string name="chat_no_messages_body">Використовуйте цей чат лише для координації цього LinkUp.</string>
+    <string name="chat_unavailable">Чат недоступний</string>
+    <string name="chat_message_hint">Повідомлення…</string>
+    <string name="chat_send">Надіслати</string>
+
+    <string name="me_title">Me</string>
+    <string name="me_edit_profile">Редагувати профіль</string>
+    <string name="me_my_links">Мої LINK</string>
+    <string name="me_blocked_people">Заблоковані користувачі</string>
+    <string name="me_block_list_idle">Відкрийте цей розділ, щоб завантажити список блокувань із сервера.</string>
+    <string name="me_no_blocked_accounts">Немає заблокованих акаунтів</string>
+    <string name="me_language_format">Мова: %1$s</string>
+    <string name="me_version_format">LinkUp %1$s</string>
+    <string name="me_privacy_policy">Політика конфіденційності</string>
+    <string name="me_terms_of_service">Умови використання</string>
+    <string name="me_legal_unavailable">Посилання на юридичний документ не налаштовано в цій збірці.</string>
+
+    <string name="profile_edit_title">Редагувати профіль</string>
+    <string name="profile_avatar_url">URL аватара</string>
+    <string name="profile_visibility">Видимість профілю</string>
+    <string name="profile_visibility_public">PUBLIC</string>
+    <string name="profile_visibility_hidden">HIDDEN</string>
+    <string name="profile_language">Мова</string>
+    <string name="profile_language_uk">Українська</string>
+    <string name="profile_language_en">English</string>
+
+    <string name="my_links_title">Мої LINK</string>
+    <string name="my_links_hosting">Організовую</string>
+    <string name="my_links_joined">Приєднався</string>
+    <string name="my_links_requests">Запити</string>
+    <string name="my_links_empty">Тут поки нічого немає.</string>
+    <string name="my_links_error">Не вдалося завантажити ваші LINK.</string>
+
+    <string name="create_link_title">Створити LINK</string>
+    <string name="edit_link_title">Редагувати LINK</string>
+    <string name="field_title">Назва</string>
+    <string name="field_activity">Активність</string>
+    <string name="field_details">Деталі</string>
+    <string name="field_place">Місце</string>
+    <string name="field_zone">Зона</string>
+    <string name="field_capacity">Кількість учасників</string>
+    <string name="field_date_time">Дата й час</string>
+    <string name="schedule_not_set">Не задано</string>
+    <string name="schedule_choose">Обрати</string>
+    <string name="schedule_clear">Очистити</string>
+    <string name="schedule_dst_gap">Такого локального часу не існує через перехід на літній/зимовий час.</string>
+    <string name="schedule_dst_overlap">Цей локальний час трапляється двічі. Оберіть часовий зсув.</string>
+    <string name="create_continue">Далі</string>
+    <string name="create_preview">Попередній перегляд</string>
+    <string name="create_publish">Опублікувати LINK</string>
+    <string name="create_public_approval">Публічний · потрібне схвалення</string>
+    <string name="create_step_format">Крок %1$d із %2$d</string>
+
+    <string name="accepted_empty">Прийнятих учасників ще немає.</string>
+    <string name="accepted_error">Не вдалося завантажити прийнятих учасників.</string>
+    <string name="accepted_remove_title">Видалити @%1$s?</string>
+    <string name="accepted_remove_body">Користувач втратить участь і доступ до чату цього LINK. Це не блокує акаунт; він зможе подати запит знову, поки LINK приймає заявки.</string>
+
+    <string name="block_confirm_title">Заблокувати @%1$s?</string>
+    <string name="block_confirm_body">Блокування негайно прибирає поточні запити або участь між вами, де це застосовно, і забороняє подальшу взаємодію в LinkUp.</string>
+
+    <string name="capability_not_active">Ця можливість не активна у v1.0.</string>
+</resources>
