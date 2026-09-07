@@ -57,7 +57,7 @@ internal fun SlotModel.toFrozenSlot(): FrozenSlot {
         time = time,
         distance = zoneText.orEmpty(),
         description = details.orEmpty().ifBlank { activity.replaceFirstChar { c -> c.uppercase() } },
-        organizer = FrozenOrganizer(organizer.displayName, initials, 0xFFFF2D35, 0),
+        organizer = FrozenOrganizer(organizer.displayName, initials, 0xFFFF2D35),
         joined = acceptedCount,
         capacity = capacity,
         tags = tags,
@@ -65,18 +65,30 @@ internal fun SlotModel.toFrozenSlot(): FrozenSlot {
     )
 }
 
-internal fun SlotModel.primaryActionLabel(): String = when (viewerState) {
-    SlotViewerState.NONE -> if (accessMode == SlotAccessMode.INSTANT) "Join now" else "Request to join"
-    SlotViewerState.PENDING -> "Request sent"
-    SlotViewerState.ACCEPTED -> "Open"
-    SlotViewerState.HOST -> "Manage"
+internal enum class FrozenPrimaryAction { REQUEST, JOIN, PENDING, OPEN, MANAGE, FULL, ACTIVE, CLOSED }
+
+internal fun SlotModel.primaryActionKind(): FrozenPrimaryAction = when (viewerState) {
+    SlotViewerState.PENDING -> FrozenPrimaryAction.PENDING
+    SlotViewerState.ACCEPTED -> FrozenPrimaryAction.OPEN
+    SlotViewerState.HOST -> FrozenPrimaryAction.MANAGE
+    SlotViewerState.NONE -> when {
+        state == SlotState.FULL || acceptedCount >= capacity -> FrozenPrimaryAction.FULL
+        state == SlotState.ACTIVE -> FrozenPrimaryAction.ACTIVE
+        state !in setOf(SlotState.PUBLISHED, SlotState.FILLING) -> FrozenPrimaryAction.CLOSED
+        accessMode == SlotAccessMode.INSTANT -> FrozenPrimaryAction.JOIN
+        else -> FrozenPrimaryAction.REQUEST
+    }
 }
 
 internal fun SlotModel.canJoin(): Boolean =
-    viewerState == SlotViewerState.NONE && state !in setOf(
-        SlotState.FULL,
-        SlotState.COMPLETED,
-        SlotState.CANCELLED,
-        SlotState.EXPIRED,
-        SlotState.MODERATED,
+    viewerState == SlotViewerState.NONE &&
+        state in setOf(SlotState.PUBLISHED, SlotState.FILLING) &&
+        acceptedCount < capacity
+
+internal fun SlotModel.primaryActionEnabled(): Boolean =
+    primaryActionKind() in setOf(
+        FrozenPrimaryAction.REQUEST,
+        FrozenPrimaryAction.JOIN,
+        FrozenPrimaryAction.OPEN,
+        FrozenPrimaryAction.MANAGE,
     )

@@ -24,6 +24,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.res.stringResource
+import com.linkup.app.R
 import com.linkup.app.ui.theme.LinkUpBorder
 import com.linkup.app.ui.theme.LinkUpElevated
 import com.linkup.app.ui.theme.LinkUpRed
@@ -58,10 +60,10 @@ fun FrozenMapScreen(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 FrozenLineIcon(FrozenIconKind.MAP, LinkUpRed, Modifier.size(20.dp))
                 Spacer(Modifier.width(8.dp))
-                Text("Map", color = LinkUpTextPrimary, fontFamily = LinkUpDesign.displayFont, fontWeight = FontWeight.Black, fontSize = 24.sp)
+                Text(stringResource(R.string.map_title), color = LinkUpTextPrimary, fontFamily = LinkUpDesign.displayFont, fontWeight = FontWeight.Black, fontSize = 24.sp)
             }
             Spacer(Modifier.height(6.dp))
-            Text("Location-aware discovery", color = LinkUpTextDimmed, fontSize = 13.sp)
+            Text(stringResource(R.string.map_subtitle), color = LinkUpTextDimmed, fontSize = 13.sp)
         }
 
         Column(
@@ -70,15 +72,15 @@ fun FrozenMapScreen(
                 .border(1.dp, LinkUpBorder, RoundedCornerShape(18.dp)).padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Text("MAP · v1.1", color = LinkUpRed, fontFamily = LinkUpDesign.monoFont, fontWeight = FontWeight.Bold, fontSize = 11.sp)
-            Text("Not active in v1.0", color = LinkUpTextPrimary, fontFamily = LinkUpDesign.displayFont, fontWeight = FontWeight.Bold, fontSize = 20.sp)
+            Text(stringResource(R.string.map_v11_label), color = LinkUpRed, fontFamily = LinkUpDesign.monoFont, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+            Text(stringResource(R.string.capability_not_active), color = LinkUpTextPrimary, fontFamily = LinkUpDesign.displayFont, fontWeight = FontWeight.Bold, fontSize = 20.sp)
             Text(
-                "A real Map requires canonical place identities, server viewport queries, privacy-safe coordinates and clustering. v1.0 has place/zone text only, so this build does not invent map pins or user locations.",
+                stringResource(R.string.map_v11_body),
                 color = LinkUpTextDimmed,
                 fontSize = 13.sp,
             )
-            Text("Use Pulse for the current server-backed discovery flow.", color = LinkUpTextMuted, fontSize = 12.sp)
-            LinkUpButton("Open Pulse", onOpenPulse, Modifier.fillMaxWidth(), LinkUpButtonVariant.PRIMARY, LinkUpButtonSize.LG)
+            Text(stringResource(R.string.map_use_pulse), color = LinkUpTextMuted, fontSize = 12.sp)
+            LinkUpButton(stringResource(R.string.open_pulse), onOpenPulse, Modifier.fillMaxWidth(), LinkUpButtonVariant.PRIMARY, LinkUpButtonSize.LG)
         }
     }
 }

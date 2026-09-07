@@ -61,7 +61,7 @@ class LinkUpFirebaseMessagingService : FirebaseMessagingService() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
         val notification = android.app.Notification.Builder(this, CHANNEL_ID)
-            .setSmallIcon(android.R.drawable.ic_dialog_info)
+            .setSmallIcon(R.drawable.ic_stat_linkup)
             .setContentTitle(title)
             .setContentText(body)
             .setStyle(android.app.Notification.BigTextStyle().bigText(body))

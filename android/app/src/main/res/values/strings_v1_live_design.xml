@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="filter_tonight">Tonight</string>
+    <string name="filter_tomorrow">Tomorrow</string>
+    <string name="pulse_live_data">Live data</string>
+    <string name="pulse_happening_now">HAPPENING NOW</string>
+    <string name="pulse_not_loaded">Pulse has not been loaded yet.</string>
+    <string name="slot_join_now">Join now</string>
+    <string name="slot_closed">Closed</string>
+
+    <string name="me_tab_profile">Profile</string>
+    <string name="me_tab_passport">Passport</string>
+    <string name="me_tab_settings">Settings</string>
+    <string name="me_my_links_subtitle">Hosting · Joined · Requests</string>
+    <string name="me_profile_v1_label">v1.0 profile</string>
+    <string name="me_profile_v11_body">Reliability, BUMP Vault, Social Passport and city-history metrics stay hidden until their server-authoritative v1.1 capability is active.</string>
+    <string name="me_social_passport">Social Passport</string>
+    <string name="me_planned_v11">Planned for LinkUp v1.1</string>
+    <string name="me_passport_v11_body">This build does not fabricate meetups, cities, reliability, BUMP history or activity metrics. This surface activates only when those values are backed by canonical server data.</string>
+    <string name="me_section_account">ACCOUNT</string>
+    <string name="me_section_blocked">BLOCKED PEOPLE</string>
+    <string name="me_section_legal_app">LEGAL &amp; APP</string>
+    <string name="me_section_session">SESSION</string>
+    <string name="me_server_block_list">Server block list</string>
+    <string name="me_not_configured">Not configured</string>
+    <string name="me_version_label">Version</string>
+
+    <string name="map_title">Map</string>
+    <string name="map_subtitle">Location-aware discovery</string>
+    <string name="map_v11_label">MAP · v1.1</string>
+    <string name="map_v11_body">A real Map requires canonical place identities, server viewport queries, privacy-safe coordinates and clustering. v1.0 has place/zone text only, so this build does not invent map pins or user locations.</string>
+    <string name="map_use_pulse">Use Pulse for the current server-backed discovery flow.</string>
+    <string name="fly_title">Fly Now</string>
+    <string name="fly_subtitle">Motion and proximity discovery</string>
+    <string name="fly_v11_label">FLY · v1.1</string>
+    <string name="fly_v11_body">Fly Now/Travel/Motion needs server-time TTL, proximity and motion buckets, driver/passenger safety and privacy guardrails. Those authorities do not exist in the v1.0 API, so Join/Pass is not faked here.</string>
+    <string name="fly_use_pulse">Current real join/request actions are available in Pulse.</string>
+    <string name="open_pulse">Open Pulse</string>
+    <string name="nav_create">Create</string>
+</resources>

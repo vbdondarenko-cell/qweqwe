@@ -32,11 +32,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.linkup.app.R
 import com.linkup.app.core.network.SlotModel
 import com.linkup.app.core.network.SlotState
 import com.linkup.app.core.social.LoadState
@@ -53,8 +55,10 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 
-private val timeFilters = listOf("Now", "Tonight", "Tomorrow", "All")
-private val categoryFilters = listOf("All", "Social", "Active", "Food")
+private enum class PulseTimeFilter { NOW, TONIGHT, TOMORROW, ALL }
+private enum class PulseCategoryFilter { ALL, SOCIAL, ACTIVE, FOOD }
+private val timeFilters = PulseTimeFilter.values().toList()
+private val categoryFilters = PulseCategoryFilter.values().toList()
 
 @Composable
 fun FrozenPulseScreen(
@@ -66,8 +70,8 @@ fun FrozenPulseScreen(
     onOpenNotifications: () -> Unit = onRefresh,
 ) {
     var query by remember { mutableStateOf("") }
-    var time by remember { mutableStateOf("All") }
-    var category by remember { mutableStateOf("All") }
+    var time by remember { mutableStateOf(PulseTimeFilter.ALL) }
+    var category by remember { mutableStateOf(PulseCategoryFilter.ALL) }
     val source = (state as? LoadState.Content)?.value.orEmpty()
     val filtered = source.filter { slot ->
         matchesQuery(slot, query) && matchesCategory(slot, category) && matchesTime(slot, time)
@@ -80,39 +84,39 @@ fun FrozenPulseScreen(
             contentPadding = PaddingValues(horizontal = 20.dp, vertical = 10.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            items(timeFilters) { item -> LinkUpChip(item, time == item, { time = item }) }
+            items(timeFilters) { item -> LinkUpChip(timeFilterLabel(item), time == item, { time = item }) }
         }
         LazyRow(
             contentPadding = PaddingValues(horizontal = 20.dp, vertical = 0.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            items(categoryFilters) { item -> LinkUpChip(item, category == item, { category = item }) }
+            items(categoryFilters) { item -> LinkUpChip(categoryFilterLabel(item), category == item, { category = item }) }
         }
 
         when (state) {
-            LoadState.Idle -> LinkUpErrorState("Pulse has not been loaded yet.", onRetry = onRefresh, title = "Load Pulse")
+            LoadState.Idle -> LinkUpErrorState(stringResource(R.string.pulse_not_loaded), onRetry = onRefresh, title = stringResource(R.string.pulse_load))
             LoadState.Loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = LinkUpRed) }
-            LoadState.Empty -> LinkUpEmptyState("Quiet right now", "No LinkUps are available. Pull the latest data and try again.")
+            LoadState.Empty -> LinkUpEmptyState(stringResource(R.string.pulse_quiet_title), stringResource(R.string.pulse_quiet_body))
             is LoadState.Failure -> LinkUpErrorState(state.error.message, onRetry = onRefresh)
             is LoadState.Content -> LazyColumn(
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 10.dp, bottom = 112.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                if (happeningNow != null && (time == "Now" || time == "All")) {
+                if (happeningNow != null && (time == PulseTimeFilter.NOW || time == PulseTimeFilter.ALL)) {
                     item(key = "happening-${happeningNow.id}") {
                         FrozenHappeningNow(happeningNow.toFrozenSlot()) { onSlotClick(happeningNow) }
                     }
                 }
                 if (filtered.isEmpty()) {
-                    item { LinkUpEmptyState("No matches", "Try a different filter or search term.") }
+                    item { LinkUpEmptyState(stringResource(R.string.pulse_no_matches_title), stringResource(R.string.pulse_no_matches_body)) }
                 } else {
                     items(filtered, key = { it.id }) { slot ->
                         FrozenSlotCard(
                             slot = slot.toFrozenSlot(),
                             onClick = { onSlotClick(slot) },
-                            actionLabel = slot.primaryActionLabel(),
-                            actionEnabled = slot.canJoin() || slot.primaryActionLabel() in setOf("Open", "Manage"),
+                            actionLabel = primaryActionLabel(slot.primaryActionKind()),
+                            actionEnabled = slot.primaryActionEnabled(),
                             onPrimaryAction = { onPrimaryAction(slot) },
                         )
                     }
@@ -129,27 +133,61 @@ private fun matchesQuery(slot: SlotModel, query: String): Boolean {
         .any { it.contains(q, ignoreCase = true) }
 }
 
-private fun matchesCategory(slot: SlotModel, category: String): Boolean = when (category) {
-    "All" -> true
-    "Active" -> slot.activity.lowercase() in setOf("running", "run", "gym", "workout", "fitness", "walk")
-    "Food" -> slot.activity.lowercase() in setOf("food", "dinner", "lunch", "coffee")
-    else -> slot.activity.lowercase() !in setOf("running", "run", "gym", "workout", "fitness", "walk", "food", "dinner", "lunch")
+private fun matchesCategory(slot: SlotModel, category: PulseCategoryFilter): Boolean = when (category) {
+    PulseCategoryFilter.ALL -> true
+    PulseCategoryFilter.ACTIVE -> slot.activity.lowercase() in setOf("running", "run", "gym", "workout", "fitness", "walk")
+    PulseCategoryFilter.FOOD -> slot.activity.lowercase() in setOf("food", "dinner", "lunch", "coffee")
+    PulseCategoryFilter.SOCIAL -> slot.activity.lowercase() !in setOf("running", "run", "gym", "workout", "fitness", "walk", "food", "dinner", "lunch", "coffee")
 }
 
-private fun matchesTime(slot: SlotModel, filter: String): Boolean {
-    if (filter == "All") return true
-    if (slot.state == SlotState.ACTIVE) return filter == "Now"
-    val epoch = slot.startAtEpochMillis ?: return filter == "Now"
+private fun matchesTime(slot: SlotModel, filter: PulseTimeFilter): Boolean {
+    if (filter == PulseTimeFilter.ALL) return true
+    if (slot.state == SlotState.ACTIVE) return filter == PulseTimeFilter.NOW
+    val epoch = slot.startAtEpochMillis ?: return filter == PulseTimeFilter.NOW
     val zone = ZoneId.systemDefault()
     val dateTime = Instant.ofEpochMilli(epoch).atZone(zone)
     val today = LocalDate.now(zone)
     return when (filter) {
-        "Now" -> dateTime.toLocalDate() == today
-        "Tonight" -> dateTime.toLocalDate() == today && dateTime.hour >= 17
-        "Tomorrow" -> dateTime.toLocalDate() == today.plusDays(1)
-        else -> true
+        PulseTimeFilter.NOW -> dateTime.toLocalDate() == today
+        PulseTimeFilter.TONIGHT -> dateTime.toLocalDate() == today && dateTime.hour >= 17
+        PulseTimeFilter.TOMORROW -> dateTime.toLocalDate() == today.plusDays(1)
+        PulseTimeFilter.ALL -> true
     }
 }
+
+@Composable
+private fun timeFilterLabel(filter: PulseTimeFilter): String = stringResource(
+    when (filter) {
+        PulseTimeFilter.NOW -> R.string.common_now
+        PulseTimeFilter.TONIGHT -> R.string.filter_tonight
+        PulseTimeFilter.TOMORROW -> R.string.filter_tomorrow
+        PulseTimeFilter.ALL -> R.string.filter_all
+    },
+)
+
+@Composable
+private fun categoryFilterLabel(filter: PulseCategoryFilter): String = stringResource(
+    when (filter) {
+        PulseCategoryFilter.ALL -> R.string.filter_all
+        PulseCategoryFilter.SOCIAL -> R.string.filter_social
+        PulseCategoryFilter.ACTIVE -> R.string.filter_active
+        PulseCategoryFilter.FOOD -> R.string.filter_food
+    },
+)
+
+@Composable
+private fun primaryActionLabel(action: FrozenPrimaryAction): String = stringResource(
+    when (action) {
+        FrozenPrimaryAction.REQUEST -> R.string.slot_request_to_join
+        FrozenPrimaryAction.JOIN -> R.string.slot_join_now
+        FrozenPrimaryAction.PENDING -> R.string.slot_request_sent
+        FrozenPrimaryAction.OPEN -> R.string.common_open
+        FrozenPrimaryAction.MANAGE -> R.string.common_manage
+        FrozenPrimaryAction.FULL -> R.string.slot_state_full
+        FrozenPrimaryAction.ACTIVE -> R.string.slot_state_active
+        FrozenPrimaryAction.CLOSED -> R.string.slot_closed
+    },
+)
 
 @Composable
 private fun FrozenPulseHeader(query: String, onQueryChange: (String) -> Unit, onOpenNotifications: () -> Unit) {
@@ -161,12 +199,12 @@ private fun FrozenPulseHeader(query: String, onQueryChange: (String) -> Unit, on
             Column(Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                     FrozenLineIcon(FrozenIconKind.MAP, LinkUpRed, Modifier.size(14.dp))
-                    Text("LinkUps nearby", color = LinkUpTextPrimary, fontFamily = LinkUpDesign.bodyFont, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                    Text(stringResource(R.string.pulse_subtitle), color = LinkUpTextPrimary, fontFamily = LinkUpDesign.bodyFont, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
                 }
                 Spacer(Modifier.height(5.dp))
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Box(Modifier.size(8.dp).clip(CircleShape).background(LinkUpRed))
-                    Text("Live data", color = LinkUpTextDimmed, fontFamily = LinkUpDesign.monoFont, fontSize = 12.sp)
+                    Text(stringResource(R.string.pulse_live_data), color = LinkUpTextDimmed, fontFamily = LinkUpDesign.monoFont, fontSize = 12.sp)
                 }
             }
             Box(
@@ -189,7 +227,7 @@ private fun FrozenPulseHeader(query: String, onQueryChange: (String) -> Unit, on
                 singleLine = true,
                 modifier = Modifier.weight(1f),
                 textStyle = TextStyle(color = LinkUpTextPrimary, fontFamily = LinkUpDesign.bodyFont, fontSize = 14.sp),
-                decorationBox = { inner -> if (query.isBlank()) Text("Search activities, places...", color = LinkUpTextMuted, fontSize = 14.sp) else inner() },
+                decorationBox = { inner -> if (query.isBlank()) Text(stringResource(R.string.pulse_search_hint), color = LinkUpTextMuted, fontSize = 14.sp) else inner() },
             )
         }
     }
@@ -208,9 +246,9 @@ private fun FrozenHappeningNow(slot: FrozenSlot, onClick: () -> Unit) {
         }
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
-            Text("HAPPENING NOW", color = LinkUpSuccess, fontFamily = LinkUpDesign.monoFont, fontWeight = FontWeight.SemiBold, fontSize = 10.sp)
+            Text(stringResource(R.string.pulse_happening_now), color = LinkUpSuccess, fontFamily = LinkUpDesign.monoFont, fontWeight = FontWeight.SemiBold, fontSize = 10.sp)
             Text(slot.title, color = LinkUpTextPrimary, fontFamily = LinkUpDesign.displayFont, fontWeight = FontWeight.Bold, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text("${slot.location} · ${slot.joined}/${slot.capacity} going", color = LinkUpTextDimmed, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text("${slot.location} · ${stringResource(R.string.slot_going_format, slot.joined, slot.capacity)}", color = LinkUpTextDimmed, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
     }
 }
@@ -218,8 +256,8 @@ private fun FrozenHappeningNow(slot: FrozenSlot, onClick: () -> Unit) {
 @Composable
 fun FrozenSlotCard(
     slot: FrozenSlot,
-    onClick: () -> Unit = {},
-    actionLabel: String = if (slot.approval) "Request to join" else "Join now",
+    onClick: () -> Unit,
+    actionLabel: String,
     actionEnabled: Boolean = true,
     onPrimaryAction: () -> Unit = onClick,
 ) {
@@ -249,7 +287,6 @@ fun FrozenSlotCard(
             Spacer(Modifier.width(8.dp))
             Text(slot.organizer.name, color = LinkUpTextDimmed, fontSize = 12.sp)
             Spacer(Modifier.weight(1f))
-            if (slot.organizer.reliability > 0) Text("${slot.organizer.reliability}% reliable", color = LinkUpTextMuted, fontFamily = LinkUpDesign.monoFont, fontSize = 10.sp)
         }
         Spacer(Modifier.height(12.dp))
         LinkUpProgressBar(slot.joined, slot.capacity, showLabel = true)

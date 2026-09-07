@@ -30,10 +30,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.linkup.app.BuildConfig
+import com.linkup.app.R
 import com.linkup.app.core.network.BlockedUser
 import com.linkup.app.core.network.UserProfile
 import com.linkup.app.core.social.LoadState
@@ -47,7 +49,8 @@ import com.linkup.app.ui.theme.LinkUpTextPrimary
 import com.linkup.app.ui.theme.LinkUpWarning
 import com.linkup.app.ui.theme.LinkUpZone
 
-private val meTabs = listOf("Profile", "Passport", "Settings")
+private enum class MeTab { PROFILE, PASSPORT, SETTINGS }
+private val meTabs = MeTab.values().toList()
 
 @Composable
 fun FrozenMeScreen(
@@ -61,22 +64,22 @@ fun FrozenMeScreen(
     onLogout: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    var tab by remember { mutableStateOf("Profile") }
+    var tab by remember { mutableStateOf(MeTab.PROFILE) }
     Column(modifier.fillMaxSize().background(Color(0xFF050506))) {
         Column(
             Modifier.fillMaxWidth().background(LinkUpElevated.copy(alpha = .72f)).border(1.dp, LinkUpBorder)
                 .padding(start = 20.dp, end = 20.dp, top = 56.dp, bottom = 12.dp),
         ) {
-            Text("Me", color = LinkUpTextPrimary, fontFamily = LinkUpDesign.displayFont, fontWeight = FontWeight.Black, fontSize = 24.sp)
+            Text(stringResource(R.string.me_title), color = LinkUpTextPrimary, fontFamily = LinkUpDesign.displayFont, fontWeight = FontWeight.Black, fontSize = 24.sp)
             Spacer(Modifier.height(12.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                meTabs.forEach { item -> LinkUpChip(item, tab == item, { tab = item }) }
+                meTabs.forEach { item -> LinkUpChip(meTabLabel(item), tab == item, { tab = item }) }
             }
         }
         when (tab) {
-            "Profile" -> FrozenProfileTab(user, onEditProfile, onMySlots, Modifier.weight(1f))
-            "Passport" -> FrozenPassportGate(Modifier.weight(1f))
-            else -> FrozenSettingsTab(
+            MeTab.PROFILE -> FrozenProfileTab(user, onEditProfile, onMySlots, Modifier.weight(1f))
+            MeTab.PASSPORT -> FrozenPassportGate(Modifier.weight(1f))
+            MeTab.SETTINGS -> FrozenSettingsTab(
                 user = user,
                 blocked = blocked,
                 actionError = actionError,
@@ -90,6 +93,15 @@ fun FrozenMeScreen(
         }
     }
 }
+
+@Composable
+private fun meTabLabel(tab: MeTab): String = stringResource(
+    when (tab) {
+        MeTab.PROFILE -> R.string.me_tab_profile
+        MeTab.PASSPORT -> R.string.me_tab_passport
+        MeTab.SETTINGS -> R.string.me_tab_settings
+    },
+)
 
 @Composable
 private fun FrozenProfileTab(
@@ -117,12 +129,12 @@ private fun FrozenProfileTab(
                         Spacer(Modifier.height(4.dp))
                         Text(user.email, color = LinkUpTextMuted, fontSize = 11.sp)
                     }
-                    LinkUpButton("Edit", onEditProfile, variant = LinkUpButtonVariant.SECONDARY, size = LinkUpButtonSize.SM)
+                    LinkUpButton(stringResource(R.string.me_edit_profile), onEditProfile, variant = LinkUpButtonVariant.SECONDARY, size = LinkUpButtonSize.SM)
                 }
                 Spacer(Modifier.height(14.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    FrozenProfileFact("Visibility", user.profileVisibility, Modifier.weight(1f))
-                    FrozenProfileFact("Language", user.language.uppercase(), Modifier.weight(1f))
+                    FrozenProfileFact(stringResource(R.string.profile_visibility), user.profileVisibility, Modifier.weight(1f))
+                    FrozenProfileFact(stringResource(R.string.profile_language), user.language.uppercase(), Modifier.weight(1f))
                 }
             }
         }
@@ -132,8 +144,8 @@ private fun FrozenProfileTab(
                     Text("★", color = LinkUpRed, fontSize = 18.sp)
                     Spacer(Modifier.width(10.dp))
                     Column(Modifier.weight(1f)) {
-                        Text("My LinkUps", color = LinkUpTextPrimary, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
-                        Text("Hosting · Joined · Requests", color = LinkUpTextMuted, fontSize = 12.sp)
+                        Text(stringResource(R.string.me_my_links), color = LinkUpTextPrimary, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                        Text(stringResource(R.string.me_my_links_subtitle), color = LinkUpTextMuted, fontSize = 12.sp)
                     }
                     Text("›", color = LinkUpTextMuted, fontSize = 20.sp)
                 }
@@ -141,10 +153,10 @@ private fun FrozenProfileTab(
         }
         item {
             LinkUpCard {
-                Text("v1.0 profile", color = LinkUpRed, fontFamily = LinkUpDesign.monoFont, fontWeight = FontWeight.Bold, fontSize = 10.sp)
+                Text(stringResource(R.string.me_profile_v1_label), color = LinkUpRed, fontFamily = LinkUpDesign.monoFont, fontWeight = FontWeight.Bold, fontSize = 10.sp)
                 Spacer(Modifier.height(6.dp))
                 Text(
-                    "Reliability, BUMP Vault, Social Passport and city-history metrics are not shown until their server-authoritative v1.1 capability is active.",
+                    stringResource(R.string.me_profile_v11_body),
                     color = LinkUpTextDimmed,
                     fontSize = 12.sp,
                 )
@@ -172,13 +184,13 @@ private fun FrozenPassportGate(modifier: Modifier = Modifier) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 FrozenLineIcon(FrozenIconKind.ME, LinkUpRed, Modifier.size(20.dp))
                 Spacer(Modifier.width(10.dp))
-                Text("Social Passport", color = LinkUpTextPrimary, fontFamily = LinkUpDesign.displayFont, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                Text(stringResource(R.string.me_social_passport), color = LinkUpTextPrimary, fontFamily = LinkUpDesign.displayFont, fontWeight = FontWeight.Bold, fontSize = 18.sp)
             }
             Spacer(Modifier.height(12.dp))
-            Text("Planned for LinkUp v1.1", color = LinkUpRed, fontFamily = LinkUpDesign.monoFont, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+            Text(stringResource(R.string.me_planned_v11), color = LinkUpRed, fontFamily = LinkUpDesign.monoFont, fontWeight = FontWeight.Bold, fontSize = 11.sp)
             Spacer(Modifier.height(8.dp))
             Text(
-                "This build intentionally does not fabricate meetups, cities, reliability, BUMP history or activity metrics. The screen becomes active only when those values are backed by canonical server data.",
+                stringResource(R.string.me_passport_v11_body),
                 color = LinkUpTextDimmed,
                 fontSize = 13.sp,
             )
@@ -210,23 +222,23 @@ private fun FrozenSettingsTab(
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         item {
-            FrozenSettingsSection("ACCOUNT") {
-                FrozenSettingRow("◉", "Edit profile", value = "@${user.username}", onClick = onEditProfile)
-                FrozenSettingRow("★", "My LinkUps", onClick = onMySlots)
-                FrozenSettingRow("◎", "Language", value = user.language.uppercase())
-                FrozenSettingRow("◌", "Profile visibility", value = user.profileVisibility)
+            FrozenSettingsSection(stringResource(R.string.me_section_account)) {
+                FrozenSettingRow("◉", stringResource(R.string.me_edit_profile), value = "@${user.username}", onClick = onEditProfile)
+                FrozenSettingRow("★", stringResource(R.string.me_my_links), onClick = onMySlots)
+                FrozenSettingRow("◎", stringResource(R.string.profile_language), value = user.language.uppercase())
+                FrozenSettingRow("◌", stringResource(R.string.profile_visibility), value = user.profileVisibility)
             }
         }
         item {
-            FrozenSettingsSection("BLOCKED PEOPLE") {
+            FrozenSettingsSection(stringResource(R.string.me_section_blocked)) {
                 Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text("Server block list", color = LinkUpTextDimmed, fontSize = 12.sp, modifier = Modifier.weight(1f))
-                    Text("Refresh", color = LinkUpRed, fontWeight = FontWeight.SemiBold, fontSize = 12.sp, modifier = Modifier.clickable(onClick = onRefreshBlocks))
+                    Text(stringResource(R.string.me_server_block_list), color = LinkUpTextDimmed, fontSize = 12.sp, modifier = Modifier.weight(1f))
+                    Text(stringResource(R.string.common_refresh), color = LinkUpRed, fontWeight = FontWeight.SemiBold, fontSize = 12.sp, modifier = Modifier.clickable(onClick = onRefreshBlocks))
                 }
                 when (blocked) {
-                    LoadState.Idle -> Text("Open Settings to load the block list.", color = LinkUpTextMuted, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp))
+                    LoadState.Idle -> Text(stringResource(R.string.me_block_list_idle), color = LinkUpTextMuted, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp))
                     LoadState.Loading -> Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = LinkUpRed, modifier = Modifier.size(24.dp)) }
-                    LoadState.Empty -> Text("No blocked accounts.", color = LinkUpTextMuted, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp))
+                    LoadState.Empty -> Text(stringResource(R.string.me_no_blocked_accounts), color = LinkUpTextMuted, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp))
                     is LoadState.Failure -> Text(blocked.error.message, color = LinkUpWarning, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp))
                     is LoadState.Content -> blocked.value.forEach { item -> FrozenBlockedUserRow(item, onUnblock) }
                 }
@@ -234,27 +246,27 @@ private fun FrozenSettingsTab(
             }
         }
         item {
-            FrozenSettingsSection("LEGAL & APP") {
+            FrozenSettingsSection(stringResource(R.string.me_section_legal_app)) {
                 FrozenSettingRow(
                     icon = "◈",
-                    label = "Privacy Policy",
-                    value = if (privacyConfigured) null else "Not configured",
+                    label = stringResource(R.string.me_privacy_policy),
+                    value = if (privacyConfigured) null else stringResource(R.string.me_not_configured),
                     enabled = privacyConfigured,
                     onClick = if (privacyConfigured) ({ uriHandler.openUri(privacyUrl) }) else null,
                 )
                 FrozenSettingRow(
                     icon = "▤",
-                    label = "Terms of Service",
-                    value = if (termsConfigured) null else "Not configured",
+                    label = stringResource(R.string.me_terms_of_service),
+                    value = if (termsConfigured) null else stringResource(R.string.me_not_configured),
                     enabled = termsConfigured,
                     onClick = if (termsConfigured) ({ uriHandler.openUri(termsUrl) }) else null,
                 )
-                FrozenSettingRow("◇", "Version", value = BuildConfig.VERSION_NAME)
+                FrozenSettingRow("◇", stringResource(R.string.me_version_label), value = BuildConfig.VERSION_NAME)
             }
         }
         item {
-            FrozenSettingsSection("SESSION") {
-                FrozenSettingRow("↪", "Log out", danger = true, onClick = onLogout)
+            FrozenSettingsSection(stringResource(R.string.me_section_session)) {
+                FrozenSettingRow("↪", stringResource(R.string.common_logout), danger = true, onClick = onLogout)
             }
         }
     }
@@ -310,6 +322,6 @@ private fun FrozenBlockedUserRow(item: BlockedUser, onUnblock: (String) -> Unit)
             Text(item.displayName, color = LinkUpTextPrimary, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
             Text("@${item.username}", color = LinkUpTextMuted, fontSize = 11.sp)
         }
-        Text("Unblock", color = LinkUpRed, fontWeight = FontWeight.SemiBold, fontSize = 12.sp, modifier = Modifier.clickable { onUnblock(item.id) })
+        Text(stringResource(R.string.common_unblock), color = LinkUpRed, fontWeight = FontWeight.SemiBold, fontSize = 12.sp, modifier = Modifier.clickable { onUnblock(item.id) })
     }
 }

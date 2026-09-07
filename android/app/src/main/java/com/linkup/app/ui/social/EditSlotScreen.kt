@@ -1,5 +1,6 @@
 package com.linkup.app.ui.social
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -53,6 +54,7 @@ fun EditSlotScreen(
     var capacity by remember(slot.id, slot.version) { mutableIntStateOf(slot.capacity) }
     var startAt by rememberSaveable(slot.id, slot.version) { mutableStateOf(slot.startAtEpochMillis) }
     val closeDescription = stringResource(R.string.a11y_close)
+    BackHandler(enabled = !submitting) { onClose() }
 
     Column(Modifier.fillMaxSize()) {
         Row(

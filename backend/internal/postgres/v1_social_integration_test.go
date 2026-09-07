@@ -48,7 +48,7 @@ func TestV1SocialCorePostgresIntegration(t *testing.T) {
 	if err := migrate.Apply(ctx, pool, migrationDir(t)); err != nil {
 		t.Fatalf("apply canonical migrations: %v", err)
 	}
-	assertMigrationCount(t, ctx, pool, 7)
+	assertMigrationCount(t, ctx, pool, 11)
 
 	accountService, err := account.NewService(NewAccountStore(pool), password.OWASPMinimum(), time.Hour)
 	if err != nil {

@@ -1,5 +1,6 @@
 package com.linkup.app.ui.social
 
+import androidx.activity.compose.BackHandler
 import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -81,6 +82,9 @@ fun CreateLinkScreen(
     var capacity by remember { mutableIntStateOf(6) }
     var startAt by rememberSaveable { mutableStateOf<Long?>(null) }
     val closeDescription = stringResource(R.string.a11y_close)
+    BackHandler(enabled = !submitting) {
+        if (step > 1) step -= 1 else onClose()
+    }
 
     val canNext = when (step) {
         1 -> activity != null && title.trim().isNotEmpty()

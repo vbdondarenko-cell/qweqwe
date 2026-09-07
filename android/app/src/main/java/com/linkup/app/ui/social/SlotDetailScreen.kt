@@ -1,5 +1,6 @@
 package com.linkup.app.ui.social
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -73,6 +74,7 @@ fun SlotDetailScreen(
     onBlockUser: (SlotOrganizer) -> Unit,
 ) {
     val backDescription = stringResource(R.string.a11y_back)
+    BackHandler(onBack = onBack)
     Column(Modifier.fillMaxSize()) {
         Row(
             Modifier.fillMaxWidth().border(1.dp, LinkUpBorder).padding(horizontal = 14.dp, vertical = 10.dp),
@@ -126,9 +128,13 @@ fun SlotDetailScreen(
                     MutationError(mutation)
 
                     when (slot.viewerState) {
-                        SlotViewerState.NONE -> ActionButton(stringResource(R.string.slot_request_to_join), LinkUpWarning, mutation !is MutationState.Running) { onRequest(slot.id) }
-                        SlotViewerState.PENDING -> ActionButton(stringResource(R.string.slot_cancel_request), LinkUpWarning, mutation !is MutationState.Running) { onLeave(slot.id) }
-                        SlotViewerState.ACCEPTED -> {
+                        SlotViewerState.NONE -> if (slot.state in setOf(SlotState.PUBLISHED, SlotState.FILLING) && slot.acceptedCount < slot.capacity) {
+                            ActionButton(stringResource(R.string.slot_request_to_join), LinkUpWarning, mutation !is MutationState.Running) { onRequest(slot.id) }
+                        }
+                        SlotViewerState.PENDING -> if (slot.state !in setOf(SlotState.COMPLETED, SlotState.CANCELLED, SlotState.EXPIRED, SlotState.MODERATED, SlotState.ACTIVE)) {
+                            ActionButton(stringResource(R.string.slot_cancel_request), LinkUpWarning, mutation !is MutationState.Running) { onLeave(slot.id) }
+                        }
+                        SlotViewerState.ACCEPTED -> if (slot.state in setOf(SlotState.FILLING, SlotState.FULL, SlotState.ACTIVE)) {
                             ActionButton(stringResource(R.string.slot_open_chat), LinkUpRed, true) { onOpenChat(slot.id) }
                             ActionButton(stringResource(R.string.slot_leave_link), LinkUpWarning, mutation !is MutationState.Running) { onLeave(slot.id) }
                         }

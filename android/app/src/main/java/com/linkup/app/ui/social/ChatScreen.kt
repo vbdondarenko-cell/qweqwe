@@ -1,5 +1,6 @@
 package com.linkup.app.ui.social
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -61,6 +62,7 @@ fun ChatScreen(
     var sawRunning by remember { mutableStateOf(false) }
     val busy = mutation is MutationState.Running
     val backDescription = stringResource(R.string.a11y_back)
+    BackHandler(onBack = onBack)
 
     LaunchedEffect(mutation) {
         when (mutation) {

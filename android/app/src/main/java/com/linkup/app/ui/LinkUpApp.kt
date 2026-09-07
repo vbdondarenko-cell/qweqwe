@@ -56,6 +56,7 @@ import com.linkup.app.ui.design.FrozenMapScreen
 import com.linkup.app.ui.design.FrozenMeScreen
 import com.linkup.app.ui.design.FrozenFlyScreen
 import com.linkup.app.ui.design.FrozenPulseScreen
+import com.linkup.app.ui.design.canJoin
 import com.linkup.app.ui.me.EditProfileScreen
 import com.linkup.app.ui.me.MeScreen
 import com.linkup.app.ui.social.ChatPollingEffect
@@ -75,6 +76,7 @@ import com.linkup.app.ui.theme.LinkUpTextPrimary
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import java.util.Locale
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
@@ -87,7 +89,7 @@ fun LinkUpApp(
     sessions: SessionCoordinator,
     social: SocialCoordinator,
     resetToken: String? = null,
-    onResetTokenConsumed: () -> Unit = {},
+    onResetTokenConsumed: () -> Unit,
 ) {
     val sessionState by sessions.state.collectAsState()
     val scope = rememberCoroutineScope()
@@ -118,7 +120,7 @@ fun LinkUpApp(
                 onRegister = { email, username, displayName, password ->
                     scope.launch {
                         authBusy = true; authError = null; authInfo = null
-                        try { sessions.register(email, username, displayName, password, "uk", deviceLabel()) }
+                        try { sessions.register(email, username, displayName, password, defaultProfileLanguage(), deviceLabel()) }
                         catch (error: Exception) { authError = error.userMessage(genericError) }
                         finally { authBusy = false }
                     }
@@ -166,7 +168,7 @@ fun LinkUpApp(
                 onRegister = { email, username, displayName, password ->
                     scope.launch {
                         authBusy = true; authError = null; authInfo = null
-                        try { sessions.register(email, username, displayName, password, "uk", deviceLabel()) }
+                        try { sessions.register(email, username, displayName, password, defaultProfileLanguage(), deviceLabel()) }
                         catch (error: Exception) { authError = error.userMessage(genericError) }
                         finally { authBusy = false }
                     }
@@ -253,6 +255,7 @@ private fun SignedInRoot(
 
     fun handleDesignedPrimaryAction(slot: SlotModel) {
         if (slot.viewerState == SlotViewerState.NONE) {
+            if (!slot.canJoin()) return
             scope.launch {
                 if (social.requestSlot(slot.id)) detailOpen = true
             }
@@ -515,6 +518,8 @@ private fun CapabilitySurface(title: String, message: String) {
         Text(message, color = LinkUpTextDimmed, fontSize = 13.sp, modifier = Modifier.padding(top = 8.dp))
     }
 }
+
+private fun defaultProfileLanguage(): String = if (Locale.getDefault().language.equals("uk", ignoreCase = true)) "uk" else "en"
 
 private fun sessionExpiryLabel(epochMillis: Long): String = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")
     .withZone(ZoneId.systemDefault())

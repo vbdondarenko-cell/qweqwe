@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="filter_tonight">Сьогодні ввечері</string>
+    <string name="filter_tomorrow">Завтра</string>
+    <string name="pulse_live_data">Живі дані</string>
+    <string name="pulse_happening_now">ВІДБУВАЄТЬСЯ ЗАРАЗ</string>
+    <string name="pulse_not_loaded">Pulse ще не завантажено.</string>
+    <string name="slot_join_now">Приєднатися</string>
+    <string name="slot_closed">Закрито</string>
+
+    <string name="me_tab_profile">Профіль</string>
+    <string name="me_tab_passport">Паспорт</string>
+    <string name="me_tab_settings">Налаштування</string>
+    <string name="me_my_links_subtitle">Організовую · Приєднався · Запити</string>
+    <string name="me_profile_v1_label">Профіль v1.0</string>
+    <string name="me_profile_v11_body">Надійність, BUMP Vault, Social Passport і метрики історії міст приховані, доки їх не підтримуватиме канонічний серверний функціонал v1.1.</string>
+    <string name="me_social_passport">Social Passport</string>
+    <string name="me_planned_v11">Заплановано для LinkUp v1.1</string>
+    <string name="me_passport_v11_body">Ця збірка не вигадує зустрічі, міста, надійність, історію BUMP або метрики активності. Цей розділ стане активним лише тоді, коли ці значення будуть підтверджені канонічними серверними даними.</string>
+    <string name="me_section_account">АКАУНТ</string>
+    <string name="me_section_blocked">ЗАБЛОКОВАНІ КОРИСТУВАЧІ</string>
+    <string name="me_section_legal_app">ЮРИДИЧНЕ ТА ЗАСТОСУНОК</string>
+    <string name="me_section_session">СЕСІЯ</string>
+    <string name="me_server_block_list">Серверний список блокувань</string>
+    <string name="me_not_configured">Не налаштовано</string>
+    <string name="me_version_label">Версія</string>
+
+    <string name="map_title">Map</string>
+    <string name="map_subtitle">Пошук із урахуванням локації</string>
+    <string name="map_v11_label">MAP · v1.1</string>
+    <string name="map_v11_body">Реальна Map потребує канонічних ідентифікаторів місць, серверних viewport-запитів, privacy-safe координат і кластеризації. У v1.0 є лише текст місця/зони, тому ця збірка не вигадує мап-піни чи локації користувачів.</string>
+    <string name="map_use_pulse">Для поточного server-backed пошуку використовуйте Pulse.</string>
+    <string name="fly_title">Fly Now</string>
+    <string name="fly_subtitle">Пошук за рухом і близькістю</string>
+    <string name="fly_v11_label">FLY · v1.1</string>
+    <string name="fly_v11_body">Fly Now/Travel/Motion потребує server-time TTL, proximity/motion buckets, безпеки driver/passenger та privacy guardrails. У v1.0 таких серверних authority немає, тому Join/Pass тут не імітуються.</string>
+    <string name="fly_use_pulse">Реальні дії приєднання/запиту зараз доступні в Pulse.</string>
+    <string name="open_pulse">Відкрити Pulse</string>
+    <string name="nav_create">Створити</string>
+</resources>

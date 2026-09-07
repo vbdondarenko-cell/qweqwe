@@ -4,7 +4,6 @@ data class FrozenOrganizer(
     val name: String,
     val initials: String,
     val color: Long,
-    val reliability: Int,
 )
 
 data class FrozenSlot(

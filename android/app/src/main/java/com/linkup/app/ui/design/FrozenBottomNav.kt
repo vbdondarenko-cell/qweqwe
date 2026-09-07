@@ -23,6 +23,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.res.stringResource
+import com.linkup.app.R
 import com.linkup.app.ui.theme.LinkUpBorder
 import com.linkup.app.ui.theme.LinkUpElevated
 import com.linkup.app.ui.theme.LinkUpRed
@@ -44,11 +46,11 @@ fun FrozenBottomNav(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.Bottom,
         ) {
-            FrozenNavItem(FrozenMainTab.PULSE, "Pulse", FrozenIconKind.PULSE, selected, onSelect, Modifier.weight(1f))
-            FrozenNavItem(FrozenMainTab.MAP, "Map", FrozenIconKind.MAP, selected, onSelect, Modifier.weight(1f))
+            FrozenNavItem(FrozenMainTab.PULSE, stringResource(R.string.nav_pulse), FrozenIconKind.PULSE, selected, onSelect, Modifier.weight(1f))
+            FrozenNavItem(FrozenMainTab.MAP, stringResource(R.string.nav_map), FrozenIconKind.MAP, selected, onSelect, Modifier.weight(1f))
             Box(Modifier.weight(1f).height(60.dp))
-            FrozenNavItem(FrozenMainTab.FLY, "Fly", FrozenIconKind.FLY, selected, onSelect, Modifier.weight(1f))
-            FrozenNavItem(FrozenMainTab.ME, "Me", FrozenIconKind.ME, selected, onSelect, Modifier.weight(1f))
+            FrozenNavItem(FrozenMainTab.FLY, stringResource(R.string.nav_fly), FrozenIconKind.FLY, selected, onSelect, Modifier.weight(1f))
+            FrozenNavItem(FrozenMainTab.ME, stringResource(R.string.nav_me), FrozenIconKind.ME, selected, onSelect, Modifier.weight(1f))
         }
         Column(
             modifier = Modifier.offset(y = (-14).dp).clickable { onSelect(FrozenMainTab.CREATE) },
@@ -60,7 +62,7 @@ fun FrozenBottomNav(
             ) {
                 Text("LINK", color = Color.White, fontFamily = LinkUpDesign.displayFont, fontSize = 14.sp, fontWeight = FontWeight.Black)
             }
-            Text("Create", color = LinkUpTextMuted, fontFamily = LinkUpDesign.bodyFont, fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
+            Text(stringResource(R.string.nav_create), color = LinkUpTextMuted, fontFamily = LinkUpDesign.bodyFont, fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
         }
     }
 }
