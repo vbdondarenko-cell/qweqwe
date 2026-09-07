@@ -48,7 +48,9 @@ yes | sdkmanager --licenses >/dev/null
 license_status="${PIPESTATUS[1]}"
 set -o pipefail
 test "$license_status" -eq 0
-sdkmanager 'platform-tools' 'platforms;android-37' 'build-tools;36.0.0'
+android --sdk="$ANDROID_HOME" sdk install platform-tools
+android --sdk="$ANDROID_HOME" sdk install platforms/android-37.0
+android --sdk="$ANDROID_HOME" sdk install build-tools/37.0.0
 
 sudo install -d -o ubuntu -g ubuntu -m 0755 "$ROOT" "$ROOT/bin" "$ROOT/artifacts"
 if [ -d "$SRC/.git" ]; then
@@ -70,5 +72,5 @@ sudo systemctl daemon-reload
 
 java -version
 go version
-"$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --version
+android --sdk="$ANDROID_HOME" --version
 git -C "$SRC" rev-parse HEAD
