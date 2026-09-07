@@ -17,7 +17,7 @@
 - **Render.com НЕ ВИКОРИСТОВУЄТЬСЯ.** Заборонено додавати Render-specific hosting, deployment configuration, URLs, documentation assumptions або runtime dependencies.
 - **Google Cloud compute/build/deployment infrastructure НЕ ВИКОРИСТОВУЄТЬСЯ.** Заборонені Cloud Run, Cloud Deploy, Cloud Build, Artifact Registry, Google Cloud Logging/Monitoring, Secret Manager, Pub/Sub та інші GCP services як canonical LinkUp infrastructure, якщо користувач прямо не змінить це рішення пізніше. Firebase залишається дозволеним окремим platform service layer відповідно до правил нижче.
 - **Canonical infrastructure stack: GitHub + Supabase + Firebase + окремий Ubuntu server.** GitHub є source-control authority; Supabase project `oavnrlwsfiiehluubwjk` є managed PostgreSQL/PostGIS infrastructure; Firebase дозволений для явно інтегрованих mobile/platform capabilities; окремий Ubuntu server є цільовим runtime/deployment environment для Go API після прямої команди користувача на deployment.
-- **Supabase project `oavnrlwsfiiehluubwjk` є поточною managed PostgreSQL/PostGIS infrastructure для LinkUp.** Go API залишається єдиним application-facing authority для domain/auth/data flow; Supabase Auth/Data API/Realtime/Storage не є product authority або обов'язковою dependency `1.0.0`, якщо користувач прямо не змінить це пізніше. `service_role`, database credentials та інші server secrets ніколи не потрапляють у Android/iOS клієнти або Git history.
+- **Supabase project `oavnrlwsfiiehluubwjk` є поточною managed PostgreSQL/PostGIS infrastructure для LinkUp.** Go API залишається єдиним application-facing authority для domain/auth/data flow; Supabase Auth/Data API/Realtime/Storage не є product authority або обов'язковою dependency `v1.0`, якщо користувач прямо не змінить це пізніше. `service_role`, database credentials та інші server secrets ніколи не потрапляють у Android/iOS клієнти або Git history.
 - **До окремої прямої команди користувача на deployment робота виконується тільки в GitHub-репозиторії.** Не підключатися до Ubuntu server, не копіювати туди код і не виконувати deploy/runtime changes завчасно.
 
 ## RULE 1 — EVERYTHING IN THE REPOSITORY MUST EXIST IN ITS TARGET RELEASE
@@ -105,13 +105,14 @@
 
 ## RULE 6 — ALWAYS REPORT PRODUCTION READINESS
 
-У кожному підсумковому статусі роботи по LinkUp потрібно вказувати **готовність активного Android + Go target до production від 0% до 100%**.
+У кожному підсумковому статусі роботи по LinkUp потрібно вказувати **готовність поточного активного Android + Go release target до production від 0% до 100%**.
 
-- **0%** — фактично немає робочого active Android/Go scope.
-- **100%** — весь активний Android/Go scope Version 1 реалізований, перевірений і реально готовий до production-релізу на Android із production Go backend.
+- **0%** — фактично немає робочого active release scope.
+- **100%** — весь scope поточного активного release (`v1.0`, а після його завершення `v1.1`, потім `v1.2`) реалізований, перевірений і реально готовий до production-релізу на Android із production Go backend.
 - Відсоток не можна штучно підвищувати за документацію, scaffolding або декоративний UI; він зростає тільки за реально інтегровані та перевірені production capabilities.
+- **Майбутні release scopes `v1.1`/`v1.2` не знижують readiness активного `v1.0`, доки вони не активовані відповідно до README release train.**
+- Після переходу на наступний release readiness оцінюється для його повного active Android/Go scope разом із regression-вимогами попередніх releases.
 - **iOS readiness, parity, build або tests не враховуються в поточний readiness і не знижують його, доки iOS frozen.**
-- Ще не завершені Android/Go capability-блоки README знижують readiness єдиної Version 1 пропорційно їхньому реальному production scope; readiness не можна рахувати лише за social foundation.
 
 ## RULE 7 — ALL DEVELOPMENT GOES DIRECTLY TO MAIN
 
@@ -123,19 +124,23 @@
 - Окрему гілку або Pull Request дозволено створити **лише якщо користувач прямо попросив про це в поточному завданні**.
 - Якщо інструмент або workflow за замовчуванням пропонує працювати через окрему гілку, це правило має пріоритет: використовувати `main`, якщо користувач явно не наказав інакше.
 
-## RULE 8 — ONE PRODUCT VERSION; DELIVER BY DEPENDENCY-SAFE CAPABILITY BLOCKS
+## RULE 8 — RELEASE TRAIN v1.0 → v1.1 → v1.2; DELIVER BY DEPENDENCY-SAFE BLOCKS
 
-Активна і єдина product version зараз: **LinkUp Version 1 (`1.0.0`)**.
+Поточний активний product release: **LinkUp v1.0**.
 
-- Увесь product scope, описаний у поточному `README.md`, залишається частиною **Version 1**; однак platform implementation зараз gated цими правилами: Android + Go активні, iOS frozen.
-- Історичні semver-заголовки `1.0.0` → `2.12.0` у `README.md` зберігаються тільки як стабільні traceability IDs для capability-блоків; вони більше не означають окремі product releases.
-- Вже реалізований social baseline не видаляється й залишається фундаментом Version 1: account → profile → PUBLIC + APPROVAL Slot → Pulse → REQUEST → APPROVE/REJECT → accepted-only temporary chat → START/COMPLETE або CANCEL → terminal chat purge → safety/privacy.
-- Existing Instant access engine, realtime, City Context, outbox, locality та інші foundations зберігаються й розвиваються до повного scope Version 1.
-- Об'єднання scope не дозволяє декоративні заглушки, fake/mock production flows або передчасне оголошення Version 1 готовою.
-- Реалізація виконується dependency-safe capability-блоками у порядку, визначеному `README.md`, але тільки для активного Android/Go scope.
+Canonical README визначає три послідовні Version 1 releases: **v1.0 → v1.1 → v1.2**.
+
+- Кожний release має власний scope і Definition of Done у `README.md`.
+- **v1.0 не блокується незавершеним scope v1.1 або v1.2.**
+- **v1.1 активується тільки після green v1.0 foundation; v1.2 — тільки після green v1.1 foundation**, якщо користувач прямо не змінить порядок.
+- Capability, реалізована раніше свого release, не видаляється; вона просто проходить повний regression/DoD у своєму release gate.
+- Вже реалізований social baseline не видаляється й залишається фундаментом: account → profile → PUBLIC + APPROVAL Slot → Pulse → REQUEST → APPROVE/REJECT → accepted-only temporary chat → START/COMPLETE або CANCEL → terminal chat purge → safety/privacy.
+- Existing Instant access engine та інші canonical domain foundations не видаляються тільки через те, що їх user-facing surface належить пізнішому release.
+- Release train не дозволяє decorative stubs, fake/mock production flows або передчасне оголошення release готовим.
+- Реалізація виконується dependency-safe capability-блоками у порядку, визначеному `README.md`, тільки для активного Android/Go scope.
 - Кожний завершений блок має бути інтегрований і перевірений на Android та backend у межах заявленої поведінки.
-- **iOS implementation/parity не виконується і не є gate для поточного Version 1 readiness, доки користувач прямо не розблокує iOS.**
-- Version 1 Android target стає production-ready тільки після реалізації та перевірки всього активного Android/Go README scope; частково завершені capability-блоки відображаються у звітах і readiness, але не створюють нових product version numbers.
+- **iOS implementation/parity не виконується і не є gate для v1.0/v1.1/v1.2 Android readiness, доки користувач прямо не розблокує iOS.**
+- Новий product release number поза `v1.0/v1.1/v1.2` не додається без прямої команди користувача.
 
 ## RULE 9 — PRESERVE EXISTING PRODUCT SCOPE
 
@@ -205,4 +210,4 @@ Canonical infrastructure LinkUp обмежується **GitHub + Supabase + Fir
 7. Працює на всіх **активних** для цього scope цільових платформах; до окремого розблокування єдиною активною mobile platform є Android.
 8. Не змінює затверджений дизайн без прямої команди користувача.
 9. Відображений у звіті «Я зробив / Треба ще».
-10. Відповідає Definition of Done відповідної capability в `README.md`, крім iOS-specific gates, які frozen цими правилами до прямої команди користувача.
+10. Відповідає Definition of Done відповідного active release/capability block у `README.md`, крім iOS-specific gates, які frozen цими правилами до прямої команди користувача.
