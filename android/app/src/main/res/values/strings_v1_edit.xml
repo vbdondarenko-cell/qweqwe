@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="edit_server_version_format">Server version %1$d</string>
+    <string name="edit_capacity_floor_format">Capacity cannot be lower than %1$d accepted participants.</string>
+</resources>
