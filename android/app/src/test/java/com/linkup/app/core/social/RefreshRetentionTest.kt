@@ -22,7 +22,7 @@ import kotlinx.coroutines.runBlocking
 
 class RefreshRetentionTest {
     @Test
-    fun transientPulseFailureKeepsCachedContent() = runBlocking {
+    fun transientPulseFailureKeepsCachedContent(): Unit = runBlocking {
         val api = RefreshApi()
         val coordinator = SocialCoordinator(api)
         api.pulseItems = listOf(slot())
@@ -38,7 +38,7 @@ class RefreshRetentionTest {
     }
 
     @Test
-    fun definitiveChatRevocationDropsCachedThread() = runBlocking {
+    fun definitiveChatRevocationDropsCachedThread(): Unit = runBlocking {
         val api = RefreshApi().apply { messages = listOf(message()) }
         val coordinator = SocialCoordinator(api)
         coordinator.refreshChat("slot-1")
@@ -50,7 +50,7 @@ class RefreshRetentionTest {
     }
 
     @Test
-    fun transientChatFailureKeepsCachedThread() = runBlocking {
+    fun transientChatFailureKeepsCachedThread(): Unit = runBlocking {
         val api = RefreshApi().apply { messages = listOf(message()) }
         val coordinator = SocialCoordinator(api)
         coordinator.refreshChat("slot-1")
