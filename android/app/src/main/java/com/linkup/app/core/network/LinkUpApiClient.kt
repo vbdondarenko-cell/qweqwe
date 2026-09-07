@@ -1,20 +1,49 @@
 package com.linkup.app.core.network
 
 import com.linkup.app.core.session.SecureSessionStore
+import java.io.ByteArrayOutputStream
+import java.io.IOException
+import java.io.InputStream
 import java.net.HttpURLConnection
 import java.net.URL
 import java.time.Instant
 import java.util.UUID
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import org.json.JSONObject
 import org.json.JSONException
+import org.json.JSONObject
+
+internal const val MAX_API_RESPONSE_BYTES = 1024 * 1024
+
+internal class ResponseTooLargeException : IOException("API response exceeds client limit")
+
+internal fun readUtf8Bounded(input: InputStream, maxBytes: Int = MAX_API_RESPONSE_BYTES): String {
+    require(maxBytes > 0)
+    val output = ByteArrayOutputStream(minOf(maxBytes, 8192))
+    val buffer = ByteArray(8192)
+    var total = 0
+    while (true) {
+        val read = input.read(buffer)
+        if (read < 0) break
+        total += read
+        if (total > maxBytes) throw ResponseTooLargeException()
+        output.write(buffer, 0, read)
+    }
+    return output.toString(Charsets.UTF_8.name())
+}
 
 class LinkUpApiClient(
     baseUrl: String,
     private val sessions: SecureSessionStore,
 ) : SocialApi {
     private val root = validatedApiRoot(baseUrl)
+
+    @Volatile
+    private var unauthorizedHandler: (() -> Unit)? = null
+
+    fun setUnauthorizedHandler(handler: (() -> Unit)?) {
+        unauthorizedHandler = handler
+    }
 
     suspend fun register(
         email: String,
@@ -311,11 +340,19 @@ class LinkUpApiClient(
 
             val status = connection.responseCode
             if (status == HttpURLConnection.HTTP_NO_CONTENT) return@withContext null
-            val stream = if (status in 200..299) connection.inputStream else connection.errorStream
-            val text = stream?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }.orEmpty()
             val requestId = connection.getHeaderField("X-Request-ID")
+            val stream = if (status in 200..299) connection.inputStream else connection.errorStream
+            val text = try {
+                stream?.use { readUtf8Bounded(it) }.orEmpty()
+            } catch (_: ResponseTooLargeException) {
+                throw ApiException(status, "response_too_large", "Server response exceeded the client safety limit", requestId)
+            }
             val json = try { JSONObject(text) } catch (_: JSONException) { null }
             if (status !in 200..299) {
+                if (authenticated && status == HttpURLConnection.HTTP_UNAUTHORIZED) {
+                    sessions.clear()
+                    unauthorizedHandler?.invoke()
+                }
                 // Proxies may return HTML or empty errors, including 401. Preserve
                 // HTTP status so session recovery does not depend on JSON validity.
                 throw ApiException(
