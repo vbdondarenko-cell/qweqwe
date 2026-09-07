@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Text
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -36,13 +37,13 @@ class MainActivity : ComponentActivity() {
                         verticalArrangement = Arrangement.Center,
                         horizontalAlignment = Alignment.CenterHorizontally,
                     ) {
-                        Text("LinkUp configuration required", color = LinkUpTextPrimary, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                        Text(stringResource(R.string.config_required_title), color = LinkUpTextPrimary, fontSize = 20.sp, fontWeight = FontWeight.Bold)
                         Text(
-                            "Release builds require the LINKUP_API_BASE_URL Gradle property. No fallback production endpoint is hardcoded.",
+                            stringResource(R.string.config_required_body),
                             color = LinkUpTextDimmed,
                             modifier = Modifier.padding(top = 10.dp),
                         )
-                        Text("Fail-closed", color = LinkUpRed, modifier = Modifier.padding(top = 10.dp), fontWeight = FontWeight.Bold)
+                        Text(stringResource(R.string.config_fail_closed), color = LinkUpRed, modifier = Modifier.padding(top = 10.dp), fontWeight = FontWeight.Bold)
                     }
                 }
             }
