@@ -14,6 +14,12 @@ extension LinkUpAPI {
         guard body.expectedVersion > 0 else {
             throw APIError.protocolViolation("expectedVersion must be positive.")
         }
+        guard body.canonicalPlaceId == nil || !body.clearCanonicalPlaceId else {
+            throw APIError.protocolViolation("canonicalPlaceId cannot be set and cleared together.")
+        }
+        guard body.startAt == nil || !body.clearStartAt else {
+            throw APIError.protocolViolation("startAt cannot be set and cleared together.")
+        }
         return try await client.send(APIRequest(
             method: .patch,
             path: "/v1/slots/\(uuidPath(slotID))",

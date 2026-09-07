@@ -1,15 +1,22 @@
 import SwiftUI
 
+@MainActor
 struct MeView: View {
     let user: UserProfile
+    let api: LinkUpAPI
+    let social: SocialCoordinator
+
     @ObservedObject var session: SessionCoordinator
     @StateObject private var coordinator: MeCoordinator
 
     @State private var tab = "Profile"
+    @State private var showingMyLinks = false
 
-    init(user: UserProfile, api: LinkUpAPI, session: SessionCoordinator) {
+    init(user: UserProfile, api: LinkUpAPI, session: SessionCoordinator, social: SocialCoordinator) {
         self.user = user
-        self.session = session
+        self.api = api
+        self.social = social
+        _session = ObservedObject(wrappedValue: session)
         _coordinator = StateObject(wrappedValue: MeCoordinator(api: api, session: session))
     }
 
@@ -35,6 +42,11 @@ struct MeView: View {
             if coordinator.phase == .idle { await coordinator.load() }
         }
         .onDisappear { coordinator.dispose() }
+        .sheet(isPresented: $showingMyLinks, onDismiss: {
+            Task { await coordinator.load() }
+        }) {
+            MySlotsDashboardView(api: api, session: session, social: social)
+        }
     }
 
     private var header: some View {
@@ -101,6 +113,19 @@ struct MeView: View {
                         linkMetric("Joined", coordinator.joined.count)
                         linkMetric("Requests", coordinator.requested.count)
                     }
+                    Button {
+                        showingMyLinks = true
+                    } label: {
+                        HStack {
+                            Text("Open dashboard")
+                            Spacer()
+                            Image(systemName: "chevron.right")
+                        }
+                        .font(LinkUpTypography.body(12, weight: .semibold))
+                        .foregroundStyle(LinkUpPalette.red)
+                        .padding(.top, 4)
+                    }
+                    .buttonStyle(.plain)
                 }
                 .foregroundStyle(LinkUpPalette.textPrimary)
             }

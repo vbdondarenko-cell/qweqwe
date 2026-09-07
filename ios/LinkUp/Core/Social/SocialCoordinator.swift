@@ -68,12 +68,53 @@ final class SocialCoordinator: ObservableObject {
         }
     }
 
+    func edit(_ slot: SlotModel, body: EditSlotBody) async throws -> SlotModel? {
+        try await performMutation {
+            let updated = try await api.editSlot(slot.id, body: body)
+            reconcile(updated)
+            return updated
+        }
+    }
+
     func request(_ slot: SlotModel) async throws -> SlotModel? {
         try await performMutation { let updated = try await api.requestSlot(slot.id); reconcile(updated); return updated }
     }
 
     func leave(_ slot: SlotModel) async throws -> SlotModel? {
         try await performMutation { let updated = try await api.leaveSlot(slot.id); reconcile(updated); return updated }
+    }
+
+    func approve(_ slot: SlotModel, userID: UUID) async throws -> SlotModel? {
+        try await performMutation {
+            let updated = try await api.approveRequest(slot.id, userID: userID)
+            reconcile(updated)
+            return updated
+        }
+    }
+
+    func reject(_ slot: SlotModel, userID: UUID) async throws -> SlotModel? {
+        try await performMutation {
+            let updated = try await api.rejectRequest(slot.id, userID: userID)
+            reconcile(updated)
+            return updated
+        }
+    }
+
+    func removeParticipant(_ slot: SlotModel, userID: UUID) async throws -> SlotModel? {
+        try await performMutation {
+            let updated = try await api.removeParticipant(slot.id, userID: userID, expectedVersion: slot.version)
+            reconcile(updated)
+            return updated
+        }
+    }
+
+    func block(_ slot: SlotModel, userID: UUID) async throws -> SlotModel? {
+        try await performMutation {
+            try await api.blockUser(userID)
+            let updated = try await api.slot(slot.id)
+            reconcile(updated)
+            return updated
+        }
     }
 
     func cancel(_ slot: SlotModel) async throws -> SlotModel? {

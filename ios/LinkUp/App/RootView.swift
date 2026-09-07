@@ -131,7 +131,7 @@ private struct MainShellView: View {
         case .fly:
             FlyView()
         case .me:
-            MeView(user: user, api: services.api, session: services.session)
+            MeView(user: user, api: services.api, session: services.session, social: social)
         }
     }
 }

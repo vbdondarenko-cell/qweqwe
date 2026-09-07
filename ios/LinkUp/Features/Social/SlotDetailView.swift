@@ -1,5 +1,6 @@
 import SwiftUI
 
+@MainActor
 struct SlotDetailView: View {
     @Environment(\.dismiss) private var dismiss
 
@@ -10,6 +11,8 @@ struct SlotDetailView: View {
     @State private var slot: SlotModel
     @State private var loadError: String?
     @State private var showingChat = false
+    @State private var showingEdit = false
+    @State private var showingHostManagement = false
 
     init(slot: SlotModel, coordinator: SocialCoordinator, api: LinkUpAPI, session: SessionCoordinator) {
         self.coordinator = coordinator
@@ -45,6 +48,17 @@ struct SlotDetailView: View {
             .sheet(isPresented: $showingChat) {
                 ChatView(slot: slot, api: api, session: session)
             }
+            .sheet(isPresented: $showingEdit) {
+                EditSlotView(slot: $slot, social: coordinator)
+            }
+            .sheet(isPresented: $showingHostManagement) {
+                HostManagementView(
+                    slot: $slot,
+                    social: coordinator,
+                    api: api,
+                    session: session
+                )
+            }
         }
         .preferredColorScheme(.dark)
     }
@@ -79,13 +93,9 @@ struct SlotDetailView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
         if let startAt = slot.startAt {
-            Label {
-                Text(startAt.formatted(date: .abbreviated, time: .shortened))
-            } icon: {
-                Image(systemName: "calendar")
-            }
-            .font(LinkUpTypography.body(12))
-            .foregroundStyle(LinkUpPalette.textDimmed)
+            Label(startAt.formatted(date: .abbreviated, time: .shortened), systemImage: "calendar")
+                .font(LinkUpTypography.body(12))
+                .foregroundStyle(LinkUpPalette.textDimmed)
         }
         if slot.canonicalPlaceId != nil {
             Label("Verified place identity", systemImage: "checkmark.seal.fill")
@@ -159,6 +169,12 @@ struct SlotDetailView: View {
 
     @ViewBuilder private var hostControls: some View {
         if !slot.isTerminal {
+            LinkUpButton(title: "Edit LINK", variant: .secondary, disabled: coordinator.isMutating) {
+                showingEdit = true
+            }
+            LinkUpButton(title: "Manage participants", variant: .secondary, disabled: coordinator.isMutating) {
+                showingHostManagement = true
+            }
             LinkUpButton(title: "Open chat", variant: .secondary) { showingChat = true }
         }
         if slot.state == .filling || slot.state == .full {
@@ -196,7 +212,11 @@ struct SlotDetailView: View {
                 if let updated = try await operation(), updated.id == previousID {
                     slot = updated
                     loadError = nil
-                    if updated.isTerminal { showingChat = false }
+                    if updated.isTerminal {
+                        showingChat = false
+                        showingEdit = false
+                        showingHostManagement = false
+                    }
                 }
             } catch is CancellationError {
                 return
