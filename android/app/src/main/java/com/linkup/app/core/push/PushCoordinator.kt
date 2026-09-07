@@ -19,21 +19,9 @@ class PushCoordinator(
 
     suspend fun sync() {
         if (!configure()) return
-        val token = firebaseToken()
-        store.savePendingToken(token)
         api.registerAndroid(
             installationId = store.installationId(),
-            token = token,
-            appVersion = BuildConfig.VERSION_NAME,
-        )
-    }
-
-    suspend fun syncPendingToken() {
-        if (!configure()) return
-        val token = store.pendingToken() ?: return sync()
-        api.registerAndroid(
-            installationId = store.installationId(),
-            token = token,
+            token = firebaseToken(),
             appVersion = BuildConfig.VERSION_NAME,
         )
     }
