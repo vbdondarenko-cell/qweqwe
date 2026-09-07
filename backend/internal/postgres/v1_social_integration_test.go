@@ -241,6 +241,7 @@ func TestV1SocialCorePostgresIntegration(t *testing.T) {
 		if err := blockService.Block(ctx, host.User.ID, memberC.User.ID); err != nil {
 			t.Fatal(err)
 		}
+		defer func() { _ = blockService.Unblock(ctx, host.User.ID, memberC.User.ID) }()
 		if _, err := chatService.ListRecent(ctx, memberC.User.ID, blockSlot.ID, 100); !errors.Is(err, chat.ErrForbidden) {
 			t.Fatalf("blocked member retained chat access: %v", err)
 		}
