@@ -9,12 +9,21 @@ final class MapCoordinator: ObservableObject {
         case failed(String)
     }
 
+    enum PlaceSlotsPhase: Equatable {
+        case idle, loading, content, empty
+        case failed(String)
+    }
+
     @Published private(set) var clusters: [MapCluster] = []
     @Published private(set) var phase: Phase = .idle
+    @Published private(set) var placeSlots: [SlotModel] = []
+    @Published private(set) var placeSlotsPhase: PlaceSlotsPhase = .idle
 
     private let api: LinkUpAPI
     private let session: SessionCoordinator
     private var generation: UInt64 = 0
+    private var placeSlotsGeneration: UInt64 = 0
+    private var lastQuery: MapViewportQuery?
     private let horizon: TimeInterval = 24 * 60 * 60
 
     init(api: LinkUpAPI, session: SessionCoordinator) {
@@ -25,7 +34,10 @@ final class MapCoordinator: ObservableObject {
     func load(region: MKCoordinateRegion) async {
         guard let query = makeQuery(region: region) else { return }
         generation &+= 1
+        placeSlotsGeneration &+= 1
         let requestGeneration = generation
+        lastQuery = query
+        clearPlaceSlotsState()
         if clusters.isEmpty { phase = .loading }
 
         do {
@@ -48,10 +60,63 @@ final class MapCoordinator: ObservableObject {
         }
     }
 
+    func loadPlaceSlots(placeID: UUID) async {
+        guard let query = lastQuery else {
+            placeSlotsPhase = .failed("Map viewport is not ready.")
+            return
+        }
+
+        placeSlotsGeneration &+= 1
+        let requestGeneration = placeSlotsGeneration
+        placeSlots = []
+        placeSlotsPhase = .loading
+
+        do {
+            let items = try await api.mapPlaceSlots(
+                placeID: placeID,
+                from: query.from,
+                to: query.to,
+                limit: 50
+            )
+            guard requestGeneration == placeSlotsGeneration else { return }
+            placeSlots = items
+            placeSlotsPhase = items.isEmpty ? .empty : .content
+        } catch is CancellationError {
+            return
+        } catch let error as APIError {
+            guard requestGeneration == placeSlotsGeneration else { return }
+            if case .unauthorized = error {
+                await session.clearLocalSession()
+                return
+            }
+            placeSlotsPhase = .failed(error.localizedDescription)
+        } catch {
+            guard requestGeneration == placeSlotsGeneration else { return }
+            placeSlotsPhase = .failed("Unable to load LinkUps for this place.")
+        }
+    }
+
+    func refreshPlaceSlots(placeID: UUID) async {
+        await loadPlaceSlots(placeID: placeID)
+    }
+
+    func clearPlaceSlots() {
+        placeSlotsGeneration &+= 1
+        clearPlaceSlotsState()
+    }
+
     func dispose() {
         generation &+= 1
+        placeSlotsGeneration &+= 1
         clusters = []
         phase = .idle
+        lastQuery = nil
+        clearPlaceSlotsState()
+    }
+
+    private func clearPlaceSlotsState() {
+        placeSlots = []
+        placeSlotsPhase = .idle
     }
 
     private func makeQuery(region: MKCoordinateRegion) -> MapViewportQuery? {

@@ -4,16 +4,24 @@ import SwiftUI
 @MainActor
 struct MapView: View {
     @StateObject private var coordinator: MapCoordinator
+    @ObservedObject private var social: SocialCoordinator
     @State private var cameraPosition: MapCameraPosition
     @State private var currentRegion: MKCoordinateRegion
     @State private var selectedCluster: MapCluster?
+    @State private var showingPlaceSlots = false
+
+    private let api: LinkUpAPI
+    private let session: SessionCoordinator
 
     private static let initialRegion = MKCoordinateRegion(
         center: CLLocationCoordinate2D(latitude: 0, longitude: 0),
         span: MKCoordinateSpan(latitudeDelta: 120, longitudeDelta: 300)
     )
 
-    init(api: LinkUpAPI, session: SessionCoordinator) {
+    init(api: LinkUpAPI, session: SessionCoordinator, social: SocialCoordinator) {
+        self.api = api
+        self.session = session
+        _social = ObservedObject(wrappedValue: social)
         _coordinator = StateObject(wrappedValue: MapCoordinator(api: api, session: session))
         _cameraPosition = State(initialValue: .region(Self.initialRegion))
         _currentRegion = State(initialValue: Self.initialRegion)
@@ -35,6 +43,8 @@ struct MapView: View {
             .mapStyle(.standard)
             .onMapCameraChange(frequency: .onEnd) { context in
                 currentRegion = context.region
+                selectedCluster = nil
+                showingPlaceSlots = false
                 Task { await coordinator.load(region: context.region) }
             }
             .task {
@@ -92,11 +102,25 @@ struct MapView: View {
             }
         }
         .background(LinkUpPalette.background)
+        .sheet(isPresented: $showingPlaceSlots, onDismiss: {
+            coordinator.clearPlaceSlots()
+        }) {
+            if let cluster = selectedCluster, let placeID = cluster.placeId {
+                MapPlaceSlotsView(
+                    cluster: cluster,
+                    placeID: placeID,
+                    mapCoordinator: coordinator,
+                    social: social,
+                    api: api,
+                    session: session
+                )
+            }
+        }
     }
 
     private func clusterMarker(_ cluster: MapCluster) -> some View {
         Button {
-            selectedCluster = cluster
+            select(cluster)
         } label: {
             VStack(spacing: 2) {
                 ZStack {
@@ -125,6 +149,14 @@ struct MapView: View {
         .accessibilityLabel("\(cluster.slotCount) LinkUps in this map cluster")
     }
 
+    private func select(_ cluster: MapCluster) {
+        selectedCluster = cluster
+        coordinator.clearPlaceSlots()
+        guard let placeID = cluster.placeId else { return }
+        showingPlaceSlots = true
+        Task { await coordinator.loadPlaceSlots(placeID: placeID) }
+    }
+
     private var areaPill: some View {
         HStack(spacing: 8) {
             Circle().fill(LinkUpPalette.red).frame(width: 8, height: 8)
@@ -140,31 +172,56 @@ struct MapView: View {
     }
 
     private func selectedClusterPanel(_ cluster: MapCluster) -> some View {
-        HStack(spacing: 12) {
-            Image(systemName: cluster.placeId == nil ? "square.3.layers.3d" : "mappin.circle.fill")
-                .font(.system(size: 20))
-                .foregroundStyle(LinkUpPalette.red)
-                .frame(width: 40, height: 40)
-                .background(LinkUpPalette.red.opacity(0.12))
-                .clipShape(RoundedRectangle(cornerRadius: LinkUpRadius.control))
-            VStack(alignment: .leading, spacing: 3) {
-                Text(cluster.placeName ?? "Map cluster")
-                    .font(LinkUpTypography.display(14))
-                    .foregroundStyle(LinkUpPalette.textPrimary)
-                Text("\(cluster.slotCount) LinkUps · \(cluster.placeCount) places")
+        VStack(spacing: 10) {
+            HStack(spacing: 12) {
+                Image(systemName: cluster.placeId == nil ? "square.3.layers.3d" : "mappin.circle.fill")
+                    .font(.system(size: 20))
+                    .foregroundStyle(LinkUpPalette.red)
+                    .frame(width: 40, height: 40)
+                    .background(LinkUpPalette.red.opacity(0.12))
+                    .clipShape(RoundedRectangle(cornerRadius: LinkUpRadius.control))
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(cluster.placeName ?? "Map cluster")
+                        .font(LinkUpTypography.display(14))
+                        .foregroundStyle(LinkUpPalette.textPrimary)
+                    Text("\(cluster.slotCount) LinkUps · \(cluster.placeCount) places")
+                        .font(LinkUpTypography.body(11))
+                        .foregroundStyle(LinkUpPalette.textDimmed)
+                }
+                Spacer()
+                Button {
+                    selectedCluster = nil
+                    showingPlaceSlots = false
+                    coordinator.clearPlaceSlots()
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundStyle(LinkUpPalette.textMuted)
+                        .frame(width: 32, height: 32)
+                }
+                .buttonStyle(.plain)
+            }
+
+            if let placeID = cluster.placeId {
+                Button {
+                    showingPlaceSlots = true
+                    Task { await coordinator.loadPlaceSlots(placeID: placeID) }
+                } label: {
+                    HStack {
+                        Text("View LinkUps at this place")
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                    }
+                    .font(LinkUpTypography.body(12, weight: .semibold))
+                    .foregroundStyle(LinkUpPalette.red)
+                }
+                .buttonStyle(.plain)
+            } else {
+                Text("Zoom in to resolve this aggregate into a specific place.")
                     .font(LinkUpTypography.body(11))
-                    .foregroundStyle(LinkUpPalette.textDimmed)
-            }
-            Spacer()
-            Button {
-                selectedCluster = nil
-            } label: {
-                Image(systemName: "xmark")
-                    .font(.system(size: 12, weight: .bold))
                     .foregroundStyle(LinkUpPalette.textMuted)
-                    .frame(width: 32, height: 32)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .buttonStyle(.plain)
         }
         .padding(12)
         .background(.ultraThinMaterial)
@@ -219,5 +276,105 @@ struct MapView: View {
         mapControl(symbol)
             .opacity(0.55)
             .accessibilityHidden(true)
+    }
+}
+
+@MainActor
+private struct MapPlaceSlotsView: View {
+    @Environment(\.dismiss) private var dismiss
+
+    let cluster: MapCluster
+    let placeID: UUID
+    let api: LinkUpAPI
+    let session: SessionCoordinator
+
+    @ObservedObject var mapCoordinator: MapCoordinator
+    @ObservedObject var social: SocialCoordinator
+    @State private var selectedSlot: SlotModel?
+
+    var body: some View {
+        NavigationStack {
+            Group {
+                switch mapCoordinator.placeSlotsPhase {
+                case .idle, .loading:
+                    VStack(spacing: 12) {
+                        ProgressView().tint(LinkUpPalette.red)
+                        Text("Loading LinkUps…")
+                            .font(LinkUpTypography.body(12))
+                            .foregroundStyle(LinkUpPalette.textDimmed)
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                case .empty:
+                    LinkUpEmptyState(
+                        title: "No LinkUps here",
+                        message: "There are no server-authorized LinkUps for this place in the current map window.",
+                        systemImage: "mappin.slash"
+                    )
+                case .failed(let message):
+                    LinkUpErrorState(message: message) {
+                        Task { await mapCoordinator.refreshPlaceSlots(placeID: placeID) }
+                    }
+                    .padding(20)
+                case .content:
+                    ScrollView {
+                        LazyVStack(spacing: 12) {
+                            ForEach(mapCoordinator.placeSlots) { slot in
+                                SlotCardView(
+                                    slot: slot,
+                                    isMutating: social.isMutating,
+                                    open: { selectedSlot = slot },
+                                    primaryAction: { primaryAction(slot) }
+                                )
+                            }
+                        }
+                        .padding(16)
+                    }
+                    .scrollIndicators(.hidden)
+                    .refreshable {
+                        await mapCoordinator.refreshPlaceSlots(placeID: placeID)
+                    }
+                }
+            }
+            .background(LinkUpPalette.background.ignoresSafeArea())
+            .navigationTitle(cluster.placeName ?? "Place LinkUps")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Done") { dismiss() }
+                        .foregroundStyle(LinkUpPalette.red)
+                }
+            }
+            .sheet(item: $selectedSlot, onDismiss: {
+                Task { await mapCoordinator.refreshPlaceSlots(placeID: placeID) }
+            }) { slot in
+                SlotDetailView(
+                    slot: slot,
+                    coordinator: social,
+                    api: api,
+                    session: session
+                )
+            }
+        }
+        .preferredColorScheme(.dark)
+    }
+
+    private func primaryAction(_ slot: SlotModel) {
+        switch slot.viewerState {
+        case .none where slot.accessMode == .approval && slot.state == .filling:
+            Task {
+                do {
+                    _ = try await social.request(slot)
+                    await mapCoordinator.refreshPlaceSlots(placeID: placeID)
+                } catch is CancellationError {
+                    return
+                } catch {
+                    return
+                }
+            }
+        case .pending:
+            return
+        default:
+            selectedSlot = slot
+        }
     }
 }
