@@ -101,6 +101,7 @@ type EditInput struct {
 }
 
 type Store interface {
+	ListAccepted(ctx context.Context, actorID, slotID string) ([]Organizer, error)
 	ListMine(ctx context.Context, actorID, view string, limit int) ([]Slot, error)
 	Create(ctx context.Context, actorID string, candidate Slot, idempotencyKey string, requestHash []byte) (Slot, error)
 	Get(ctx context.Context, actorID, slotID string) (Slot, error)

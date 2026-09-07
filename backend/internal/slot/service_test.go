@@ -404,3 +404,27 @@ func TestListMineIncludesActiveRelationships(t *testing.T) {
     if _, err := svc.ListMine(context.Background(),"host","ALL_USERS"); !errors.Is(err,ErrInvalidInput) { t.Fatal("invalid scope accepted") }
     if _, err := svc.ListMine(context.Background(),"","HOSTING"); !errors.Is(err,ErrInvalidInput) { t.Fatal("empty actor accepted") }
 }
+
+func (m *memoryStore) ListAccepted(_ context.Context, actorID, slotID string) ([]Organizer, error) {
+    if m.created.ID != slotID || m.created.Organizer.ID != actorID { return nil, ErrNotFound }
+    switch m.created.State {
+    case StatePublished, StateFilling, StateFull, StateActive:
+    default: return nil, ErrNotFound
+    }
+    out := make([]Organizer, 0)
+    for id := range m.members { if id != actorID { out = append(out, Organizer{ID:id}) } }
+    return out, nil
+}
+
+func TestAcceptedRosterRequiresCurrentHost(t *testing.T) {
+    store := &memoryStore{created: Slot{ID:"slot", Organizer:Organizer{ID:"host"}, State:StateActive}, members:map[string]bool{"member":true}}
+    svc, _ := NewService(store)
+    items, err := svc.ListAccepted(context.Background(), "host", "slot")
+    if err != nil || len(items) != 1 || items[0].ID != "member" { t.Fatalf("items=%v err=%v", items, err) }
+    for _, actor := range []string{"member", "pending", "stranger"} {
+        if _, err := svc.ListAccepted(context.Background(), actor, "slot"); !errors.Is(err, ErrNotFound) { t.Fatalf("actor=%s err=%v", actor, err) }
+    }
+    store.created.State = StateCompleted
+    if _, err := svc.ListAccepted(context.Background(), "host", "slot"); !errors.Is(err, ErrNotFound) { t.Fatal("terminal roster exposed") }
+    if _, err := svc.ListAccepted(context.Background(), "", "slot"); !errors.Is(err, ErrInvalidInput) { t.Fatal("empty actor accepted") }
+}

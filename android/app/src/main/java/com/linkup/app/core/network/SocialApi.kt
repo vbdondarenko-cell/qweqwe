@@ -1,6 +1,7 @@
 package com.linkup.app.core.network
 
 interface SocialApi {
+    suspend fun acceptedParticipants(slotId: String): List<SlotOrganizer>
     suspend fun mySlots(view: MySlotsView): List<SlotModel>
     suspend fun pulse(): List<SlotModel>
     suspend fun createSlot(input: CreateSlotInput): SlotModel

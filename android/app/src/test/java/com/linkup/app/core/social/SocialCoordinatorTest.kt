@@ -173,7 +173,34 @@ class SocialCoordinatorTest {
         assertIs<LoadState.Idle>(coordinator.mySlots.value)
     }
 
+    @Test
+    fun lateRosterCannotRestoreAfterCompletionOrNavigation() = runBlocking {
+        val api = FakeSocialApi()
+        val coordinator = SocialCoordinator(api)
+        coordinator.openSlot("slot-1")
+        val response = CompletableDeferred<List<SlotOrganizer>>()
+        api.acceptedResponse = response
+        val read = launch(start = CoroutineStart.UNDISPATCHED) { coordinator.refreshAccepted("slot-1") }
+        api.mutationResult = slot(SlotViewerState.HOST, SlotState.COMPLETED)
+        coordinator.completeSlot("slot-1")
+        response.complete(listOf(slot(SlotViewerState.ACCEPTED).organizer))
+        read.join()
+        assertIs<LoadState.Idle>(coordinator.accepted.value)
+
+        api.mutationResult = slot(SlotViewerState.HOST)
+        coordinator.openSlot("slot-1")
+        val late = CompletableDeferred<List<SlotOrganizer>>()
+        api.acceptedResponse = late
+        val second = launch(start = CoroutineStart.UNDISPATCHED) { coordinator.refreshAccepted("slot-1") }
+        coordinator.clearSelected()
+        late.complete(listOf(slot(SlotViewerState.ACCEPTED).organizer))
+        second.join()
+        assertIs<LoadState.Idle>(coordinator.accepted.value)
+    }
+
     private class FakeSocialApi : SocialApi {
+        var acceptedResponse: CompletableDeferred<List<SlotOrganizer>>? = null
+        override suspend fun acceptedParticipants(slotId: String): List<SlotOrganizer> = acceptedResponse?.await() ?: emptyList()
         var mySlotsResponse: CompletableDeferred<List<SlotModel>>? = null
         var pulseResponse: CompletableDeferred<List<SlotModel>>? = null
         var chatResponse: CompletableDeferred<List<ChatMessage>>? = null

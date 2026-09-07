@@ -7,6 +7,7 @@ import com.linkup.app.core.network.CreateSlotInput
 import com.linkup.app.core.network.EditSlotInput
 import com.linkup.app.core.network.PendingSlotRequest
 import com.linkup.app.core.network.SocialApi
+import com.linkup.app.core.network.SlotOrganizer
 import com.linkup.app.core.network.SlotModel
 import com.linkup.app.core.network.SlotState
 import com.linkup.app.core.network.SlotViewerState
@@ -48,6 +49,7 @@ class SocialCoordinator(
     private var mySlotsRequest = 0L
     private var pulseItems = emptyList<SlotModel>()
     private var slotRequest = 0L
+    private var acceptedRequest = 0L
     private var pendingRequest = 0L
     private var chatRequest = 0L
 
@@ -152,6 +154,33 @@ class SocialCoordinator(
         }
     }
 
+    private val mutableAccepted = MutableStateFlow<LoadState<List<SlotOrganizer>>>(LoadState.Idle)
+    val accepted: StateFlow<LoadState<List<SlotOrganizer>>> = mutableAccepted.asStateFlow()
+
+    suspend fun refreshAccepted(slotId: String) {
+        val current = (mutableSelectedSlot.value as? LoadState.Content)?.value ?: return
+        if (current.id != slotId || current.viewerState != SlotViewerState.HOST || current.state in terminalStates) return
+        val generation = selectionGeneration
+        val request = ++acceptedRequest
+        mutableAccepted.value = LoadState.Loading
+        try {
+            val items = api.acceptedParticipants(slotId)
+            if (generation == selectionGeneration && request == acceptedRequest) {
+                mutableAccepted.value = if (items.isEmpty()) LoadState.Empty else LoadState.Content(items)
+            }
+        } catch (error: CancellationException) {
+            if (generation == selectionGeneration && request == acceptedRequest) mutableAccepted.value = LoadState.Idle
+            throw error
+        } catch (error: Exception) {
+            if (generation == selectionGeneration && request == acceptedRequest) mutableAccepted.value = LoadState.Failure(error.toSocialError())
+        }
+    }
+
+    private fun clearAccepted() {
+        ++acceptedRequest
+        mutableAccepted.value = LoadState.Idle
+    }
+
     suspend fun refreshChat(slotId: String, limit: Int = 100) {
         val generation = selectionGeneration
         val request = ++chatRequest
@@ -200,6 +229,7 @@ class SocialCoordinator(
     }
 
     fun clearSelected() {
+        clearAccepted()
         ++selectionGeneration
         ++slotRequest
         ++pendingRequest
@@ -243,6 +273,7 @@ class SocialCoordinator(
     }
 
     private fun applySelected(slot: SlotModel) {
+        clearAccepted()
         mutableSelectedSlot.value = LoadState.Content(slot)
         when (slot.viewerState) {
             SlotViewerState.HOST -> Unit

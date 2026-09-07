@@ -158,6 +158,7 @@ private fun SignedInRoot(
     val mySlots by social.mySlots.collectAsState()
     val selected by social.selectedSlot.collectAsState()
     val pending by social.pending.collectAsState()
+    val accepted by social.accepted.collectAsState()
     val chat by social.chat.collectAsState()
     val mutation by social.mutation.collectAsState()
 
@@ -243,6 +244,8 @@ private fun SignedInRoot(
             detailOpen -> SlotDetailScreen(
                 state = selected,
                 pending = pending,
+                accepted = accepted,
+                onRefreshAccepted = { id -> scope.launch { social.refreshAccepted(id) } },
                 mutation = mutation,
                 onBack = { detailOpen = false; social.clearSelected() },
                 onRefresh = { id -> scope.launch { social.openSlot(id) } },

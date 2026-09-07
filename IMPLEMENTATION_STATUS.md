@@ -510,3 +510,18 @@ Next functionality: server-backed Hosting/Joined navigation, including ACTIVE Sl
 Validation: source review and git diff --check passed. Go/Kotlin tests, PostgreSQL execution and Android device navigation remain unexecuted because the required local toolchains are unavailable. No deployment, live DB changes, iOS or design-reference changes. Existing audit fixes remain deferred per user instruction.
 
 Next: extend current LINK management with participant visibility consistent with README privacy rules. Verified production readiness remains 0% pending full Android/Go end-to-end evidence.
+
+
+## 23. 2026-09-07 — Host accepted-participant roster
+
+README §9 requires clearer roster/request/accepted summaries. This block adds the host's current accepted list alongside existing pending requests, extending the canonical Kotlin/Go flow.
+
+- Authenticated GET /v1/slots/{slotID}/accepted returns organizer-shaped identities only (ID, username, display name, optional avatar URL); no email, location or account metadata.
+- PostgreSQL checks host ownership, current lifecycle, memberships and bidirectional blocks in a single statement snapshot. Missing/non-owned/terminal Slots return 404; a current empty roster returns items: []. Pending users, accepted members and strangers cannot read this host-only endpoint.
+- Android Host controls → Accepted participants → Show/Refresh displays real API data with loading, empty, failure and retry states. Identity rows use the existing Block user confirmation/API flow.
+- Selection/mutation changes invalidate the list; delayed responses cannot restore an old roster after completion, navigation or account disposal. Show reloads after a mutation; this block does not claim realtime roster updates or participant removal without blocking.
+- Added HTTP/service contract tests, an Android suspended-response regression test, and PostgreSQL production-query cases using isolated temporary tables. PostgreSQL test opt-in: LINKUP_TEST_DATABASE_URL; it checks query behavior, not migration correctness.
+
+Executed: git diff --check and source/interface/call-site review. Go, Gradle and Kotlin executables remain unavailable; none of the added tests or Android device flows were executed. No server connection, deployment, live database mutation, migration, iOS or React/TS design change.
+
+Next functionality: continue README host-management scope with authorized participant removal and explicit state/capacity transitions. Existing audit corrections remain deferred by user direction. Verified production readiness stays 0% until Android/Go end-to-end gates have evidence.

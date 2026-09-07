@@ -50,6 +50,8 @@ import com.linkup.app.ui.theme.LinkUpZone
 fun SlotDetailScreen(
     state: LoadState<SlotModel>,
     pending: LoadState<List<PendingSlotRequest>>,
+    accepted: LoadState<List<SlotOrganizer>>,
+    onRefreshAccepted: (String) -> Unit,
     mutation: MutationState,
     onBack: () -> Unit,
     onRefresh: (String) -> Unit,
@@ -126,6 +128,8 @@ fun SlotDetailScreen(
                             HostControls(
                                 slot = slot,
                                 pending = pending,
+                                accepted = accepted,
+                                onRefreshAccepted = onRefreshAccepted,
                                 busy = mutation is MutationState.Running,
                                 onRefreshPending = onRefreshPending,
                                 onApprove = onApprove,
@@ -153,6 +157,8 @@ fun SlotDetailScreen(
 private fun HostControls(
     slot: SlotModel,
     pending: LoadState<List<PendingSlotRequest>>,
+    accepted: LoadState<List<SlotOrganizer>>,
+    onRefreshAccepted: (String) -> Unit,
     busy: Boolean,
     onRefreshPending: (String) -> Unit,
     onApprove: (String, String) -> Unit,
@@ -191,6 +197,10 @@ private fun HostControls(
                 TextButton(onClick = { onApprove(slot.id, request.user.id) }, enabled = !busy) { Text("Accept", color = LinkUpSuccess, fontWeight = FontWeight.Bold) }
             }
         }
+    }
+
+    if (slot.state in setOf(SlotState.PUBLISHED, SlotState.FILLING, SlotState.FULL, SlotState.ACTIVE)) {
+        AcceptedRoster(accepted, busy, { onRefreshAccepted(slot.id) }, onBlockUser)
     }
 
     if (slot.acceptedCount > 0 && slot.state != SlotState.COMPLETED && slot.state != SlotState.CANCELLED) {

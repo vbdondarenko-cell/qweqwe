@@ -148,6 +148,13 @@ class LinkUpApiClient(
     override suspend fun leaveSlot(slotId: String): SlotModel =
         parseSlot(request("POST", "/v1/slots/${uuid(slotId)}/leave", null, true, mutationHeaders())!!)
 
+    override suspend fun acceptedParticipants(slotId: String): List<SlotOrganizer> {
+        val items = request("GET", "/v1/slots/${uuid(slotId)}/accepted", null, true)!!.getJSONArray("items")
+        return buildList(items.length()) {
+            for (index in 0 until items.length()) add(parseOrganizer(items.getJSONObject(index)))
+        }
+    }
+
     override suspend fun pendingRequests(slotId: String): List<PendingSlotRequest> {
         val items = request("GET", "/v1/slots/${uuid(slotId)}/requests", null, true)!!.getJSONArray("items")
         return buildList(items.length()) {

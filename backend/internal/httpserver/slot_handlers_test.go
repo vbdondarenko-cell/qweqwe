@@ -117,6 +117,19 @@ func TestSlotCreatePulseEditCancelHTTPFlow(t *testing.T) {
         }
     }
 
+    for _, tc := range []struct { path, bearer string; status int }{
+        {"/v1/slots/"+created.ID+"/accepted", token, http.StatusOK},
+        {"/v1/slots/"+created.ID+"/accepted", "", http.StatusUnauthorized},
+        {"/v1/slots/00000000-0000-0000-0000-000000000000/accepted", token, http.StatusNotFound},
+    } {
+        req := httptest.NewRequest(http.MethodGet, tc.path, nil)
+        if tc.bearer != "" { req.Header.Set("Authorization", "Bearer "+tc.bearer) }
+        rec := httptest.NewRecorder()
+        server.Handler().ServeHTTP(rec, req)
+        if rec.Code != tc.status { t.Fatalf("%s status=%d", tc.path, rec.Code) }
+        if tc.status == http.StatusOK && rec.Body.String() != "{\"items\":[]}\n" { t.Fatalf("unexpected roster: %s", rec.Body.String()) }
+    }
+
 	pulse := httptest.NewRequest(http.MethodGet, "/v1/pulse", nil)
 	pulse.Header.Set("Authorization", "Bearer "+token)
 	pulseRec := httptest.NewRecorder(); server.Handler().ServeHTTP(pulseRec, pulse)
@@ -185,4 +198,9 @@ func registerHTTPUser(t *testing.T, server *Server) string {
 func (s *slotHTTPStore) ListMine(_ context.Context, actorID, view string, _ int) ([]slot.Slot, error) {
     if s.current.ID != "" && s.current.Organizer.ID == actorID && view == "HOSTING" { return []slot.Slot{s.current},nil }
     return []slot.Slot{},nil
+}
+
+func (s *slotHTTPStore) ListAccepted(_ context.Context, actorID, slotID string) ([]slot.Organizer, error) {
+    if s.current.ID != slotID || s.current.Organizer.ID != actorID { return nil, slot.ErrNotFound }
+    return []slot.Organizer{}, nil
 }
