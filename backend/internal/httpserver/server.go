@@ -87,6 +87,7 @@ func New(deps Dependencies) *Server {
 
 	mux.Handle("GET /v1/places/search", s.requireAuth(http.HandlerFunc(s.searchPlaces)))
 	mux.Handle("GET /v1/map", s.requireAuth(http.HandlerFunc(s.mapViewport)))
+	mux.Handle("GET /v1/map/places/{placeID}/slots", s.requireAuth(http.HandlerFunc(s.mapPlaceSlots)))
 	mux.Handle("POST /v1/slots", s.requireAuth(http.HandlerFunc(s.createSlot)))
 	mux.Handle("GET /v1/slots/{slotID}", s.requireAuth(http.HandlerFunc(s.getSlot)))
 	mux.Handle("PATCH /v1/slots/{slotID}", s.requireAuth(http.HandlerFunc(s.editSlot)))
