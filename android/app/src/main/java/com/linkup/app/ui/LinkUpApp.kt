@@ -80,6 +80,8 @@ fun LinkUpApp(
     api: LinkUpApiClient,
     sessions: SessionCoordinator,
     social: SocialCoordinator,
+    resetToken: String? = null,
+    onResetTokenConsumed: () -> Unit = {},
 ) {
     val sessionState by sessions.state.collectAsState()
     val scope = rememberCoroutineScope()
@@ -93,7 +95,55 @@ fun LinkUpApp(
     LaunchedEffect(Unit) { sessions.bootstrap() }
 
     Box(Modifier.fillMaxSize().background(LinkUpBackground)) {
-        when (val state = sessionState) {
+        if (resetToken != null) {
+            AuthScreen(
+                busy = authBusy,
+                errorMessage = authError,
+                infoMessage = authInfo,
+                initialResetToken = resetToken,
+                onLogin = { identifier, password ->
+                    scope.launch {
+                        authBusy = true; authError = null; authInfo = null
+                        try { sessions.login(identifier, password, deviceLabel()) }
+                        catch (error: Exception) { authError = error.userMessage(genericError) }
+                        finally { authBusy = false }
+                    }
+                },
+                onRegister = { email, username, displayName, password ->
+                    scope.launch {
+                        authBusy = true; authError = null; authInfo = null
+                        try { sessions.register(email, username, displayName, password, "uk", deviceLabel()) }
+                        catch (error: Exception) { authError = error.userMessage(genericError) }
+                        finally { authBusy = false }
+                    }
+                },
+                onRecovery = { email ->
+                    scope.launch {
+                        authBusy = true; authError = null; authInfo = null
+                        try {
+                            api.requestPasswordRecovery(email)
+                            authInfo = recoveryRequested
+                        } catch (error: Exception) { authError = error.userMessage(genericError) }
+                        finally { authBusy = false }
+                    }
+                },
+                onResetPassword = { token, password ->
+                    if (authBusy) false else {
+                        authBusy = true; authError = null; authInfo = null
+                        try {
+                            api.resetPassword(token, password)
+                            sessions.clearLocalSession()
+                            onResetTokenConsumed()
+                            authInfo = passwordChanged
+                            true
+                        } catch (error: Exception) {
+                            authError = error.userMessage(genericError)
+                            false
+                        } finally { authBusy = false }
+                    }
+                },
+            )
+        } else when (val state = sessionState) {
             SessionState.Checking -> CenterLoading(stringResource(R.string.session_checking))
             SessionState.SignedOut -> AuthScreen(
                 busy = authBusy,
