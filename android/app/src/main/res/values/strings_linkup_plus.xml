@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="me_linkup_plus">LinkUp+</string>
+    <string name="plus_title">LinkUp+</string>
+    <string name="plus_subtitle">Premium, rewarded access and referral progress — always verified by the server.</string>
+    <string name="plus_back">Back</string>
+    <string name="plus_loading">Loading premium status…</string>
+    <string name="plus_load_failed">Could not load LinkUp+ status.</string>
+    <string name="plus_status_title">Premium status</string>
+    <string name="plus_status_active">Premium active</string>
+    <string name="plus_status_inactive">Free account</string>
+    <string name="plus_until_format">Premium until %1$s</string>
+    <string name="plus_plans_title">Premium plans</string>
+    <string name="plus_monthly">Monthly</string>
+    <string name="plus_annual">Annual prepaid</string>
+    <string name="plus_effective_monthly_format">Effective %1$s / month</string>
+    <string name="plus_annual_saving_format">Save %1$s per year (%2$.1f%%)</string>
+    <string name="plus_rewarded_title">Free premium day</string>
+    <string name="plus_rewarded_policy_format">1 verified video every %1$d h · %2$d videos · nominal %3$d h journey</string>
+    <string name="plus_rewarded_reward">Reward: 1 premium day</string>
+    <string name="plus_rewarded_progress_format">Verified progress: %1$d/%2$d videos</string>
+    <string name="plus_next_video_format">Next video after %1$s</string>
+    <string name="plus_next_claim_format">Next bonus-day claim after %1$s</string>
+    <string name="plus_rewarded_weekly_limit">Claim limit: once every 7 days (~4 premium days/month).</string>
+    <string name="plus_referral_title">Referral program</string>
+    <string name="plus_referral_count_format">Qualified paid referrals: %1$d</string>
+    <string name="plus_referral_deadline_format">A referral qualifies only after verified payment within %1$d days of registration.</string>
+    <string name="plus_milestone_format">%1$d referrals → inviter %2$d days · triggering invitee %3$d days</string>
+    <string name="plus_badge">badge/status</string>
+    <string name="plus_verification_title">Activation verification</string>
+    <string name="plus_provider_unavailable">No premium is granted locally. Purchase, rewarded video and paid-referral activation stay locked until the corresponding server verifier is configured.</string>
+    <string name="plus_capability_paid">Google Play billing verification</string>
+    <string name="plus_capability_rewarded">Rewarded-ad verification</string>
+    <string name="plus_capability_referral">Paid referral qualification</string>
+    <string name="plus_capability_ready">READY</string>
+    <string name="plus_capability_not_ready">LOCKED</string>
+</resources>
