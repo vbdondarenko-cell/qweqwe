@@ -54,22 +54,28 @@ fun ChatScreen(
 ) {
     var text by remember { mutableStateOf("") }
     var submittedText by remember { mutableStateOf<String?>(null) }
+    var sawRunning by remember { mutableStateOf(false) }
     val busy = mutation is MutationState.Running
 
-    // Do not discard the draft before the server has acknowledged the mutation.
-    // On an ambiguous network failure the same text stays in the composer; the
-    // API client reuses the pending Idempotency-Key when the user taps Send again.
+    // A submitted draft is cleared only after this screen has observed the
+    // mutation actually enter Running and then return to Idle. That prevents a
+    // recomposition between onSend() and coroutine startup from looking like an
+    // acknowledgement. Failed/ambiguous sends preserve the user's text.
     LaunchedEffect(mutation) {
         when (mutation) {
+            MutationState.Running -> sawRunning = true
             MutationState.Idle -> {
                 val submitted = submittedText
-                if (submitted != null) {
+                if (sawRunning && submitted != null) {
                     if (text.trim() == submitted) text = ""
                     submittedText = null
+                    sawRunning = false
                 }
             }
-            is MutationState.Failed -> submittedText = null
-            MutationState.Running -> Unit
+            is MutationState.Failed -> {
+                submittedText = null
+                sawRunning = false
+            }
         }
     }
 
@@ -131,6 +137,7 @@ fun ChatScreen(
                     val outgoing = text.trim()
                     if (outgoing.isNotEmpty()) {
                         submittedText = outgoing
+                        sawRunning = false
                         onSend(outgoing)
                     }
                 },
