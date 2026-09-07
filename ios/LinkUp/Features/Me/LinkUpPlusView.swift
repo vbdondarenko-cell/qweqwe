@@ -248,8 +248,7 @@ struct LinkUpPlusView: View {
                 .clipShape(RoundedRectangle(cornerRadius: LinkUpRadius.control))
                 .overlay { RoundedRectangle(cornerRadius: LinkUpRadius.control).stroke(LinkUpPalette.border) }
                 .onChange(of: referralCode) { _, value in
-                    let normalized = value.uppercased().filter { $0.isLetter || $0.isNumber }
-                    referralCode = String(normalized.prefix(20))
+                    referralCode = ReferralCodeContract.filteredInput(value)
                     referralMessage = nil
                     coordinator.clearMutationError()
                 }
