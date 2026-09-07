@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="schedule_action_schedule">Запланувати</string>
+    <string name="schedule_action_change">Змінити</string>
+    <string name="schedule_gap_format">Цього часу не існує в часовому поясі %1$s через переведення годинника вперед. Оберіть інший час.</string>
+    <string name="schedule_offset_title">Оберіть часовий зсув</string>
+    <string name="schedule_offset_body">Цього дня годинник переводять назад, тому цей локальний час трапляється двічі.</string>
+</resources>
