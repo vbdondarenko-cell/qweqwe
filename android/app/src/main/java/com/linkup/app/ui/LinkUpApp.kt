@@ -53,6 +53,7 @@ import com.linkup.app.ui.auth.AuthScreen
 import com.linkup.app.ui.design.FrozenBottomNav
 import com.linkup.app.ui.design.FrozenMainTab
 import com.linkup.app.ui.design.FrozenMapScreen
+import com.linkup.app.ui.design.FrozenMeScreen
 import com.linkup.app.ui.design.FrozenFlyScreen
 import com.linkup.app.ui.design.FrozenPulseScreen
 import com.linkup.app.ui.me.EditProfileScreen
@@ -350,26 +351,7 @@ private fun SignedInRoot(
                                     }
                                 },
                             )
-                            MainTab.ME -> MeScreen(
-                                user = user,
-                                blocked = blockedState,
-                                actionError = meError,
-                                onRefreshBlocks = ::refreshBlocks,
-                                onEditProfile = { profileError = null; profileOpen = true },
-                                onMySlots = { mySlotsOpen = true },
-                                onUnblock = { userId ->
-                                    scope.launch {
-                                        try { api.unblockUser(userId); meError = null; refreshBlocks() }
-                                        catch (error: Exception) { meError = error.userMessage(genericError) }
-                                    }
-                                },
-                                onLogout = {
-                                    scope.launch {
-                                        try { sessions.logout() }
-                                        catch (error: Exception) { meError = error.userMessage(genericError) }
-                                    }
-                                },
-                            )
+                            MainTab.ME -> FrozenMeScreen()
                             MainTab.MAP -> FrozenMapScreen()
                             MainTab.FLY -> FrozenFlyScreen()
                         }
