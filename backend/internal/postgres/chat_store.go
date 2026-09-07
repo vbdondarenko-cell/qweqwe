@@ -16,38 +16,76 @@ type ChatStore struct {
 
 func NewChatStore(pool *pgxpool.Pool) *ChatStore { return &ChatStore{pool: pool} }
 
-func (s *ChatStore) Send(ctx context.Context, actorID, slotID, messageID, text string) (chat.Message, error) {
+func (s *ChatStore) Send(ctx context.Context, actorID, slotID, messageID, idempotencyKey, text string) (chat.Message, error) {
 	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.ReadCommitted})
-	if err != nil { return chat.Message{}, err }
-	defer func() { _ = tx.Rollback(ctx) }()
-
-	if err := authorizeChatTx(ctx, tx, actorID, slotID); err != nil { return chat.Message{}, err }
-
-	var createdAt time.Time
-	if err := tx.QueryRow(ctx, `INSERT INTO slot_messages (id,slot_id,author_id,body) VALUES ($1,$2,$3,$4) RETURNING created_at`, messageID, slotID, actorID, text).Scan(&createdAt); err != nil {
+	if err != nil {
 		return chat.Message{}, err
 	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	// Authorization is checked before insert/replay lookup. A previously valid
+	// idempotency key therefore cannot bypass LEAVE/block/terminal revocation.
+	if err := authorizeChatTx(ctx, tx, actorID, slotID); err != nil {
+		return chat.Message{}, err
+	}
+
+	resolvedID := messageID
+	resolvedText := text
+	var createdAt time.Time
+	err = tx.QueryRow(ctx, `
+		INSERT INTO slot_messages (id,slot_id,author_id,body,idempotency_key)
+		VALUES ($1,$2,$3,$4,$5)
+		ON CONFLICT (slot_id,author_id,idempotency_key) DO NOTHING
+		RETURNING id,body,created_at`, messageID, slotID, actorID, text, idempotencyKey).
+		Scan(&resolvedID, &resolvedText, &createdAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		err = tx.QueryRow(ctx, `
+			SELECT id,body,created_at
+			FROM slot_messages
+			WHERE slot_id=$1 AND author_id=$2 AND idempotency_key=$3`, slotID, actorID, idempotencyKey).
+			Scan(&resolvedID, &resolvedText, &createdAt)
+	}
+	if err != nil {
+		return chat.Message{}, err
+	}
+	if resolvedText != text {
+		return chat.Message{}, chat.ErrIdempotencyConflict
+	}
+
 	var author chat.Author
 	if err := tx.QueryRow(ctx, `SELECT id,username,display_name,avatar_url FROM app_users WHERE id=$1`, actorID).
 		Scan(&author.ID, &author.Username, &author.DisplayName, &author.AvatarURL); err != nil {
 		return chat.Message{}, err
 	}
-	out := chat.Message{ID: messageID, SlotID: slotID, Author: author, Text: text, CreatedAt: createdAt.UTC()}
-	if err := tx.Commit(ctx); err != nil { return chat.Message{}, err }
+	out := chat.Message{
+		ID:             resolvedID,
+		SlotID:         slotID,
+		Author:         author,
+		Text:           resolvedText,
+		IdempotencyKey: idempotencyKey,
+		CreatedAt:      createdAt.UTC(),
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return chat.Message{}, err
+	}
 	return out, nil
 }
 
 func (s *ChatStore) ListRecent(ctx context.Context, actorID, slotID string, limit int) ([]chat.Message, error) {
 	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.ReadCommitted})
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	defer func() { _ = tx.Rollback(ctx) }()
 
-	if err := authorizeChatTx(ctx, tx, actorID, slotID); err != nil { return nil, err }
+	if err := authorizeChatTx(ctx, tx, actorID, slotID); err != nil {
+		return nil, err
+	}
 
 	rows, err := tx.Query(ctx, `
-		SELECT q.id,q.slot_id,u.id,u.username,u.display_name,u.avatar_url,q.body,q.created_at
+		SELECT q.id,q.slot_id,u.id,u.username,u.display_name,u.avatar_url,q.body,q.idempotency_key,q.created_at
 		FROM (
-			SELECT m.id,m.slot_id,m.author_id,m.body,m.created_at
+			SELECT m.id,m.slot_id,m.author_id,m.body,m.idempotency_key,m.created_at
 			FROM slot_messages m
 			WHERE m.slot_id=$1
 			  AND NOT EXISTS (
@@ -60,20 +98,36 @@ func (s *ChatStore) ListRecent(ctx context.Context, actorID, slotID string, limi
 		) q
 		JOIN app_users u ON u.id=q.author_id
 		ORDER BY q.created_at ASC,q.id ASC`, slotID, actorID, limit)
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	defer rows.Close()
 
 	items := make([]chat.Message, 0, limit)
 	for rows.Next() {
 		var item chat.Message
-		if err := rows.Scan(&item.ID, &item.SlotID, &item.Author.ID, &item.Author.Username, &item.Author.DisplayName, &item.Author.AvatarURL, &item.Text, &item.CreatedAt); err != nil {
+		if err := rows.Scan(
+			&item.ID,
+			&item.SlotID,
+			&item.Author.ID,
+			&item.Author.Username,
+			&item.Author.DisplayName,
+			&item.Author.AvatarURL,
+			&item.Text,
+			&item.IdempotencyKey,
+			&item.CreatedAt,
+		); err != nil {
 			return nil, err
 		}
 		item.CreatedAt = item.CreatedAt.UTC()
 		items = append(items, item)
 	}
-	if err := rows.Err(); err != nil { return nil, err }
-	if err := tx.Commit(ctx); err != nil { return nil, err }
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return nil, err
+	}
 	return items, nil
 }
 
@@ -102,6 +156,8 @@ func authorizeChatTx(ctx context.Context, tx pgx.Tx, actorID, slotID string) err
 			)`, slotID, actorID, hostID).Scan(&member, &blocked); err != nil {
 		return err
 	}
-	if !member || blocked { return chat.ErrForbidden }
+	if !member || blocked {
+		return chat.ErrForbidden
+	}
 	return nil
 }
