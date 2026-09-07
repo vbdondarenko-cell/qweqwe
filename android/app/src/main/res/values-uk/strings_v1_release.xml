@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="common_saving">Збереження…</string>
+    <string name="profile_avatar_optional">URL аватара (необов’язково)</string>
+    <string name="profile_avatar_empty_hint">Залиште URL аватара порожнім, щоб видалити його.</string>
+    <string name="profile_preferred_language">Бажана мова</string>
+    <string name="profile_public_label">Публічний</string>
+    <string name="profile_hidden_label">Прихований</string>
+
+    <string name="my_links_subtitle">Поточні LINK · до 100 нещодавно оновлених</string>
+    <string name="my_links_empty_hosting">Ви зараз не організовуєте LINK.</string>
+    <string name="my_links_empty_joined">Ви не приєднані до поточних LINK.</string>
+    <string name="my_links_empty_requests">У вас немає запитів, що очікують.</string>
+
+    <string name="pending_empty">Немає запитів, що очікують.</string>
+    <string name="pending_error">Не вдалося завантажити запити.</string>
+    <string name="request_approve">Схвалити</string>
+    <string name="request_reject">Відхилити</string>
+
+    <string name="slot_schedule_title">Розклад</string>
+    <string name="slot_schedule_local_time_format">%1$s · %2$s</string>
+    <string name="slot_schedule_timezone_format">Часовий пояс: %1$s</string>
+    <string name="slot_schedule_offset_format">Зсув UTC: %1$s</string>
+
+    <string name="host_controls">Керування організатора</string>
+    <string name="viewer_pending">Очікує схвалення</string>
+    <string name="viewer_accepted">Прийнято</string>
+    <string name="viewer_host">Організатор</string>
+
+    <string name="release_recovery_title">Відновлення та відкат</string>
+</resources>
