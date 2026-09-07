@@ -69,7 +69,13 @@ func main() {
 
 	var pushService *push.Service
 	if pushCfg.RegistrationEnabled() {
-		pushService, err = push.NewService(postgres.NewPushStore(pool), pushCfg.TokenKeyID, pushCfg.TokenKeyBase64, nil)
+		var sender push.Sender
+		if pushCfg.DeliveryEnabled() {
+			firebaseSender, err := push.NewFirebaseSender(pushCfg.FirebaseProjectID, pushCfg.FirebaseCredentialsFile)
+			if err != nil { slog.Error("firebase sender init failed", "error", err); os.Exit(1) }
+			sender = firebaseSender
+		}
+		pushService, err = push.NewService(postgres.NewPushStore(pool), pushCfg.TokenKeyID, pushCfg.TokenKeyBase64, sender)
 		if err != nil { slog.Error("push service init failed", "error", err); os.Exit(1) }
 		slog.Info("android push device registration enabled", "delivery_enabled", pushCfg.DeliveryEnabled())
 	}
