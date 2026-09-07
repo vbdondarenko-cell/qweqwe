@@ -68,9 +68,11 @@ struct EditSlotView: View {
     }
 
     private var canSave: Bool {
-        !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
-        !place.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
-        capacity >= max(2, slot.acceptedCount)
+        InputContracts.validSlotTitle(title) &&
+        InputContracts.validSlotDetails(details) &&
+        InputContracts.validSlotPlace(place) &&
+        capacity >= max(2, slot.acceptedCount) &&
+        capacity <= 50
     }
 
     private var capacityControl: some View {
@@ -117,10 +119,18 @@ struct EditSlotView: View {
     }
 
     private func field(_ label: String, text: Binding<String>, multiline: Bool) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(label)
-                .font(LinkUpTypography.body(12, weight: .semibold))
-                .foregroundStyle(LinkUpPalette.textDimmed)
+        let limit = label == "Title" ? InputContracts.slotTitleMaxScalars : InputContracts.slotDetailsMaxScalars
+        let count = InputContracts.scalarCount(text.wrappedValue)
+        return VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text(label)
+                    .font(LinkUpTypography.body(12, weight: .semibold))
+                Spacer()
+                Text("\(count)/\(limit)")
+                    .font(LinkUpTypography.mono(9))
+                    .foregroundStyle(count > limit ? LinkUpPalette.critical : LinkUpPalette.textMuted)
+            }
+            .foregroundStyle(LinkUpPalette.textDimmed)
             TextField(label, text: text, axis: multiline ? .vertical : .horizontal)
                 .lineLimit(multiline ? 3...6 : 1...1)
                 .font(LinkUpTypography.body(14))
@@ -128,11 +138,6 @@ struct EditSlotView: View {
                 .background(LinkUpPalette.elevated)
                 .clipShape(RoundedRectangle(cornerRadius: LinkUpRadius.control))
                 .overlay { RoundedRectangle(cornerRadius: LinkUpRadius.control).stroke(LinkUpPalette.border) }
-                .onChange(of: text.wrappedValue) { _, newValue in
-                    if label == "Title" && newValue.count > 60 {
-                        text.wrappedValue = String(newValue.prefix(60))
-                    }
-                }
         }
     }
 

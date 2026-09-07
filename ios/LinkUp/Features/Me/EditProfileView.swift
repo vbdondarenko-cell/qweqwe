@@ -86,9 +86,8 @@ struct EditProfileView: View {
     }
 
     private var canSave: Bool {
-        let name = displayName.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !name.isEmpty, name.count <= 80 else { return false }
-        guard avatarUrl.utf8.count <= 2048 else { return false }
+        guard InputContracts.validProfileDisplayName(displayName) else { return false }
+        guard InputContracts.validAvatarURLPayload(avatarUrl) else { return false }
         guard visibility == "PUBLIC" || visibility == "HIDDEN" else { return false }
         return language == "uk" || language == "en"
     }
@@ -119,13 +118,22 @@ struct EditProfileView: View {
     }
 
     private func field(_ label: String, text: Binding<String>) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(label)
-                .font(LinkUpTypography.body(12, weight: .semibold))
-                .foregroundStyle(LinkUpPalette.textDimmed)
+        let isAvatar = label == "Avatar URL"
+        let count = isAvatar ? InputContracts.trimmed(text.wrappedValue).utf8.count : InputContracts.scalarCount(InputContracts.trimmed(text.wrappedValue))
+        let limit = isAvatar ? InputContracts.avatarURLMaxUTF8Bytes : InputContracts.profileDisplayNameMaxScalars
+        return VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text(label)
+                    .font(LinkUpTypography.body(12, weight: .semibold))
+                Spacer()
+                Text("\(count)/\(limit)")
+                    .font(LinkUpTypography.mono(9))
+                    .foregroundStyle(count > limit ? LinkUpPalette.critical : LinkUpPalette.textMuted)
+            }
+            .foregroundStyle(LinkUpPalette.textDimmed)
             TextField(label, text: text)
-                .textInputAutocapitalization(label == "Avatar URL" ? .never : .words)
-                .autocorrectionDisabled(label == "Avatar URL")
+                .textInputAutocapitalization(isAvatar ? .never : .words)
+                .autocorrectionDisabled(isAvatar)
                 .font(LinkUpTypography.body(14))
                 .padding(.horizontal, 12)
                 .frame(height: 46)

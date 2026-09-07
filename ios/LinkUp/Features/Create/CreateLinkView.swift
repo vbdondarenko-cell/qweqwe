@@ -27,8 +27,9 @@ struct CreateLinkView: View {
     private var canContinue: Bool {
         if step == 1 { return activity != nil }
         if step == 2 {
-            return !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
-                !place.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            return InputContracts.validSlotTitle(title) &&
+                InputContracts.validSlotDetails(details) &&
+                InputContracts.validSlotPlace(place)
         }
         return false
     }
@@ -302,8 +303,17 @@ struct CreateLinkView: View {
     }
 
     private func field(_ label: String, placeholder: String, text: Binding<String>) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(label).font(LinkUpTypography.body(12, weight: .semibold)).foregroundStyle(LinkUpPalette.textDimmed)
+        let limit = label == "Title" ? InputContracts.slotTitleMaxScalars : InputContracts.slotDetailsMaxScalars
+        let count = InputContracts.scalarCount(text.wrappedValue)
+        return VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text(label).font(LinkUpTypography.body(12, weight: .semibold))
+                Spacer()
+                Text("\(count)/\(limit)")
+                    .font(LinkUpTypography.mono(9))
+                    .foregroundStyle(count > limit ? LinkUpPalette.critical : LinkUpPalette.textMuted)
+            }
+            .foregroundStyle(LinkUpPalette.textDimmed)
             TextField(placeholder, text: text, axis: label == "Description" ? .vertical : .horizontal)
                 .lineLimit(label == "Description" ? 3...5 : 1...1)
                 .font(LinkUpTypography.body(14))
@@ -311,11 +321,6 @@ struct CreateLinkView: View {
                 .background(LinkUpPalette.elevated)
                 .clipShape(RoundedRectangle(cornerRadius: LinkUpRadius.control))
                 .overlay { RoundedRectangle(cornerRadius: LinkUpRadius.control).stroke(LinkUpPalette.border) }
-                .onChange(of: text.wrappedValue) { _, newValue in
-                    if label == "Title" && newValue.count > 60 {
-                        text.wrappedValue = String(newValue.prefix(60))
-                    }
-                }
         }
     }
 

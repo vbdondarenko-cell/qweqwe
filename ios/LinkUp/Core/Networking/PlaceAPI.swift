@@ -6,8 +6,8 @@ extension LinkUpAPI {
         locality: String? = nil,
         limit: Int = 10
     ) async throws -> [PlaceModel] {
-        let text = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard text.count >= 2, text.count <= 80, (1...50).contains(limit) else {
+        let text = InputContracts.trimmed(query)
+        guard InputContracts.validPlaceSearchQuery(text), (1...50).contains(limit) else {
             throw APIError.protocolViolation("Invalid place search query.")
         }
 
@@ -16,7 +16,10 @@ extension LinkUpAPI {
             URLQueryItem(name: "limit", value: String(limit))
         ]
         if let locality {
-            let normalized = locality.trimmingCharacters(in: .whitespacesAndNewlines)
+            let normalized = InputContracts.trimmed(locality)
+            guard InputContracts.scalarCount(normalized) <= InputContracts.placeSearchLocalityMaxScalars else {
+                throw APIError.protocolViolation("Invalid place search locality.")
+            }
             if !normalized.isEmpty {
                 queryItems.append(URLQueryItem(name: "locality", value: normalized))
             }

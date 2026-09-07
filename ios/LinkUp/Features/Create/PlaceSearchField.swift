@@ -121,7 +121,7 @@ struct PlaceSearchField: View {
     }
 
     private func searchIfNeeded() async {
-        let query = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        let query = InputContracts.trimmed(text)
 
         if let selectedPlace, query == selectedPlace.name {
             suggestions = []
@@ -129,9 +129,17 @@ struct PlaceSearchField: View {
             return
         }
         selectedPlace = nil
-        guard query.count >= 2 else {
+        let scalarCount = InputContracts.scalarCount(query)
+        guard scalarCount >= InputContracts.placeSearchMinScalars else {
             suggestions = []
             errorMessage = nil
+            return
+        }
+        guard scalarCount <= InputContracts.placeSearchMaxScalars else {
+            suggestions = []
+            errorMessage = scalarCount > InputContracts.slotPlaceMaxScalars
+                ? "Location is too long. Maximum 240 Unicode characters."
+                : "Place search supports up to 80 Unicode characters. You can still use this as a manual location."
             return
         }
 
