@@ -24,6 +24,6 @@ func TestHealthEndpoints(t *testing.T) {
 			if got := rr.Header().Get("Content-Type"); got != "application/json; charset=utf-8" {
 				t.Fatalf("%s content-type = %q", path, got)
 			}
-		}
+		})
 	}
 }
