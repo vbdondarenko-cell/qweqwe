@@ -24,16 +24,20 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.linkup.app.core.scheduling.scheduleLabel
+import com.linkup.app.R
 import com.linkup.app.core.network.PendingSlotRequest
 import com.linkup.app.core.network.SlotModel
 import com.linkup.app.core.network.SlotOrganizer
 import com.linkup.app.core.network.SlotState
 import com.linkup.app.core.network.SlotViewerState
+import com.linkup.app.core.scheduling.scheduleLabel
 import com.linkup.app.core.social.LoadState
 import com.linkup.app.core.social.MutationState
 import com.linkup.app.ui.theme.LinkUpBorder
@@ -68,19 +72,22 @@ fun SlotDetailScreen(
     onOpenChat: (String) -> Unit,
     onBlockUser: (SlotOrganizer) -> Unit,
 ) {
+    val backDescription = stringResource(R.string.a11y_back)
     Column(Modifier.fillMaxSize()) {
         Row(
             Modifier.fillMaxWidth().border(1.dp, LinkUpBorder).padding(horizontal = 14.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            TextButton(onClick = onBack) { Text("‹", color = LinkUpTextDimmed, fontSize = 28.sp) }
-            Text("LINK", color = LinkUpTextPrimary, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+            TextButton(onClick = onBack, modifier = Modifier.semantics { contentDescription = backDescription }) {
+                Text("‹", color = LinkUpTextDimmed, fontSize = 28.sp)
+            }
+            Text(stringResource(R.string.slot_title), color = LinkUpTextPrimary, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
         }
 
         when (state) {
             LoadState.Idle, LoadState.Loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = LinkUpRed) }
             LoadState.Empty -> Unit
-            is LoadState.Failure -> CenterMessage("Couldn't load LINK", state.error.message, onBack)
+            is LoadState.Failure -> CenterMessage(stringResource(R.string.slot_load_error), state.error.message, onBack)
             is LoadState.Content -> {
                 val slot = state.value
                 Column(
@@ -93,7 +100,7 @@ fun SlotDetailScreen(
                         }
                         Spacer(Modifier.width(12.dp))
                         Column(modifier = Modifier.weight(1f)) {
-                            Text(slot.state.name, color = stateColor(slot.state), fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                            Text(slotStateLabel(slot.state), color = stateColor(slot.state), fontSize = 10.sp, fontWeight = FontWeight.Bold)
                             Text(slot.title, color = LinkUpTextPrimary, fontSize = 20.sp, fontWeight = FontWeight.Bold)
                             Text(slot.placeText, color = LinkUpTextDimmed, fontSize = 13.sp)
                         }
@@ -103,27 +110,27 @@ fun SlotDetailScreen(
                     slot.details?.takeIf { it.isNotBlank() }?.let { Text(it, color = LinkUpTextDimmed, fontSize = 14.sp) }
 
                     Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(LinkUpElevated).border(1.dp, LinkUpBorder, RoundedCornerShape(14.dp)).padding(14.dp)) {
-                        Text("Host", color = LinkUpTextMuted, fontSize = 10.sp)
+                        Text(stringResource(R.string.slot_host), color = LinkUpTextMuted, fontSize = 10.sp)
                         Text(slot.organizer.displayName, color = LinkUpTextPrimary, fontWeight = FontWeight.Bold)
                         Text("@${slot.organizer.username}", color = LinkUpTextMuted, fontSize = 12.sp)
                         if (slot.viewerState != SlotViewerState.HOST) {
                             TextButton(onClick = { onBlockUser(slot.organizer) }, enabled = mutation !is MutationState.Running) {
-                                Text("Block user", color = LinkUpWarning)
+                                Text(stringResource(R.string.slot_block_user), color = LinkUpWarning)
                             }
                         }
                         Spacer(Modifier.height(8.dp))
-                        Text("${slot.acceptedCount}/${slot.capacity} going", color = LinkUpTextDimmed, fontSize = 12.sp)
-                        Text("Server version ${slot.version}", color = LinkUpTextMuted, fontSize = 10.sp)
+                        Text(stringResource(R.string.slot_going_format, slot.acceptedCount, slot.capacity), color = LinkUpTextDimmed, fontSize = 12.sp)
+                        Text(stringResource(R.string.slot_server_version_format, slot.version), color = LinkUpTextMuted, fontSize = 10.sp)
                     }
 
                     MutationError(mutation)
 
                     when (slot.viewerState) {
-                        SlotViewerState.NONE -> ActionButton("Request to join", LinkUpWarning, mutation !is MutationState.Running) { onRequest(slot.id) }
-                        SlotViewerState.PENDING -> ActionButton("Cancel request", LinkUpWarning, mutation !is MutationState.Running) { onLeave(slot.id) }
+                        SlotViewerState.NONE -> ActionButton(stringResource(R.string.slot_request_to_join), LinkUpWarning, mutation !is MutationState.Running) { onRequest(slot.id) }
+                        SlotViewerState.PENDING -> ActionButton(stringResource(R.string.slot_cancel_request), LinkUpWarning, mutation !is MutationState.Running) { onLeave(slot.id) }
                         SlotViewerState.ACCEPTED -> {
-                            ActionButton("Open Chat", LinkUpRed, true) { onOpenChat(slot.id) }
-                            ActionButton("Leave LINK", LinkUpWarning, mutation !is MutationState.Running) { onLeave(slot.id) }
+                            ActionButton(stringResource(R.string.slot_open_chat), LinkUpRed, true) { onOpenChat(slot.id) }
+                            ActionButton(stringResource(R.string.slot_leave_link), LinkUpWarning, mutation !is MutationState.Running) { onLeave(slot.id) }
                         }
                         SlotViewerState.HOST -> {
                             HostControls(
@@ -147,7 +154,7 @@ fun SlotDetailScreen(
                     }
 
                     TextButton(onClick = { onRefresh(slot.id) }, modifier = Modifier.align(Alignment.CenterHorizontally)) {
-                        Text("Refresh", color = LinkUpRed)
+                        Text(stringResource(R.string.common_refresh), color = LinkUpRed)
                     }
                 }
             }
@@ -173,16 +180,16 @@ private fun HostControls(
     onOpenChat: (String) -> Unit,
     onBlockUser: (SlotOrganizer) -> Unit,
 ) {
-    Text("Host controls", color = LinkUpTextPrimary, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+    Text(stringResource(R.string.host_controls), color = LinkUpTextPrimary, fontWeight = FontWeight.Bold, fontSize = 15.sp)
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        SmallAction("Edit", Modifier.weight(1f), !busy) { onEdit(slot) }
-        SmallAction("Requests", Modifier.weight(1f), !busy) { onRefreshPending(slot.id) }
+        SmallAction(stringResource(R.string.slot_edit), Modifier.weight(1f), !busy) { onEdit(slot) }
+        SmallAction(stringResource(R.string.slot_requests), Modifier.weight(1f), !busy) { onRefreshPending(slot.id) }
     }
 
     when (pending) {
         LoadState.Idle -> Unit
         LoadState.Loading -> CircularProgressIndicator(color = LinkUpRed, modifier = Modifier.size(24.dp))
-        LoadState.Empty -> Text("No pending requests", color = LinkUpTextMuted, fontSize = 12.sp)
+        LoadState.Empty -> Text(stringResource(R.string.slot_no_pending_requests), color = LinkUpTextMuted, fontSize = 12.sp)
         is LoadState.Failure -> Text(pending.error.message, color = LinkUpWarning, fontSize = 12.sp)
         is LoadState.Content -> pending.value.forEach { request ->
             Row(
@@ -193,11 +200,15 @@ private fun HostControls(
                     Text(request.user.displayName, color = LinkUpTextPrimary, fontWeight = FontWeight.Bold, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     Text("@${request.user.username}", color = LinkUpTextMuted, fontSize = 11.sp)
                     TextButton(onClick = { onBlockUser(request.user) }, enabled = !busy) {
-                        Text("Block user", color = LinkUpWarning, fontSize = 11.sp)
+                        Text(stringResource(R.string.slot_block_user), color = LinkUpWarning, fontSize = 11.sp)
                     }
                 }
-                TextButton(onClick = { onReject(slot.id, request.user.id) }, enabled = !busy) { Text("Decline", color = LinkUpTextMuted) }
-                TextButton(onClick = { onApprove(slot.id, request.user.id) }, enabled = !busy) { Text("Accept", color = LinkUpSuccess, fontWeight = FontWeight.Bold) }
+                TextButton(onClick = { onReject(slot.id, request.user.id) }, enabled = !busy) {
+                    Text(stringResource(R.string.slot_decline), color = LinkUpTextMuted)
+                }
+                TextButton(onClick = { onApprove(slot.id, request.user.id) }, enabled = !busy) {
+                    Text(stringResource(R.string.slot_accept), color = LinkUpSuccess, fontWeight = FontWeight.Bold)
+                }
             }
         }
     }
@@ -207,15 +218,15 @@ private fun HostControls(
     }
 
     if (slot.acceptedCount > 0 && slot.state != SlotState.COMPLETED && slot.state != SlotState.CANCELLED) {
-        ActionButton("Open Chat", LinkUpRed, true) { onOpenChat(slot.id) }
+        ActionButton(stringResource(R.string.slot_open_chat), LinkUpRed, true) { onOpenChat(slot.id) }
     }
     when (slot.state) {
-        SlotState.FILLING, SlotState.FULL -> if (slot.acceptedCount > 0) ActionButton("START", LinkUpSuccess, !busy) { onStart(slot.id) }
-        SlotState.ACTIVE -> ActionButton("COMPLETE", LinkUpSuccess, !busy) { onComplete(slot.id) }
+        SlotState.FILLING, SlotState.FULL -> if (slot.acceptedCount > 0) ActionButton(stringResource(R.string.slot_start), LinkUpSuccess, !busy) { onStart(slot.id) }
+        SlotState.ACTIVE -> ActionButton(stringResource(R.string.slot_complete), LinkUpSuccess, !busy) { onComplete(slot.id) }
         else -> Unit
     }
     if (slot.state !in setOf(SlotState.COMPLETED, SlotState.CANCELLED, SlotState.EXPIRED, SlotState.MODERATED)) {
-        ActionButton("Delete / Cancel LINK", LinkUpWarning, !busy) { onCancel(slot.id, slot.version) }
+        ActionButton(stringResource(R.string.slot_delete_cancel), LinkUpWarning, !busy) { onCancel(slot.id, slot.version) }
     }
 }
 
@@ -247,9 +258,24 @@ private fun CenterMessage(title: String, message: String, onBack: () -> Unit) {
     Column(Modifier.fillMaxSize().padding(32.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
         Text(title, color = LinkUpTextPrimary, fontWeight = FontWeight.Bold)
         Text(message, color = LinkUpTextDimmed)
-        TextButton(onClick = onBack) { Text("Back", color = LinkUpRed) }
+        TextButton(onClick = onBack) { Text(stringResource(R.string.common_back), color = LinkUpRed) }
     }
 }
+
+@Composable
+private fun slotStateLabel(state: SlotState): String = stringResource(
+    when (state) {
+        SlotState.DRAFT -> R.string.slot_state_draft
+        SlotState.PUBLISHED -> R.string.slot_state_published
+        SlotState.FILLING -> R.string.slot_state_filling
+        SlotState.FULL -> R.string.slot_state_full
+        SlotState.ACTIVE -> R.string.slot_state_active
+        SlotState.COMPLETED -> R.string.slot_state_completed
+        SlotState.CANCELLED -> R.string.slot_state_cancelled
+        SlotState.EXPIRED -> R.string.slot_state_expired
+        SlotState.MODERATED -> R.string.slot_state_moderated
+    },
+)
 
 private fun activityEmojiForDetail(activity: String) = when (activity.lowercase()) {
     "coffee" -> "☕"; "running", "run" -> "🏃"; "gym", "fitness" -> "🏋️"; "food" -> "🍜"; "walk" -> "🚶"; "music" -> "🎵"; "games" -> "🎮"; else -> "🎯"
