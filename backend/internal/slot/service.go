@@ -37,33 +37,35 @@ func (s *Service) Create(ctx context.Context, actorID string, in CreateInput, id
 	}
 	now := s.now().UTC()
 	candidate := Slot{
-		ID:            id,
-		Organizer:     Organizer{ID: actorID},
-		Title:         in.Title,
-		Activity:      in.Activity,
-		Details:       in.Details,
-		PlaceText:     in.PlaceText,
-		ZoneText:      in.ZoneText,
-		StartAt:       in.StartAt,
-		Capacity:      in.Capacity,
-		AcceptedCount: 0,
-		State:         StateFilling,
-		AccessMode:    AccessApproval,
-		Visibility:    VisibilityPublic,
-		ViewerState:   ViewerHost,
-		Version:       1,
-		CreatedAt:     now,
-		UpdatedAt:     now,
+		ID:               id,
+		Organizer:        Organizer{ID: actorID},
+		Title:            in.Title,
+		Activity:         in.Activity,
+		Details:          in.Details,
+		PlaceText:        in.PlaceText,
+		ZoneText:         in.ZoneText,
+		CanonicalPlaceID: in.CanonicalPlaceID,
+		StartAt:          in.StartAt,
+		Capacity:         in.Capacity,
+		AcceptedCount:    0,
+		State:            StateFilling,
+		AccessMode:       AccessApproval,
+		Visibility:       VisibilityPublic,
+		ViewerState:      ViewerHost,
+		Version:          1,
+		CreatedAt:        now,
+		UpdatedAt:        now,
 	}
 	fingerprint, err := hashRequest(struct {
-		Title     string
-		Activity  string
-		Details   *string
-		PlaceText string
-		ZoneText  *string
-		StartAt   *time.Time
-		Capacity  int
-	}{in.Title, in.Activity, in.Details, in.PlaceText, in.ZoneText, in.StartAt, in.Capacity})
+		Title            string
+		Activity         string
+		Details          *string
+		PlaceText        string
+		ZoneText         *string
+		CanonicalPlaceID *string
+		StartAt          *time.Time
+		Capacity         int
+	}{in.Title, in.Activity, in.Details, in.PlaceText, in.ZoneText, in.CanonicalPlaceID, in.StartAt, in.Capacity})
 	if err != nil {
 		return Slot{}, err
 	}
@@ -250,6 +252,13 @@ func normalizeCreate(in *CreateInput) error {
 			in.ZoneText = &v
 		}
 	}
+	if in.CanonicalPlaceID != nil {
+		v := strings.ToLower(strings.TrimSpace(*in.CanonicalPlaceID))
+		if !validUUID(v) {
+			return ErrInvalidInput
+		}
+		in.CanonicalPlaceID = &v
+	}
 	if in.StartAt != nil {
 		v := in.StartAt.UTC()
 		in.StartAt = &v
@@ -258,10 +267,10 @@ func normalizeCreate(in *CreateInput) error {
 }
 
 func normalizeEdit(in *EditInput) error {
-	if in.Title == nil && in.Details == nil && in.PlaceText == nil && in.ZoneText == nil && in.StartAt == nil && !in.ClearStartAt && in.Capacity == nil {
+	if in.Title == nil && in.Details == nil && in.PlaceText == nil && in.ZoneText == nil && in.CanonicalPlaceID == nil && !in.ClearCanonicalPlaceID && in.StartAt == nil && !in.ClearStartAt && in.Capacity == nil {
 		return ErrInvalidInput
 	}
-	if in.StartAt != nil && in.ClearStartAt {
+	if (in.StartAt != nil && in.ClearStartAt) || (in.CanonicalPlaceID != nil && in.ClearCanonicalPlaceID) {
 		return ErrInvalidInput
 	}
 	if in.Title != nil {
@@ -292,6 +301,13 @@ func normalizeEdit(in *EditInput) error {
 		}
 		in.ZoneText = &v
 	}
+	if in.CanonicalPlaceID != nil {
+		v := strings.ToLower(strings.TrimSpace(*in.CanonicalPlaceID))
+		if !validUUID(v) {
+			return ErrInvalidInput
+		}
+		in.CanonicalPlaceID = &v
+	}
 	if in.StartAt != nil {
 		v := in.StartAt.UTC()
 		in.StartAt = &v
@@ -300,6 +316,22 @@ func normalizeEdit(in *EditInput) error {
 		return ErrInvalidInput
 	}
 	return nil
+}
+
+func validUUID(value string) bool {
+	if len(value) != 36 || value[8] != '-' || value[13] != '-' || value[18] != '-' || value[23] != '-' {
+		return false
+	}
+	for i := 0; i < len(value); i++ {
+		if i == 8 || i == 13 || i == 18 || i == 23 {
+			continue
+		}
+		c := value[i]
+		if !((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f')) {
+			return false
+		}
+	}
+	return true
 }
 
 func validIdempotencyKey(raw string) (string, bool) {
