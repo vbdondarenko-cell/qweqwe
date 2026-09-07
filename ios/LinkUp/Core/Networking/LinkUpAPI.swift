@@ -3,11 +3,16 @@ import Foundation
 actor LinkUpAPI {
     let client: APIClient
     let credentials: KeychainSessionStore
-    private var pendingMutationKeys: [String: UUID] = [:]
+
+    private let mutationStore: MutationKeyStore
+    private var pendingMutationKeys: [String: StoredMutationKey]
 
     init(client: APIClient, credentials: KeychainSessionStore) {
         self.client = client
         self.credentials = credentials
+        let mutationStore = MutationKeyStore()
+        self.mutationStore = mutationStore
+        self.pendingMutationKeys = mutationStore.load()
     }
 
     func encodeBody<Value: Encodable>(_ value: Value) throws -> Data {
@@ -25,22 +30,26 @@ actor LinkUpAPI {
         guard request.method != .get else {
             throw APIError.protocolViolation("Idempotent mutation helper cannot send GET requests.")
         }
-        let fingerprint = mutationFingerprint(request)
-        let key = pendingMutationKeys[fingerprint] ?? UUID()
-        pendingMutationKeys[fingerprint] = key
+
+        let identity = MutationIdentity.digest(for: request)
+        let now = Date()
+        let key = pendingMutationKeys[identity]?.key ?? UUID()
+        pendingMutationKeys[identity] = StoredMutationKey(key: key, touchedAt: now)
+        pendingMutationKeys = mutationStore.pruned(pendingMutationKeys)
+        mutationStore.persist(pendingMutationKeys)
 
         var keyedRequest = request
         keyedRequest.idempotencyKey = key
         do {
             let response: Response = try await client.send(keyedRequest, as: type)
-            pendingMutationKeys.removeValue(forKey: fingerprint)
+            releaseMutationKey(identity)
             return response
         } catch is CancellationError {
-            // Cancellation after bytes leave the device is ambiguous: keep the key for retry.
+            // Cancellation after bytes leave the device is ambiguous: retain the persisted key for retry/process death.
             throw CancellationError()
         } catch let error as APIError {
             if error.isDefinitiveMutationFailure {
-                pendingMutationKeys.removeValue(forKey: fingerprint)
+                releaseMutationKey(identity)
             }
             throw error
         }
@@ -55,15 +64,11 @@ actor LinkUpAPI {
     }
 
     func clearLocalSession() async {
-        pendingMutationKeys.removeAll(keepingCapacity: false)
         await credentials.clear()
     }
 
-    private func mutationFingerprint(_ request: APIRequest) -> String {
-        let query = request.queryItems
-            .map { "\($0.name)=\($0.value ?? "")" }
-            .joined(separator: "&")
-        let body = request.body?.base64EncodedString() ?? ""
-        return [request.method.rawValue, request.path, query, body].joined(separator: "\u{0}")
+    private func releaseMutationKey(_ identity: String) {
+        pendingMutationKeys.removeValue(forKey: identity)
+        mutationStore.persist(pendingMutationKeys)
     }
 }
