@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="common_saving">Saving…</string>
+    <string name="profile_avatar_optional">Avatar URL (optional)</string>
+    <string name="profile_avatar_empty_hint">Leave the avatar URL empty to remove it.</string>
+    <string name="profile_preferred_language">Preferred language</string>
+    <string name="profile_public_label">Public</string>
+    <string name="profile_hidden_label">Hidden</string>
+
+    <string name="my_links_subtitle">Current LINKs · up to 100 most recently updated</string>
+    <string name="my_links_empty_hosting">You are not hosting any current LINKs.</string>
+    <string name="my_links_empty_joined">You have not joined any current LINKs.</string>
+    <string name="my_links_empty_requests">You have no pending requests.</string>
+
+    <string name="pending_empty">No pending requests.</string>
+    <string name="pending_error">Couldn’t load pending requests.</string>
+    <string name="request_approve">Approve</string>
+    <string name="request_reject">Reject</string>
+
+    <string name="slot_schedule_title">Schedule</string>
+    <string name="slot_schedule_local_time_format">%1$s · %2$s</string>
+    <string name="slot_schedule_timezone_format">Time zone: %1$s</string>
+    <string name="slot_schedule_offset_format">UTC offset: %1$s</string>
+
+    <string name="host_controls">Host controls</string>
+    <string name="viewer_pending">Pending approval</string>
+    <string name="viewer_accepted">Accepted</string>
+    <string name="viewer_host">Host</string>
+
+    <string name="release_recovery_title">Recovery and rollback</string>
+</resources>
