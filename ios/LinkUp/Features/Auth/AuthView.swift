@@ -21,6 +21,7 @@ struct AuthView: View {
     @State private var isBusy = false
     @State private var errorMessage: String?
     @State private var successMessage: String?
+    @State private var showingReset = false
 
     var body: some View {
         ScrollView {
@@ -36,6 +37,9 @@ struct AuthView: View {
         .scrollDismissesKeyboard(.interactively)
         .background(LinkUpPalette.background.ignoresSafeArea())
         .foregroundStyle(LinkUpPalette.textPrimary)
+        .sheet(isPresented: $showingReset) {
+            PasswordResetView(session: session)
+        }
     }
 
     private var brand: some View {
@@ -86,6 +90,18 @@ struct AuthView: View {
                     .font(LinkUpTypography.body(12))
                     .foregroundStyle(LinkUpPalette.textMuted)
                     .frame(maxWidth: .infinity, alignment: .leading)
+                Button {
+                    showingReset = true
+                } label: {
+                    HStack {
+                        Image(systemName: "key.fill")
+                        Text("I have a reset link or code")
+                    }
+                    .font(LinkUpTypography.body(12, weight: .semibold))
+                    .foregroundStyle(LinkUpPalette.red)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .buttonStyle(.plain)
             }
 
             if let errorMessage {

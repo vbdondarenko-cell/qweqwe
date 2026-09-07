@@ -11,6 +11,7 @@ struct MeView: View {
 
     @State private var tab = "Profile"
     @State private var showingMyLinks = false
+    @State private var showingEditProfile = false
 
     init(user: UserProfile, api: LinkUpAPI, session: SessionCoordinator, social: SocialCoordinator) {
         self.user = user
@@ -47,6 +48,9 @@ struct MeView: View {
         }) {
             MySlotsDashboardView(api: api, session: session, social: social)
         }
+        .sheet(isPresented: $showingEditProfile) {
+            EditProfileView(user: user, session: session)
+        }
     }
 
     private var header: some View {
@@ -82,6 +86,19 @@ struct MeView: View {
                         .foregroundStyle(LinkUpPalette.textMuted)
                 }
                 Spacer()
+                Button {
+                    showingEditProfile = true
+                } label: {
+                    Image(systemName: "pencil")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(LinkUpPalette.red)
+                        .frame(width: 38, height: 38)
+                        .background(LinkUpPalette.red.opacity(0.1))
+                        .clipShape(RoundedRectangle(cornerRadius: LinkUpRadius.control))
+                        .overlay { RoundedRectangle(cornerRadius: LinkUpRadius.control).stroke(LinkUpPalette.red.opacity(0.25)) }
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Edit profile")
             }
 
             LinkUpCard {
@@ -194,7 +211,7 @@ struct MeView: View {
 
     private var accountSummary: some View {
         LinkUpCard {
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: 10) {
                 HStack {
                     Text("Language").font(LinkUpTypography.body(13, weight: .semibold))
                     Spacer()
@@ -205,6 +222,19 @@ struct MeView: View {
                     Spacer()
                     Text(user.profileVisibility).font(LinkUpTypography.mono(11))
                 }
+                Button {
+                    showingEditProfile = true
+                } label: {
+                    HStack {
+                        Text("Edit profile")
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                    }
+                    .font(LinkUpTypography.body(12, weight: .semibold))
+                    .foregroundStyle(LinkUpPalette.red)
+                    .padding(.top, 4)
+                }
+                .buttonStyle(.plain)
             }
             .foregroundStyle(LinkUpPalette.textPrimary)
         }
