@@ -53,6 +53,15 @@ Progressive milestones:
 
 Implementation interpretation: each milestone is awarded **once** per inviter. The qualifying invitee whose verified paid conversion crosses the milestone receives the invitee-side reward for that milestone. This prevents replaying lower milestones for the same paid event.
 
+Referral-code binding is server-authoritative:
+
+- every authenticated account can obtain one stable referral code;
+- an invitee can bind only one inviter;
+- binding the same code again is idempotent;
+- self-referral is rejected;
+- the qualification deadline is calculated from canonical `app_users.created_at + 14 days`, not from the Android clock;
+- binding alone grants **no premium**; the referral becomes qualified only after a future verified paid-subscription event.
+
 The source also calls for a monthly referral leaderboard and an additional monthly reward, but does **not specify the reward amount or exact ranking policy**. The system may expose verified monthly counts/ranking later, but must not invent or automatically grant an unspecified leaderboard reward.
 
 ## 4. Server authority / anti-fraud
@@ -77,7 +86,75 @@ The screen must show real server state plus:
 - monthly/annual plans and 600 UAH annual saving;
 - current premium status/expiry;
 - rewarded progress (`x/5`), 4-hour cadence, next availability/weekly claim timing when known;
+- the user's own referral code;
+- one-time inviter-code binding with the canonical qualification deadline;
 - referral milestones and verified qualified-referral count;
 - clear unavailable/fail-closed messaging while Play Billing or rewarded verification adapters are not configured.
 
 No fake “premium activated”, fake ad completion, fake referral count or client-authoritative entitlement state is allowed.
+
+## 6. Repository implementation status — 2026-09-07
+
+Implemented in `main` as an **early v1.2 production foundation**:
+
+### Database
+
+`db/migrations/000009_linkup_plus_monetization.sql` adds canonical tables for:
+
+- premium grants;
+- rewarded progress and hashed verified rewarded receipts;
+- verified subscription receipts;
+- referral codes and invitee→inviter binding;
+- one-time referral milestone awards.
+
+The migration explicitly revokes direct table access from `PUBLIC`, `anon` and `authenticated`. It has **not been applied to production Supabase in this work block**, because the user requested repository-only work.
+
+### Go
+
+New monetization domain/read model:
+
+- exact plan/reward/referral policy constants;
+- authenticated `GET /v1/me/monetization`;
+- authenticated `POST /v1/me/referral`;
+- PostgreSQL-backed premium/reward/referral state;
+- stable per-account referral codes;
+- server-side 14-day referral binding deadline;
+- self-referral and rebinding protection;
+- provider capability flags default to `false` so unconfigured payment/ad verification fails closed.
+
+Pure Go policy tests were added for prices, savings, rewarded cadence/cooldown, referral milestones, code normalization and fail-closed capabilities. These tests are **present but not claimed as executed in this repository-only block**.
+
+### Android
+
+Added:
+
+- `MonetizationModels.kt`;
+- authenticated `MonetizationApiClient.kt` with bounded responses and GET-only retry;
+- native `LinkUpPlusScreen.kt`;
+- entry from existing `Me` without changing bottom navigation;
+- Ukrainian and English LinkUp+ resources;
+- real server-backed premium status, plan prices, rewarded progress/timing, referral count/milestones;
+- own referral code and real one-time referral-code submission to Go.
+
+The Android client never creates a premium grant and never treats a local purchase/ad callback as proof.
+
+### Commits in this work block
+
+- data foundation: `d759755783e595d40bec931666237d293207a32e`;
+- monetization contract: `3ddb61ff8e5bf37c6d057f436e331c7e054284c7`;
+- Go domain/test/store/API wiring: `f8f7828a0c1b7f7cc900cecf5e63a9cfe41ad4d7` → `68933d41af484793502bb1ab7c927be9e1b72f0f`;
+- Android model/client/screen/Me wiring/resources: `8036fc6cd854b015009368c3b38a39d7e4115232` → `9cff1579525934b6919947f9a49df532d76f2c0b`.
+
+## 7. Intentionally still locked / not claimed complete
+
+The following require external product/provider configuration and are **not** faked:
+
+- actual Google Play subscription purchase flow and server-side Play purchase verification;
+- RTDN/subscription renewal/refund/revocation processing;
+- rewarded-ad SDK/provider integration and server-side rewarded receipt verification;
+- mutation that increments the 0..5 rewarded counter and grants the verified weekly premium day;
+- qualification of a referral after a verified paid receipt and atomic milestone premium grants;
+- the monthly referral leaderboard reward, because its exact reward and ranking/tie policy were not specified by the supplied model;
+- production migration execution, runtime role grants and end-to-end Android/Go/PostgreSQL verification.
+
+These are v1.2 completion gates and do not change the active v1.0 release order.
