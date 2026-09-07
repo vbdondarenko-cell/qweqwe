@@ -1,5 +1,6 @@
 package com.linkup.app
 
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -8,6 +9,9 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Text
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -15,6 +19,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.linkup.app.core.network.LinkUpApiClient
+import com.linkup.app.core.network.passwordResetToken
 import com.linkup.app.core.session.SecureSessionStore
 import com.linkup.app.core.session.SessionCoordinator
 import com.linkup.app.core.social.SocialCoordinator
@@ -25,8 +30,12 @@ import com.linkup.app.ui.theme.LinkUpTextPrimary
 import com.linkup.app.ui.theme.LinkUpTheme
 
 class MainActivity : ComponentActivity() {
+    // Password reset credentials are intentionally process-memory only.
+    private var pendingResetToken by mutableStateOf<String?>(null)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        captureResetToken(intent)
 
         val apiBaseUrl = BuildConfig.LINKUP_API_BASE_URL.trim()
         if (apiBaseUrl.isBlank()) {
@@ -62,8 +71,24 @@ class MainActivity : ComponentActivity() {
                     api = api,
                     sessions = sessionCoordinator,
                     social = socialCoordinator,
+                    resetToken = pendingResetToken,
+                    onResetTokenConsumed = { pendingResetToken = null },
                 )
             }
         }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        captureResetToken(intent)
+    }
+
+    private fun captureResetToken(intent: Intent?) {
+        if (intent?.action != Intent.ACTION_VIEW) return
+        val token = passwordResetToken(intent.dataString.orEmpty()) ?: return
+        pendingResetToken = token
+        // Drop the URI reference after extracting the credential so it is not retained by Activity intent state.
+        intent.data = null
     }
 }
