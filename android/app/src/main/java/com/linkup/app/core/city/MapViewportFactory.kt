@@ -15,7 +15,25 @@ fun mapViewportAround(
     fromEpochMillis: Long,
     toEpochMillis: Long,
     limit: Int = 100,
+): MapViewportQuery = mapViewportAroundCoordinates(
+    latitudeE6 = center.latitudeE6,
+    longitudeE6 = center.longitudeE6,
+    zoom = zoom,
+    fromEpochMillis = fromEpochMillis,
+    toEpochMillis = toEpochMillis,
+    limit = limit,
+)
+
+fun mapViewportAroundCoordinates(
+    latitudeE6: Int,
+    longitudeE6: Int,
+    zoom: Int,
+    fromEpochMillis: Long,
+    toEpochMillis: Long,
+    limit: Int = 100,
 ): MapViewportQuery {
+    require(latitudeE6 in MIN_LAT_E6..MAX_LAT_E6)
+    require(longitudeE6 in MIN_LON_E6..MAX_LON_E6)
     require(zoom in 1..20)
     require(limit in 1..200)
     require(fromEpochMillis < toEpochMillis)
@@ -28,16 +46,16 @@ fun mapViewportAround(
         else -> 50_000L
     }
 
-    val south = (center.latitudeE6.toLong() - halfSpanE6)
+    val south = (latitudeE6.toLong() - halfSpanE6)
         .coerceAtLeast(MIN_LAT_E6.toLong())
         .toInt()
-    val north = (center.latitudeE6.toLong() + halfSpanE6)
+    val north = (latitudeE6.toLong() + halfSpanE6)
         .coerceAtMost(MAX_LAT_E6.toLong())
         .toInt()
     require(south < north)
 
-    val west = normalizeLongitudeE6(center.longitudeE6.toLong() - halfSpanE6)
-    val east = normalizeLongitudeE6(center.longitudeE6.toLong() + halfSpanE6)
+    val west = normalizeLongitudeE6(longitudeE6.toLong() - halfSpanE6)
+    val east = normalizeLongitudeE6(longitudeE6.toLong() + halfSpanE6)
     require(west != east)
 
     return MapViewportQuery(
