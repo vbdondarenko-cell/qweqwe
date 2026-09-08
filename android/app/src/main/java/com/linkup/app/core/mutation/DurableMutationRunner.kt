@@ -10,6 +10,7 @@ data class DurableAttemptResult(
     val disposition: DurableAttemptDisposition,
     val responseJson: String? = null,
     val errorCode: String? = null,
+    val httpStatus: Int? = null,
 )
 
 fun interface DurableMutationTransport {
