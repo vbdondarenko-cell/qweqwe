@@ -6,7 +6,7 @@ import XCTest
 final class AuthRouteCoordinatorTests: XCTestCase {
     private let token = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
     private var trustedRoute: PasswordResetRoute {
-        PasswordResetRoute(configuredURL: "https://app.example/reset-password")!
+        PasswordResetRoute(configuredURL: "https://app.example/reset-password", associatedDomain: "applinks:app.example")!
     }
 
     func testAcceptsHTTPSResetRouteAndConsumesTokenOnce() throws {

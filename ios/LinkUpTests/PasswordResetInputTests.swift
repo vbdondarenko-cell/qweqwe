@@ -16,11 +16,11 @@ final class PasswordResetInputTests: XCTestCase {
     }
 
     func testConfiguredRecoveryRouteMatchesOnlyExactHTTPSOriginAndPath() throws {
-        let route = try XCTUnwrap(PasswordResetRoute(configuredURL: "https://app.example:8443/reset-password"))
-        let valid = try XCTUnwrap(URL(string: "https://app.example:8443/reset-password?token=\(token)"))
-        let wrongHost = try XCTUnwrap(URL(string: "https://other.example:8443/reset-password?token=\(token)"))
-        let wrongPath = try XCTUnwrap(URL(string: "https://app.example:8443/other?token=\(token)"))
-        let wrongPort = try XCTUnwrap(URL(string: "https://app.example/reset-password?token=\(token)"))
+        let route = try XCTUnwrap(PasswordResetRoute(configuredURL: "https://app.example/reset-password", associatedDomain: "applinks:app.example"))
+        let valid = try XCTUnwrap(URL(string: "https://app.example/reset-password?token=\(token)"))
+        let wrongHost = try XCTUnwrap(URL(string: "https://other.example/reset-password?token=\(token)"))
+        let wrongPath = try XCTUnwrap(URL(string: "https://app.example/other?token=\(token)"))
+        let wrongPort = try XCTUnwrap(URL(string: "https://app.example:8443/reset-password?token=\(token)"))
 
         XCTAssertEqual(route.token(fromIncomingURL: valid), token)
         XCTAssertNil(route.token(fromIncomingURL: wrongHost))
@@ -29,11 +29,30 @@ final class PasswordResetInputTests: XCTestCase {
     }
 
     func testConfiguredRecoveryRouteRejectsUnsafeBaseURLShapes() {
-        XCTAssertNil(PasswordResetRoute(configuredURL: ""))
-        XCTAssertNil(PasswordResetRoute(configuredURL: "http://app.example/reset-password"))
-        XCTAssertNil(PasswordResetRoute(configuredURL: "https://user@app.example/reset-password"))
-        XCTAssertNil(PasswordResetRoute(configuredURL: "https://app.example/reset-password?next=x"))
-        XCTAssertNil(PasswordResetRoute(configuredURL: "https://app.example/reset-password#fragment"))
+        XCTAssertNil(PasswordResetRoute(configuredURL: "", associatedDomain: "applinks:app.example"))
+        XCTAssertNil(PasswordResetRoute(configuredURL: "http://app.example/reset-password", associatedDomain: "applinks:app.example"))
+        XCTAssertNil(PasswordResetRoute(configuredURL: "https://user@app.example/reset-password", associatedDomain: "applinks:app.example"))
+        XCTAssertNil(PasswordResetRoute(configuredURL: "https://app.example/reset-password?next=x", associatedDomain: "applinks:app.example"))
+        XCTAssertNil(PasswordResetRoute(configuredURL: "https://app.example/reset-password#fragment", associatedDomain: "applinks:app.example"))
+    }
+
+    func testConfiguredRecoveryRouteRequiresMatchingAssociatedDomain() {
+        XCTAssertNotNil(PasswordResetRoute(
+            configuredURL: "https://app.example/reset-password",
+            associatedDomain: "applinks:app.example"
+        ))
+        XCTAssertNil(PasswordResetRoute(
+            configuredURL: "https://app.example/reset-password",
+            associatedDomain: "applinks:other.example"
+        ))
+        XCTAssertNil(PasswordResetRoute(
+            configuredURL: "https://app.example:8443/reset-password",
+            associatedDomain: "applinks:app.example"
+        ))
+        XCTAssertNil(PasswordResetRoute(
+            configuredURL: "https://app.example/reset-password",
+            associatedDomain: "webcredentials:app.example"
+        ))
     }
 
     func testRejectsDuplicateTokenParameters() {

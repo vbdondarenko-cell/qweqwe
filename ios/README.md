@@ -76,3 +76,14 @@ The original foundation/next-block lists above are historical. Current `main` ha
 - Pulse and Map quick mutations surface server/durable errors instead of silently swallowing them.
 
 No generated `.xcodeproj`, compile-green, XCTest-green, simulator/device, signing or App Store claim is made from the Ubuntu host. The next authoritative gate is macOS/Xcode: generate the project, compile with strict concurrency, run tests, fix compiler findings, then execute the signed-in end-to-end flows on simulator and device.
+
+## Password-recovery Universal Link gate
+
+Automatic password-reset routing is fail-closed and requires both build settings to agree:
+
+- `LINKUP_RECOVERY_RESET_URL` — exact HTTPS reset URL without query/fragment or custom port;
+- `LINKUP_RECOVERY_ASSOCIATED_DOMAIN` — exact `applinks:<host>` value for the same host.
+
+`ios/project.yml` wires `com.apple.developer.associated-domains` through `LinkUp.entitlements`. The repository default is the reserved non-production value `applinks:example.invalid`; release configuration must replace it together with the real reset URL.
+
+The website side remains an external release gate: the configured host must serve a valid `/.well-known/apple-app-site-association` for the final signed app identifier. This Ubuntu source host cannot verify Apple CDN association, device Universal Link delivery, or signing.

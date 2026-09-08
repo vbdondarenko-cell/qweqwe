@@ -37,8 +37,12 @@ final class AppRuntime: ObservableObject {
     private var started = false
 
     init(bundle: Bundle = .main) {
-        let raw = (bundle.object(forInfoDictionaryKey: "LINKUP_RECOVERY_RESET_URL") as? String) ?? ""
-        authRoutes = AuthRouteCoordinator(trustedResetRoute: PasswordResetRoute(configuredURL: raw))
+        let resetURL = (bundle.object(forInfoDictionaryKey: "LINKUP_RECOVERY_RESET_URL") as? String) ?? ""
+        let associatedDomain = (bundle.object(forInfoDictionaryKey: "LINKUP_RECOVERY_ASSOCIATED_DOMAIN") as? String) ?? ""
+        authRoutes = AuthRouteCoordinator(trustedResetRoute: PasswordResetRoute(
+            configuredURL: resetURL,
+            associatedDomain: associatedDomain
+        ))
     }
 
     func start() async {

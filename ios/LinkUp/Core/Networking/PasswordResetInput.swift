@@ -2,27 +2,38 @@ import Foundation
 
 struct PasswordResetRoute: Equatable, Sendable {
     let host: String
-    let port: Int?
     let path: String
 
-    init?(configuredURL raw: String) {
+    init?(configuredURL raw: String, associatedDomain rawAssociatedDomain: String) {
         let value = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !value.isEmpty, value.utf8.count <= 4_096,
               let components = URLComponents(string: value),
               components.scheme?.lowercased() == "https",
               let host = components.host?.lowercased(), !host.isEmpty,
+              components.port == nil,
               components.user == nil, components.password == nil,
               components.query == nil, components.fragment == nil else { return nil }
+        guard Self.associatedDomainHost(rawAssociatedDomain) == host else { return nil }
         self.host = host
-        self.port = components.port
         self.path = components.path
+    }
+
+    static func associatedDomainHost(_ raw: String) -> String? {
+        let value = raw.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard value.hasPrefix("applinks:"), value.utf8.count <= 512 else { return nil }
+        let host = String(value.dropFirst("applinks:".count))
+        guard !host.isEmpty,
+              !host.contains("/"), !host.contains(":"), !host.contains("?"), !host.contains("#"),
+              let components = URLComponents(string: "https://\(host)"),
+              components.host?.lowercased() == host else { return nil }
+        return host
     }
 
     func token(fromIncomingURL url: URL) -> String? {
         guard let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
               components.scheme?.lowercased() == "https",
               components.host?.lowercased() == host,
-              components.port == port,
+              components.port == nil,
               components.path == path,
               components.user == nil, components.password == nil,
               components.fragment == nil,
