@@ -57,6 +57,29 @@ final class CityContextContractTests: XCTestCase {
         XCTAssertFalse(invalidLocality.hasValidServerShape)
     }
 
+    func testServerExpiryTimestampIsTheOnlyClientFreshnessBoundary() {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let context = CityContextModel(
+            locality: CityLocality(
+                id: UUID(),
+                name: "Kyiv",
+                countryCode: "UA",
+                timezone: "Europe/Kyiv",
+                centroidLatitudeE6: 50_450_000,
+                centroidLongitudeE6: 30_523_000
+            ),
+            permissionClass: .approximate,
+            accuracyM: 1_000,
+            observedAt: now.addingTimeInterval(-60),
+            expiresAt: now.addingTimeInterval(10),
+            switchPending: false
+        )
+
+        XCTAssertTrue(context.isFresh(at: now))
+        XCTAssertFalse(context.isFresh(at: context.expiresAt))
+        XCTAssertFalse(context.isFresh(at: context.expiresAt.addingTimeInterval(1)))
+    }
+
     func testObservationRejectsMockedAndOutOfBoundsInput() {
         let valid = CityLocationObservation(
             latitudeE6: 50_450_000,

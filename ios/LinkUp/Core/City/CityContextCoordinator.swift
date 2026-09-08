@@ -37,6 +37,7 @@ final class CityContextCoordinator: ObservableObject {
             finishCancellation(request)
         } catch let error as APIError {
             guard request == generation else { return }
+            discardExpiredContext()
             if case .unauthorized = error {
                 isRefreshing = false
                 await session.clearLocalSession()
@@ -56,6 +57,7 @@ final class CityContextCoordinator: ObservableObject {
             isRefreshing = false
         } catch {
             guard request == generation else { return }
+            discardExpiredContext()
             phase = context == nil ? .failed(error.localizedDescription) : .content
             if context != nil { refreshError = error.localizedDescription }
             isRefreshing = false
@@ -77,6 +79,7 @@ final class CityContextCoordinator: ObservableObject {
             finishCancellation(request)
         } catch let error as APIError {
             guard request == generation else { return }
+            discardExpiredContext()
             if case .unauthorized = error {
                 isRefreshing = false
                 await session.clearLocalSession()
@@ -87,6 +90,7 @@ final class CityContextCoordinator: ObservableObject {
             isRefreshing = false
         } catch {
             guard request == generation else { return }
+            discardExpiredContext()
             phase = context == nil ? .failed(error.localizedDescription) : .content
             if context != nil { refreshError = error.localizedDescription }
             isRefreshing = false
@@ -102,6 +106,7 @@ final class CityContextCoordinator: ObservableObject {
     }
 
     private func beginRequest() -> UInt64 {
+        discardExpiredContext()
         generation &+= 1
         let request = generation
         refreshError = nil
@@ -112,7 +117,13 @@ final class CityContextCoordinator: ObservableObject {
 
     private func finishCancellation(_ request: UInt64) {
         guard request == generation else { return }
+        discardExpiredContext()
         isRefreshing = false
         phase = context == nil ? .idle : .content
+    }
+
+    private func discardExpiredContext(now: Date = Date()) {
+        guard let context, !context.isFresh(at: now) else { return }
+        self.context = nil
     }
 }

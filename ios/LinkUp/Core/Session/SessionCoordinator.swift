@@ -137,12 +137,17 @@ final class SessionCoordinator: ObservableObject {
     ) async throws {
         guard case .signedIn(let current) = state else { throw APIError.unauthorized }
         generation &+= 1
+        let requestGeneration = generation
         let updated = try await api.updateMe(
             displayName: displayName,
             avatarUrl: avatarUrl,
             profileVisibility: profileVisibility,
             language: language
         )
+        guard requestGeneration == generation else { throw CancellationError() }
+        guard case .signedIn(let stillCurrent) = state, stillCurrent.id == current.id else {
+            throw CancellationError()
+        }
         guard updated.id == current.id else {
             await api.clearLocalSession()
             state = .signedOut

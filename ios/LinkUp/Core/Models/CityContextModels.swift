@@ -24,6 +24,10 @@ struct CityContextModel: Codable, Equatable, Sendable {
     let observedAt: Date
     let expiresAt: Date
     let switchPending: Bool
+
+    func isFresh(at date: Date = Date()) -> Bool {
+        expiresAt > date
+    }
 }
 
 struct CityLocationObservation: Encodable, Equatable, Sendable {
