@@ -14,6 +14,7 @@ import com.linkup.app.core.network.SlotState
 import com.linkup.app.core.network.SlotViewerState
 import com.linkup.app.core.network.SlotVisibility
 import com.linkup.app.core.network.SocialApi
+import com.linkup.app.core.network.V11HostingApi
 import java.io.IOException
 import java.time.Instant
 import java.util.UUID
@@ -29,7 +30,7 @@ class DurableSocialApi(
     private val runner: DurableMutationRunner,
     private val transport: DurableMutationTransport,
     private val onUnauthorized: () -> Unit = {},
-) : SocialApi {
+) : SocialApi, V11HostingApi {
     override suspend fun mySlots(view: MySlotsView): List<SlotModel> = delegate.mySlots(view)
     override suspend fun pulse(): List<SlotModel> = delegate.pulse()
     override suspend fun getSlot(slotId: String): SlotModel = delegate.getSlot(slotId)
@@ -37,17 +38,19 @@ class DurableSocialApi(
     override suspend fun pendingRequests(slotId: String): List<PendingSlotRequest> = delegate.pendingRequests(slotId)
     override suspend fun chatMessages(slotId: String, limit: Int): List<ChatMessage> = delegate.chatMessages(slotId, limit)
 
-    override suspend fun createSlot(input: CreateSlotInput): SlotModel {
-        val body = JSONObject()
-            .put("title", input.title)
-            .put("activity", input.activity)
-            .put("placeText", input.placeText)
-            .put("capacity", input.capacity)
-        input.details?.let { body.put("details", it) }
-        input.zoneText?.let { body.put("zoneText", it) }
-        input.canonicalPlaceId?.let { body.put("canonicalPlaceId", uuid(it)) }
-        input.startAtEpochMillis?.let { body.put("startAt", Instant.ofEpochMilli(it).toString()) }
-        return executeSlot("POST", "/v1/slots", body)
+    override suspend fun createSlot(input: CreateSlotInput): SlotModel =
+        executeSlot("POST", "/v1/slots", createBody(input))
+
+    override suspend fun createDraft(input: CreateSlotInput): SlotModel =
+        executeSlot("POST", "/v1/slots/drafts", createBody(input))
+
+    override suspend fun publishDraft(slotId: String, expectedVersion: Long): SlotModel {
+        require(expectedVersion > 0)
+        return executeSlot(
+            "POST",
+            "/v1/slots/${uuid(slotId)}/publish",
+            JSONObject().put("expectedVersion", expectedVersion),
+        )
     }
 
     override suspend fun editSlot(slotId: String, input: EditSlotInput): SlotModel {
@@ -120,6 +123,19 @@ class DurableSocialApi(
         val report = runner.replay(mutationOwnerFingerprint(token), transport)
         if (currentBearerToken() == null) onUnauthorized()
         return report
+    }
+
+    private fun createBody(input: CreateSlotInput): JSONObject {
+        val body = JSONObject()
+            .put("title", input.title)
+            .put("activity", input.activity)
+            .put("placeText", input.placeText)
+            .put("capacity", input.capacity)
+        input.details?.let { body.put("details", it) }
+        input.zoneText?.let { body.put("zoneText", it) }
+        input.canonicalPlaceId?.let { body.put("canonicalPlaceId", uuid(it)) }
+        input.startAtEpochMillis?.let { body.put("startAt", Instant.ofEpochMilli(it).toString()) }
+        return body
     }
 
     private suspend fun executeSlot(method: String, path: String, body: JSONObject?): SlotModel =
