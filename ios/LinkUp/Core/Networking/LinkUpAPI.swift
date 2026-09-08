@@ -276,9 +276,21 @@ actor LinkUpAPI {
     }
 
     func clearLocalSession() async {
-        await credentials.clear()
-        try? await durableOutbox.clearAll()
-        try? await draftWorkflowStore.clear()
+        try? await clearLocalSessionStrict()
+    }
+
+    func clearLocalSessionStrict() async throws {
+        do {
+            try await credentials.clear()
+        } catch {
+            throw APIError.secureStorageUnavailable
+        }
+        do {
+            try await durableOutbox.clearAll()
+            try await draftWorkflowStore.clear()
+        } catch {
+            throw APIError.mutationJournalUnavailable
+        }
     }
 
     func beginDraftPublishWorkflow(_ body: CreateSlotBody) async throws -> SlotModel {

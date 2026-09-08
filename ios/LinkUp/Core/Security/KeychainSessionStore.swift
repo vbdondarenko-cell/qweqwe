@@ -41,16 +41,16 @@ actor KeychainSessionStore {
         }
         guard let credential = try? JSONDecoder().decode(SessionCredential.self, from: data),
               credential.hasValidTokenShape, !credential.isExpired else {
-            clear()
+            try clear()
             return nil
         }
         return credential
     }
 
-    func clear() {
+    func clear() throws {
         let status = SecItemDelete(baseQuery() as CFDictionary)
-        if status != errSecSuccess && status != errSecItemNotFound {
-            return
+        guard status == errSecSuccess || status == errSecItemNotFound else {
+            throw KeychainStoreError.status(status)
         }
     }
 

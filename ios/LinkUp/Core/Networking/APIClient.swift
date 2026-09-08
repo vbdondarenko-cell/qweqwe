@@ -122,7 +122,10 @@ actor APIClient {
             throw APIError.protocolViolation("Server returned a non-HTTP response.")
         }
         let unauthorized = request.authenticated && http.statusCode == 401
-        if unauthorized { await credentials.clear() }
+        if unauthorized {
+            do { try await credentials.clear() }
+            catch { throw APIError.secureStorageUnavailable }
+        }
 
         if response.expectedContentLength > Int64(maxResponseBytes) {
             throw APIError.responseTooLarge

@@ -159,7 +159,7 @@ extension LinkUpAPI {
             // With no pending owner-bound work, local sign-out remains authoritative
             // for this device even if remote revocation is temporarily unavailable.
         }
-        await clearLocalSession()
+        try await clearLocalSessionStrict()
     }
 
     func blockedUsers() async throws -> [BlockedUser] {
