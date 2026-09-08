@@ -45,6 +45,8 @@ class CityContextCoordinatorTest {
         assertEquals(observation, received)
         val state = assertIs<LoadState.Content<CityContextModel>>(coordinator.context.value)
         assertEquals("Kyiv", state.value.locality.name)
+        assertEquals(50_450_100, state.value.locality.centroidLatitudeE6)
+        assertEquals(30_523_400, state.value.locality.centroidLongitudeE6)
     }
 
     @Test
@@ -73,6 +75,8 @@ class CityContextCoordinatorTest {
             name = "Kyiv",
             countryCode = "UA",
             timezone = "Europe/Kyiv",
+            centroidLatitudeE6 = 50_450_100,
+            centroidLongitudeE6 = 30_523_400,
         ),
         permissionClass = CityPermissionClass.PRECISE,
         accuracyM = 25,
