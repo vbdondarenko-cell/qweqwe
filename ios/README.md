@@ -60,3 +60,19 @@ Published in `44d4073d2ea32676ce14111e7f587a9d3f0ec349`:
 - session bootstrap states for signed-out, signed-in, temporary offline and recoverable failure.
 
 Credential-entry auth publication is still open because the current tool safety boundary rejected the wrapper containing password/reset-token fields. This is recorded as incomplete rather than worked around.
+
+## Current source state
+
+The original foundation/next-block lists above are historical. Current `main` has moved beyond them:
+
+- native register/login/logout/password-reset and profile editing are wired to the Go API;
+- RootView is session-state driven with Keychain persistence and foreground revalidation;
+- Pulse, Map, Me/My LINKs, Slot detail/edit, approval/roster/removal, lifecycle, block and chat surfaces use typed server data;
+- City Context and canonical-place search are bound without prototype fake telemetry;
+- durable mutation replay persists exact commands and fails closed on ambiguous/stale outcomes;
+- Create LINK uses `POST /v1/slots/drafts` followed by versioned `POST /v1/slots/{slotID}/publish`, with protected process-death recovery and server-side discard;
+- the iOS replay window is 20 hours, below the backend default 24-hour idempotency TTL. If a workflow becomes stale without a confirmed draft ID, the client does not replay create outside the safe window;
+- Pulse/request/edit/start action eligibility is centralized in native model contracts matching the Go lifecycle rules;
+- Pulse and Map quick mutations surface server/durable errors instead of silently swallowing them.
+
+No generated `.xcodeproj`, compile-green, XCTest-green, simulator/device, signing or App Store claim is made from the Ubuntu host. The next authoritative gate is macOS/Xcode: generate the project, compile with strict concurrency, run tests, fix compiler findings, then execute the signed-in end-to-end flows on simulator and device.

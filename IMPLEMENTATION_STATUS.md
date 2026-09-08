@@ -644,3 +644,41 @@ The current tooling blocked publication of the credential-entry auth wrapper con
 Font roles are mapped to Outfit/Inter/JetBrains Mono, but the repository does not currently contain the corresponding bundled font resources, so exact iOS typography parity is not yet verified.
 
 Next dependency-safe iOS block: compile on macOS/Xcode, fix compiler findings, add the permitted native auth binding, route RootView through canonical session state, bind real Pulse/Create/Me and Slot detail/actions to `LinkUpAPI`, then add coordinator-level stale-response/double-tap tests before any production-readiness claim.
+
+## 30. 2026-09-08 — current native iOS source state (supersedes §29 capability list)
+
+Section 29 remains the historical activation snapshot. The capability statements below supersede its now-stale claims that credential auth, RootView session routing, real social binding and Create LINK publish are still open.
+
+Published directly to `main` after the initial foundation includes:
+
+- `8df0ece` — native account recovery and profile editing;
+- `70d1c33` — native Map place discovery;
+- `6c48743` — native host-management flow;
+- `0ba328a` / `36ad635` — privacy-safe City Context and server-city scheduling time zone;
+- `1b48089` — authoritative realtime catch-up;
+- `96c6aec` — durable mutation replay;
+- `9b43267` / `0eddfec` / `dd4c2da` — organizer blocking and discovery convergence;
+- `bfdcded` — safe password-reset URL routing;
+- `6ab69c3` — native notifications surface;
+- `341c40a` / `8f09695` / `f3de6a3` / `713d7ae` — DRAFT → publish API foundation, protected workflow persistence, restart recovery and Create LINK binding;
+- `bbd93aa` — iOS Slot/Pulse action lifecycle aligned to Go server rules;
+- `cdb59f6` — visible Pulse/Map social mutation error surface.
+
+Current native iOS source now has:
+
+- registration, login, logout, password-recovery/reset and `/v1/me` account flows through the Go API;
+- RootView routing through canonical session state with Keychain-backed bearer recovery and foreground revalidation;
+- real Pulse, Map, My LINKs, Slot detail/edit, request/leave, approval/rejection, participant removal, host lifecycle, block and Zero-Trace Chat bindings;
+- privacy-safe City Context and canonical-place search without copying prototype fake telemetry;
+- durable mutation journaling with owner fingerprinting, bounded replay window and fail-closed ambiguity handling;
+- Create LINK using the canonical v1.1 `POST /v1/slots/drafts` → `POST /v1/slots/{id}/publish` workflow instead of the legacy direct-create client path;
+- protected DRAFT workflow state with stable create/publish/cancel idempotency keys, process-death/reconnect resume, authoritative version reconciliation and server-side discard;
+- client replay cutoff of 20 hours, deliberately below the backend default idempotency TTL of 24 hours; an unconfirmed draft ID is not replayed manually after the safe window because duplicate prevention can no longer be guaranteed;
+- shared Slot lifecycle/action contracts matching server Pulse/request/edit/start rules, including removal of ACTIVE Slots from local Pulse reconciliation;
+- visible mutation errors on quick-action Pulse/Map surfaces rather than silent failure.
+
+Source verification executed on the Ubuntu host for the latest blocks: repeated repository/origin parity checks, `git diff --check`, Swift source delimiter/call-site scans, no hardcoded production URL/secret findings, and preservation of Android/Go/DB/frozen React/TypeScript sources for iOS-only commits.
+
+Still **not verified**: Swift compilation, XCTest execution, XcodeGen generation under Xcode, simulator/device behavior, APNs/device notification delivery, signing, archive/App Store build and physical multi-account iOS runtime. This Ubuntu host has no `swiftc`, `xcodebuild` or `xcodegen`; none of those gates may be marked green from source review alone.
+
+Exact next iOS verification priority: run XcodeGen and compile/tests on macOS/Xcode, fix compiler/concurrency findings first, then execute signed-in auth/Create/Pulse/Map/Me/Slot/chat flows on simulator and physical device before any iOS production-readiness claim.
