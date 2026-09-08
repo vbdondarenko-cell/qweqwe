@@ -116,7 +116,7 @@ func resolveLocalityTx(ctx context.Context, tx pgx.Tx, latitudeE6, longitudeE6 i
 
 	var locality citycontext.Locality
 	err := tx.QueryRow(ctx, `
-		SELECT id::text,name,country_code,timezone_name
+		SELECT id::text,name,country_code,timezone_name,centroid_latitude_e6,centroid_longitude_e6
 		FROM localities
 		WHERE active
 		  AND boundary IS NOT NULL
@@ -130,6 +130,7 @@ func resolveLocalityTx(ctx context.Context, tx pgx.Tx, latitudeE6, longitudeE6 i
 		ORDER BY public.st_area(boundary) ASC, id ASC
 		LIMIT 1`, latitudeE6, longitudeE6).Scan(
 		&locality.ID, &locality.Name, &locality.CountryCode, &locality.Timezone,
+		&locality.CentroidLatitudeE6, &locality.CentroidLongitudeE6,
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return citycontext.Locality{}, citycontext.ErrNoLocality
@@ -160,6 +161,7 @@ func currentCityLockTx(ctx context.Context, tx pgx.Tx, userID string, onlyFresh 
 
 const currentCityLockSQL = `
 	SELECT c.user_id::text,l.id::text,l.name,l.country_code,l.timezone_name,
+	       l.centroid_latitude_e6,l.centroid_longitude_e6,
 	       c.permission_class,c.accuracy_m,c.observed_at,c.expires_at,
 	       c.candidate_locality_id::text,c.candidate_count,c.candidate_observed_at
 	FROM city_context_locks c
@@ -173,6 +175,7 @@ func currentCityLockRow(row scanner) (citycontext.Lock, error) {
 	var candidateAt pgtype.Timestamptz
 	if err := row.Scan(
 		&out.UserID, &out.Locality.ID, &out.Locality.Name, &out.Locality.CountryCode, &out.Locality.Timezone,
+		&out.Locality.CentroidLatitudeE6, &out.Locality.CentroidLongitudeE6,
 		&permission, &out.AccuracyM, &out.ObservedAt, &out.ExpiresAt,
 		&candidate, &out.CandidateCount, &candidateAt,
 	); err != nil {
