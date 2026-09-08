@@ -250,7 +250,7 @@ struct PulseView: View {
     }
 
     private func primaryAction(_ slot: SlotModel) {
-        if slot.viewerState == .none && slot.accessMode == .approval && slot.state == .filling {
+        if slot.canRequestToJoin {
             Task { _ = try? await coordinator.request(slot) }
         } else {
             selectedSlot = slot

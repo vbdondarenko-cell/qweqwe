@@ -24,7 +24,19 @@ enum SlotState: String, Codable, Sendable {
         }
     }
 
+    var isPulseDiscoverable: Bool {
+        self == .published || self == .filling || self == .full
+    }
+
     var acceptsNewRequests: Bool {
+        self == .published || self == .filling
+    }
+
+    var allowsHostEdit: Bool {
+        self == .draft || self == .published || self == .filling || self == .full
+    }
+
+    var allowsHostStart: Bool {
         self == .filling || self == .full
     }
 }

@@ -115,13 +115,13 @@ struct SlotCardView: View {
         case .accepted: "Open"
         case .pending: "Pending"
         case .none:
-            slot.state == .full ? "Full" : (slot.accessMode == .approval ? "Request" : "Open")
+            slot.state == .full ? "Full" : (slot.canRequestToJoin ? "Request" : "Open")
         }
     }
 
     private var actionDisabled: Bool {
         isMutating || slot.viewerState == .pending ||
-        (slot.viewerState == .none && (slot.state == .full || slot.accessMode != .approval))
+        (slot.viewerState == .none && !slot.canRequestToJoin)
     }
 
     private var actionTint: Color {

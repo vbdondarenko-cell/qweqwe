@@ -29,6 +29,18 @@ struct SlotModel: Codable, Identifiable, Equatable, Sendable {
 
     var isTerminal: Bool { state.isTerminal }
     var remainingCapacity: Int { max(0, capacity - acceptedCount) }
+
+    var canRequestToJoin: Bool {
+        viewerState == .none && accessMode == .approval && state.acceptsNewRequests && remainingCapacity > 0
+    }
+
+    var canHostEdit: Bool {
+        viewerState == .host && state.allowsHostEdit
+    }
+
+    var canHostStart: Bool {
+        viewerState == .host && state.allowsHostStart && acceptedCount > 0
+    }
 }
 
 struct PendingSlotRequest: Codable, Equatable, Sendable {

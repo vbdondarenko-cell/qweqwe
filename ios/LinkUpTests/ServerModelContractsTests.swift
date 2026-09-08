@@ -13,7 +13,10 @@ final class ServerModelContractsTests: XCTestCase {
         capacity: Int = 100,
         acceptedCount: Int = 1,
         version: Int64 = 1,
-        canonicalPlaceId: UUID? = nil
+        canonicalPlaceId: UUID? = nil,
+        state: SlotState = .filling,
+        accessMode: SlotAccessMode = .approval,
+        viewerState: SlotViewerState = .none
     ) -> SlotModel {
         let now = Date()
         return SlotModel(
@@ -28,14 +31,64 @@ final class ServerModelContractsTests: XCTestCase {
             startAt: now.addingTimeInterval(3_600),
             capacity: capacity,
             acceptedCount: acceptedCount,
-            state: .filling,
-            accessMode: .approval,
+            state: state,
+            accessMode: accessMode,
             visibility: .publicValue,
-            viewerState: .none,
+            viewerState: viewerState,
             version: version,
             createdAt: now,
             updatedAt: now
         )
+    }
+
+    func testPulseDiscoverabilityMatchesServerLifecycleFilter() {
+        XCTAssertFalse(SlotState.draft.isPulseDiscoverable)
+        XCTAssertTrue(SlotState.published.isPulseDiscoverable)
+        XCTAssertTrue(SlotState.filling.isPulseDiscoverable)
+        XCTAssertTrue(SlotState.full.isPulseDiscoverable)
+        XCTAssertFalse(SlotState.active.isPulseDiscoverable)
+        XCTAssertFalse(SlotState.completed.isPulseDiscoverable)
+        XCTAssertFalse(SlotState.cancelled.isPulseDiscoverable)
+        XCTAssertFalse(SlotState.expired.isPulseDiscoverable)
+        XCTAssertFalse(SlotState.moderated.isPulseDiscoverable)
+    }
+
+    func testRequestAcceptanceMatchesServerLifecycleFilter() {
+        XCTAssertFalse(SlotState.draft.acceptsNewRequests)
+        XCTAssertTrue(SlotState.published.acceptsNewRequests)
+        XCTAssertTrue(SlotState.filling.acceptsNewRequests)
+        XCTAssertFalse(SlotState.full.acceptsNewRequests)
+        XCTAssertFalse(SlotState.active.acceptsNewRequests)
+        XCTAssertFalse(SlotState.completed.acceptsNewRequests)
+        XCTAssertFalse(SlotState.cancelled.acceptsNewRequests)
+        XCTAssertFalse(SlotState.expired.acceptsNewRequests)
+        XCTAssertFalse(SlotState.moderated.acceptsNewRequests)
+    }
+
+    func testRequestActionRequiresEligibleViewerAccessStateAndCapacity() {
+        XCTAssertTrue(slot(state: .published).canRequestToJoin)
+        XCTAssertTrue(slot(state: .filling).canRequestToJoin)
+        XCTAssertFalse(slot(state: .full).canRequestToJoin)
+        XCTAssertFalse(slot(capacity: 2, acceptedCount: 2, state: .filling).canRequestToJoin)
+        XCTAssertFalse(slot(state: .active).canRequestToJoin)
+        XCTAssertFalse(slot(state: .filling, accessMode: .instant).canRequestToJoin)
+        XCTAssertFalse(slot(state: .filling, viewerState: .pending).canRequestToJoin)
+        XCTAssertFalse(slot(state: .filling, viewerState: .accepted).canRequestToJoin)
+        XCTAssertFalse(slot(state: .filling, viewerState: .host).canRequestToJoin)
+    }
+
+    func testHostActionsMatchServerLifecycleAndParticipantRules() {
+        XCTAssertTrue(slot(state: .published, viewerState: .host).canHostEdit)
+        XCTAssertTrue(slot(state: .filling, viewerState: .host).canHostEdit)
+        XCTAssertTrue(slot(state: .full, viewerState: .host).canHostEdit)
+        XCTAssertFalse(slot(state: .active, viewerState: .host).canHostEdit)
+        XCTAssertFalse(slot(state: .filling, viewerState: .none).canHostEdit)
+
+        XCTAssertTrue(slot(acceptedCount: 1, state: .filling, viewerState: .host).canHostStart)
+        XCTAssertTrue(slot(acceptedCount: 1, state: .full, viewerState: .host).canHostStart)
+        XCTAssertFalse(slot(acceptedCount: 0, state: .filling, viewerState: .host).canHostStart)
+        XCTAssertFalse(slot(acceptedCount: 1, state: .published, viewerState: .host).canHostStart)
+        XCTAssertFalse(slot(acceptedCount: 1, state: .filling, viewerState: .none).canHostStart)
     }
 
     func testSlotShapeAcceptsServiceMaximumCapacity() {

@@ -421,13 +421,13 @@ final class SocialCoordinator: ObservableObject {
 
     private func reconcile(_ slot: SlotModel) {
         if activeSlot?.id == slot.id { activeSlot = slot }
-        guard !slot.isTerminal else {
+        guard slot.state.isPulseDiscoverable else {
             pulseItems.removeAll { $0.id == slot.id }
             pulsePhase = pulseItems.isEmpty ? .empty : .content
             return
         }
         if let index = pulseItems.firstIndex(where: { $0.id == slot.id }) { pulseItems[index] = slot }
-        else if slot.state == .filling || slot.state == .full { pulseItems.insert(slot, at: 0) }
+        else { pulseItems.insert(slot, at: 0) }
         pulsePhase = pulseItems.isEmpty ? .empty : .content
     }
 }

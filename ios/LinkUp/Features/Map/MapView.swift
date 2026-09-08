@@ -431,7 +431,7 @@ private struct MapPlaceSlotsView: View {
 
     private func primaryAction(_ slot: SlotModel) {
         switch slot.viewerState {
-        case .none where slot.accessMode == .approval && slot.state == .filling:
+        case .none where slot.canRequestToJoin:
             Task {
                 do {
                     _ = try await social.request(slot)

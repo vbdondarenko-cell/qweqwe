@@ -172,7 +172,7 @@ struct SlotDetailView: View {
         VStack(spacing: 10) {
             switch slot.viewerState {
             case .none:
-                if slot.accessMode == .approval && slot.state == .filling {
+                if slot.canRequestToJoin {
                     LinkUpButton(title: "Request to join", disabled: coordinator.mutationControlsDisabled) {
                         runMutation { try await coordinator.request(slot) }
                     }
@@ -208,15 +208,17 @@ struct SlotDetailView: View {
 
     @ViewBuilder private var hostControls: some View {
         if !slot.isTerminal {
-            LinkUpButton(title: "Edit LINK", variant: .secondary, disabled: coordinator.mutationControlsDisabled) {
-                showingEdit = true
+            if slot.canHostEdit {
+                LinkUpButton(title: "Edit LINK", variant: .secondary, disabled: coordinator.mutationControlsDisabled) {
+                    showingEdit = true
+                }
             }
             LinkUpButton(title: "Manage participants", variant: .secondary, disabled: coordinator.mutationControlsDisabled) {
                 showingHostManagement = true
             }
             LinkUpButton(title: "Open chat", variant: .secondary) { showingChat = true }
         }
-        if slot.state == .filling || slot.state == .full {
+        if slot.canHostStart {
             LinkUpButton(title: "Start LinkUp", variant: .success, disabled: coordinator.mutationControlsDisabled) {
                 runMutation { try await coordinator.start(slot) }
             }
