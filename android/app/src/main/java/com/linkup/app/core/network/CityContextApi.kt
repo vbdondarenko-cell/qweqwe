@@ -10,6 +10,8 @@ data class CityLocality(
     val name: String,
     val countryCode: String,
     val timezone: String,
+    val centroidLatitudeE6: Int,
+    val centroidLongitudeE6: Int,
 )
 
 data class CityContextModel(
