@@ -158,6 +158,7 @@ dependencies {
     implementation("com.google.firebase:firebase-messaging:24.1.2")
 
     testImplementation("org.jetbrains.kotlin:kotlin-test-junit:2.4.10")
+    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.11.0")
 
     debugImplementation("androidx.compose.ui:ui-tooling")
     debugImplementation("androidx.compose.ui:ui-test-manifest")
