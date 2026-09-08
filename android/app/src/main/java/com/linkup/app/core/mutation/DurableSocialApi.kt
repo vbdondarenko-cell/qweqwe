@@ -14,7 +14,6 @@ import com.linkup.app.core.network.SlotState
 import com.linkup.app.core.network.SlotViewerState
 import com.linkup.app.core.network.SlotVisibility
 import com.linkup.app.core.network.SocialApi
-import com.linkup.app.core.session.SecureSessionStore
 import java.io.IOException
 import java.time.Instant
 import java.util.UUID
@@ -25,7 +24,7 @@ class DurableMutationQueuedException : IOException("Mutation is queued for safe 
 
 class DurableSocialApi(
     private val delegate: SocialApi,
-    private val sessions: SecureSessionStore,
+    private val currentBearerToken: () -> String?,
     private val runner: DurableMutationRunner,
     private val transport: DurableMutationTransport,
     private val onUnauthorized: () -> Unit = {},
@@ -116,9 +115,9 @@ class DurableSocialApi(
     }
 
     suspend fun replayPending(): DurableReplayReport? {
-        val stored = sessions.load() ?: return null
-        val report = runner.replay(mutationOwnerFingerprint(stored.token), transport)
-        if (sessions.load() == null) onUnauthorized()
+        val token = currentBearerToken() ?: return null
+        val report = runner.replay(mutationOwnerFingerprint(token), transport)
+        if (currentBearerToken() == null) onUnauthorized()
         return report
     }
 
@@ -131,32 +130,31 @@ class DurableSocialApi(
         body: JSONObject?,
         responseKind: DurableResponseKind,
     ): JSONObject {
-        val stored = sessions.load() ?: run {
+        val token = currentBearerToken() ?: run {
             onUnauthorized()
             throw ApiException(401, "unauthorized", "Authentication required")
         }
         val command = DurableMutationCommand(
             idempotencyKey = UUID.randomUUID().toString(),
-            ownerFingerprint = mutationOwnerFingerprint(stored.token),
+            ownerFingerprint = mutationOwnerFingerprint(token),
             method = method,
             path = path,
             bodyJson = body?.toString(),
             responseKind = responseKind,
             createdAtEpochMillis = System.currentTimeMillis().coerceAtLeast(1L),
         )
-        return when (val result = runner.submit(command, transport)) {
-            is DurableAttemptResult -> when (result.disposition) {
-                DurableAttemptDisposition.ACKNOWLEDGED -> parseAcknowledged(result)
-                DurableAttemptDisposition.DEFINITIVE_FAILURE -> {
-                    if (result.httpStatus == 401) onUnauthorized()
-                    throw ApiException(
-                        status = result.httpStatus ?: 400,
-                        code = result.errorCode ?: "request_failed",
-                        message = "Mutation was rejected by the server",
-                    )
-                }
-                DurableAttemptDisposition.AMBIGUOUS_FAILURE -> throw DurableMutationQueuedException()
+        val result = runner.submit(command, transport)
+        return when (result.disposition) {
+            DurableAttemptDisposition.ACKNOWLEDGED -> parseAcknowledged(result)
+            DurableAttemptDisposition.DEFINITIVE_FAILURE -> {
+                if (result.httpStatus == 401) onUnauthorized()
+                throw ApiException(
+                    status = result.httpStatus ?: 400,
+                    code = result.errorCode ?: "request_failed",
+                    message = "Mutation was rejected by the server",
+                )
             }
+            DurableAttemptDisposition.AMBIGUOUS_FAILURE -> throw DurableMutationQueuedException()
         }
     }
 
