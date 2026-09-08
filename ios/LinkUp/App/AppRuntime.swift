@@ -7,17 +7,20 @@ final class AppServices {
     let session: SessionCoordinator
     let cityContext: CityContextCoordinator
     let realtime: RealtimeCoordinator
+    let authRoutes: AuthRouteCoordinator
 
     init(
         api: LinkUpAPI,
         session: SessionCoordinator,
         cityContext: CityContextCoordinator,
-        realtime: RealtimeCoordinator
+        realtime: RealtimeCoordinator,
+        authRoutes: AuthRouteCoordinator
     ) {
         self.api = api
         self.session = session
         self.cityContext = cityContext
         self.realtime = realtime
+        self.authRoutes = authRoutes
     }
 }
 
@@ -30,6 +33,7 @@ final class AppRuntime: ObservableObject {
     }
 
     @Published private(set) var state: State = .starting
+    let authRoutes = AuthRouteCoordinator()
     private var started = false
 
     func start() async {
@@ -52,14 +56,39 @@ final class AppRuntime: ObservableObject {
                 api: api,
                 session: session,
                 cityContext: cityContext,
-                realtime: realtime
+                realtime: realtime,
+                authRoutes: authRoutes
             )
             state = .ready(services)
             await session.bootstrap()
+            switch session.state {
+            case .signedOut:
+                break
+            case .checking, .signedIn, .offlineSession, .recoverableError:
+                authRoutes.clear()
+            }
         } catch {
+            authRoutes.clear()
             state = .failed(error.localizedDescription)
         }
     }
+    @discardableResult
+    func handleIncomingURL(_ url: URL) -> Bool {
+        switch state {
+        case .starting:
+            return authRoutes.accept(url)
+        case .ready(let services):
+            switch services.session.state {
+            case .checking, .signedOut:
+                return authRoutes.accept(url)
+            case .signedIn, .offlineSession, .recoverableError:
+                return false
+            }
+        case .failed:
+            return false
+        }
+    }
+
     func applicationBecameActive() async {
         guard case .ready(let services) = state else { return }
         await services.session.revalidateForForeground()

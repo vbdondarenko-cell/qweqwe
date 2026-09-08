@@ -6,29 +6,46 @@ struct PasswordResetView: View {
     @ObservedObject var session: SessionCoordinator
 
     @State private var resetInput = ""
+    @State private var routedToken: String?
     @State private var password = ""
     @State private var confirmation = ""
     @State private var isBusy = false
     @State private var errorMessage: String?
     @State private var completed = false
 
+    init(session: SessionCoordinator, routedToken: String? = nil) {
+        _session = ObservedObject(wrappedValue: session)
+        let canonical = routedToken.flatMap { OpaqueTokenContract.canonical32ByteBase64URL($0) }
+        _routedToken = State(initialValue: canonical)
+    }
+
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
-                    Text("Paste the HTTPS reset link from your message or the reset code itself. The link is parsed locally and is never opened by the app.")
+                    Text(routedToken == nil
+                         ? "Paste the HTTPS reset link from your message or the reset code itself. The link is parsed locally and is never opened by the app."
+                         : "The reset link was validated locally. The app will send only its reset token to the configured LinkUp API.")
                         .font(LinkUpTypography.body(13))
                         .foregroundStyle(LinkUpPalette.textDimmed)
 
-                    TextField("Reset link or code", text: $resetInput, axis: .vertical)
-                        .lineLimit(2...5)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-                        .font(LinkUpTypography.mono(11))
-                        .padding(12)
-                        .background(LinkUpPalette.elevated)
-                        .clipShape(RoundedRectangle(cornerRadius: LinkUpRadius.control))
-                        .overlay { RoundedRectangle(cornerRadius: LinkUpRadius.control).stroke(LinkUpPalette.border) }
+                    if routedToken != nil {
+                        messageBanner(
+                            "Reset link verified. Enter a new password to continue.",
+                            tint: LinkUpPalette.success,
+                            symbol: "link"
+                        )
+                    } else {
+                        TextField("Reset link or code", text: $resetInput, axis: .vertical)
+                            .lineLimit(2...5)
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled()
+                            .font(LinkUpTypography.mono(11))
+                            .padding(12)
+                            .background(LinkUpPalette.elevated)
+                            .clipShape(RoundedRectangle(cornerRadius: LinkUpRadius.control))
+                            .overlay { RoundedRectangle(cornerRadius: LinkUpRadius.control).stroke(LinkUpPalette.border) }
+                    }
 
                     secureField("New password", text: $password)
                     secureField("Confirm new password", text: $confirmation)
@@ -73,14 +90,18 @@ struct PasswordResetView: View {
         .onDisappear { clearSensitiveFields() }
     }
 
+    private var effectiveResetToken: String? {
+        routedToken ?? passwordResetToken(from: resetInput)
+    }
+
     private var canSubmit: Bool {
-        passwordResetToken(from: resetInput) != nil &&
+        effectiveResetToken != nil &&
             InputContracts.validPasswordPayload(password) &&
             password == confirmation
     }
 
     private func submit() {
-        guard let token = passwordResetToken(from: resetInput), canSubmit, !isBusy else {
+        guard let token = effectiveResetToken, canSubmit, !isBusy else {
             errorMessage = "Enter a valid reset link/code and matching new passwords."
             return
         }
@@ -126,6 +147,7 @@ struct PasswordResetView: View {
 
     private func clearSensitiveFields() {
         resetInput = ""
+        routedToken = nil
         password = ""
         confirmation = ""
     }

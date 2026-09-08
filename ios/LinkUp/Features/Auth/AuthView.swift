@@ -10,6 +10,7 @@ struct AuthView: View {
     }
 
     @ObservedObject var session: SessionCoordinator
+    @ObservedObject var authRoutes: AuthRouteCoordinator
 
     @State private var mode: Mode = .login
     @State private var identifier = ""
@@ -22,6 +23,7 @@ struct AuthView: View {
     @State private var errorMessage: String?
     @State private var successMessage: String?
     @State private var showingReset = false
+    @State private var routedResetToken: String?
 
     var body: some View {
         ScrollView {
@@ -37,8 +39,18 @@ struct AuthView: View {
         .scrollDismissesKeyboard(.interactively)
         .background(LinkUpPalette.background.ignoresSafeArea())
         .foregroundStyle(LinkUpPalette.textPrimary)
-        .sheet(isPresented: $showingReset) {
-            PasswordResetView(session: session)
+        .sheet(isPresented: $showingReset, onDismiss: {
+            routedResetToken = nil
+            Task {
+                await Task<Never, Never>.yield()
+                presentPendingResetRoute()
+            }
+        }) {
+            PasswordResetView(session: session, routedToken: routedResetToken)
+        }
+        .task { presentPendingResetRoute() }
+        .onChange(of: authRoutes.pendingPasswordResetToken) { _, _ in
+            presentPendingResetRoute()
         }
     }
 
@@ -91,6 +103,8 @@ struct AuthView: View {
                     .foregroundStyle(LinkUpPalette.textMuted)
                     .frame(maxWidth: .infinity, alignment: .leading)
                 Button {
+                    authRoutes.clear()
+                    routedResetToken = nil
                     showingReset = true
                 } label: {
                     HStack {
@@ -145,6 +159,12 @@ struct AuthView: View {
         case .recovery:
             InputContracts.validAccountEmail(email)
         }
+    }
+
+    private func presentPendingResetRoute() {
+        guard !showingReset, let token = authRoutes.consumePasswordResetToken() else { return }
+        routedResetToken = token
+        showingReset = true
     }
 
     private func submit() {

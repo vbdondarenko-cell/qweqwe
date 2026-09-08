@@ -10,6 +10,9 @@ struct LinkUpApp: App {
         WindowGroup {
             RootView(runtime: runtime)
                 .task { await runtime.start() }
+                .onOpenURL { url in
+                    _ = runtime.handleIncomingURL(url)
+                }
                 .onChange(of: scenePhase) { _, phase in
                     guard phase == .active else { return }
                     Task { await runtime.applicationBecameActive() }

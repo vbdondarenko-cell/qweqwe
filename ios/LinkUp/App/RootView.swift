@@ -56,21 +56,31 @@ private struct SessionRootView: View {
     }
 
     var body: some View {
-        switch session.state {
-        case .checking:
-            ProgressView().tint(LinkUpPalette.red)
-        case .signedOut:
-            AuthView(session: session)
-        case .signedIn(let user):
-            MainShellView(services: services, user: user)
-                .id(user.id)
-        case .offlineSession(let expiresAt):
-            sessionProblem(
-                title: "You're offline",
-                message: "The local session is still valid until \(expiresAt.formatted(date: .abbreviated, time: .shortened)), but the server could not be reached."
-            )
-        case .recoverableError(let message):
-            sessionProblem(title: "Session unavailable", message: message)
+        Group {
+            switch session.state {
+            case .checking:
+                ProgressView().tint(LinkUpPalette.red)
+            case .signedOut:
+                AuthView(session: session, authRoutes: services.authRoutes)
+            case .signedIn(let user):
+                MainShellView(services: services, user: user)
+                    .id(user.id)
+            case .offlineSession(let expiresAt):
+                sessionProblem(
+                    title: "You're offline",
+                    message: "The local session is still valid until \(expiresAt.formatted(date: .abbreviated, time: .shortened)), but the server could not be reached."
+                )
+            case .recoverableError(let message):
+                sessionProblem(title: "Session unavailable", message: message)
+            }
+        }
+        .onChange(of: session.state) { _, state in
+            switch state {
+            case .checking, .signedOut:
+                break
+            case .signedIn, .offlineSession, .recoverableError:
+                services.authRoutes.clear()
+            }
         }
     }
 
