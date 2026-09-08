@@ -188,10 +188,11 @@ struct LinkUpPlusView: View {
                         ShareLink(item: status.referralCode) {
                             Image(systemName: "square.and.arrow.up")
                                 .foregroundStyle(LinkUpPalette.red)
-                                .frame(width: 38, height: 38)
+                                .frame(width: 44, height: 44)
                                 .background(LinkUpPalette.red.opacity(0.1))
                                 .clipShape(RoundedRectangle(cornerRadius: LinkUpRadius.control))
                         }
+                        .accessibilityLabel(L10n.text("Share referral code"))
                     }
 
                     HStack {

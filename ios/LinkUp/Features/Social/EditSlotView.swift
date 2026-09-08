@@ -181,6 +181,7 @@ struct EditSlotView: View {
                 .overlay { RoundedRectangle(cornerRadius: LinkUpRadius.control).stroke(LinkUpPalette.border) }
         }
         .buttonStyle(.plain)
+        .accessibilityLabel(L10n.text(symbol == "minus" ? "Decrease capacity" : "Increase capacity"))
     }
 
     private func save() {

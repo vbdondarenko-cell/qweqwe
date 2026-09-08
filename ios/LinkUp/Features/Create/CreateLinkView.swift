@@ -118,12 +118,13 @@ struct CreateLinkView: View {
         HStack {
             Button(action: close) {
                 Image(systemName: "xmark")
-                    .frame(width: 36, height: 36)
+                    .frame(width: 44, height: 44)
                     .background(LinkUpPalette.elevated)
                     .clipShape(RoundedRectangle(cornerRadius: LinkUpRadius.control))
                     .overlay { RoundedRectangle(cornerRadius: LinkUpRadius.control).stroke(LinkUpPalette.border) }
             }
             .foregroundStyle(LinkUpPalette.textDimmed)
+            .accessibilityLabel(L10n.text("Close Create LINK"))
             .disabled(coordinator.isMutating || recoveryBusy)
             Spacer()
             VStack(spacing: 2) {
@@ -133,7 +134,7 @@ struct CreateLinkView: View {
                     .foregroundStyle(LinkUpPalette.textMuted)
             }
             Spacer()
-            Color.clear.frame(width: 36, height: 36)
+            Color.clear.frame(width: 44, height: 44)
         }
         .padding(.horizontal, 20)
         .padding(.vertical, 12)
@@ -638,6 +639,7 @@ struct CreateLinkView: View {
                 .overlay { RoundedRectangle(cornerRadius: LinkUpRadius.card).stroke(LinkUpPalette.border) }
         }
         .buttonStyle(.plain)
+        .accessibilityLabel(L10n.text(symbol == "minus" ? "Decrease capacity" : "Increase capacity"))
     }
 
     private func optionSection(title: String, rowTitle: String, subtitle: String, symbol: String) -> some View {

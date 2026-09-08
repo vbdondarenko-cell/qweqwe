@@ -94,7 +94,7 @@ struct PulseView: View {
                             }
                         }
                         .foregroundStyle(LinkUpPalette.textDimmed)
-                        .frame(width: 40, height: 40)
+                        .frame(width: 44, height: 44)
                         .background(LinkUpPalette.elevated)
                         .clipShape(RoundedRectangle(cornerRadius: LinkUpRadius.control))
                         .overlay { RoundedRectangle(cornerRadius: LinkUpRadius.control).stroke(LinkUpPalette.border) }
@@ -107,7 +107,7 @@ struct PulseView: View {
                         Image(systemName: "bell")
                             .font(.system(size: 18))
                             .foregroundStyle(LinkUpPalette.textDimmed)
-                            .frame(width: 40, height: 40)
+                            .frame(width: 44, height: 44)
                             .background(LinkUpPalette.elevated)
                             .clipShape(RoundedRectangle(cornerRadius: LinkUpRadius.control))
                             .overlay { RoundedRectangle(cornerRadius: LinkUpRadius.control).stroke(LinkUpPalette.border) }
@@ -123,7 +123,7 @@ struct PulseView: View {
                     .foregroundStyle(LinkUpPalette.textPrimary)
             }
             .padding(.horizontal, 12)
-            .frame(height: 42)
+            .frame(height: 44)
             .background(LinkUpPalette.elevated)
             .clipShape(RoundedRectangle(cornerRadius: LinkUpRadius.control))
             .overlay { RoundedRectangle(cornerRadius: LinkUpRadius.control).stroke(LinkUpPalette.border) }

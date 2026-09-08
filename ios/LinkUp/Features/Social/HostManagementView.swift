@@ -215,7 +215,7 @@ struct HostManagementView: View {
                 .font(LinkUpTypography.body(11, weight: .semibold))
                 .foregroundStyle(tint)
                 .frame(maxWidth: .infinity)
-                .frame(height: 34)
+                .frame(minHeight: 44)
                 .background(tint.opacity(0.09))
                 .clipShape(RoundedRectangle(cornerRadius: LinkUpRadius.compact))
                 .overlay { RoundedRectangle(cornerRadius: LinkUpRadius.compact).stroke(tint.opacity(0.3)) }

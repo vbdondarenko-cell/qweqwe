@@ -295,3 +295,9 @@
 "Version" = "Version";
 "Scheduled start" = "Scheduled start";
 "RECOVERY" = "RECOVERY";
+"Send message" = "Send message";
+"Close Create LINK" = "Close Create LINK";
+"Decrease capacity" = "Decrease capacity";
+"Increase capacity" = "Increase capacity";
+"Close map selection" = "Close map selection";
+"Share referral code" = "Share referral code";

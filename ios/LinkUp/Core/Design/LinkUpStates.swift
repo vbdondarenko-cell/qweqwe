@@ -69,7 +69,7 @@ struct LinkUpInlineError: View {
                 Button(action: dismiss) {
                     Image(systemName: "xmark")
                         .font(.system(size: 11, weight: .bold))
-                        .frame(width: 24, height: 24)
+                        .frame(width: 44, height: 44)
                 }
                 .buttonStyle(.plain)
                 .foregroundStyle(LinkUpPalette.textMuted)

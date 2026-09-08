@@ -62,6 +62,6 @@ struct FrozenBottomBar: View {
             .frame(maxWidth: .infinity)
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("Create LINK")
+        .accessibilityLabel(L10n.text("Create LINK"))
     }
 }

@@ -3,6 +3,7 @@ import SwiftUI
 @MainActor
 struct ChatView: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @StateObject private var coordinator: ChatCoordinator
     @ObservedObject private var social: SocialCoordinator
     @State private var draft = ""
@@ -78,7 +79,11 @@ struct ChatView: View {
                 .scrollIndicators(.hidden)
                 .onChange(of: coordinator.messages.last?.id) { _, id in
                     guard let id else { return }
-                    withAnimation(.easeOut(duration: 0.2)) { proxy.scrollTo(id, anchor: .bottom) }
+                    if reduceMotion {
+                        proxy.scrollTo(id, anchor: .bottom)
+                    } else {
+                        withAnimation(.easeOut(duration: 0.2)) { proxy.scrollTo(id, anchor: .bottom) }
+                    }
                 }
             }
         }
@@ -117,11 +122,12 @@ struct ChatView: View {
                     Image(systemName: "arrow.up")
                         .font(.system(size: 16, weight: .bold))
                         .foregroundStyle(.white)
-                        .frame(width: 42, height: 42)
+                        .frame(width: 44, height: 44)
                         .background(LinkUpPalette.red)
                         .clipShape(Circle())
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel(L10n.text("Send message"))
                 .disabled(
                     coordinator.isSending ||
                     coordinator.queuedSendKey != nil ||

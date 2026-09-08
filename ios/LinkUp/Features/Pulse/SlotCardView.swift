@@ -69,7 +69,7 @@ struct SlotCardView: View {
                         Text("Details")
                             .font(LinkUpTypography.body(13, weight: .semibold))
                             .frame(maxWidth: .infinity)
-                            .frame(height: 42)
+                            .frame(height: 44)
                             .background(LinkUpPalette.zone)
                             .clipShape(RoundedRectangle(cornerRadius: LinkUpRadius.control))
                     }
@@ -80,7 +80,7 @@ struct SlotCardView: View {
                         Text(L10n.text(actionTitle))
                             .font(LinkUpTypography.body(13, weight: .bold))
                             .frame(maxWidth: .infinity)
-                            .frame(height: 42)
+                            .frame(height: 44)
                             .background(actionTint.opacity(actionDisabled ? 0.12 : 1))
                             .clipShape(RoundedRectangle(cornerRadius: LinkUpRadius.control))
                     }

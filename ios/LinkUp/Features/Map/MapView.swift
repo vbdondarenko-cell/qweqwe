@@ -96,7 +96,7 @@ struct MapView: View {
                         if cityContext.isRefreshing || cityContext.phase == .loading {
                             ProgressView()
                                 .tint(LinkUpPalette.red)
-                                .frame(width: 40, height: 40)
+                                .frame(width: 44, height: 44)
                                 .background(.ultraThinMaterial)
                                 .clipShape(RoundedRectangle(cornerRadius: LinkUpRadius.control))
                                 .overlay { RoundedRectangle(cornerRadius: LinkUpRadius.control).stroke(LinkUpPalette.border) }
@@ -185,10 +185,10 @@ struct MapView: View {
                 ZStack {
                     Circle()
                         .fill(LinkUpPalette.red.opacity(0.18))
-                        .frame(width: 42, height: 42)
+                        .frame(width: 44, height: 44)
                     Circle()
                         .stroke(LinkUpPalette.red, lineWidth: 2)
-                        .frame(width: 42, height: 42)
+                        .frame(width: 44, height: 44)
                     Text("\(cluster.slotCount)")
                         .font(LinkUpTypography.mono(11, weight: .bold))
                         .foregroundStyle(LinkUpPalette.textPrimary)
@@ -236,7 +236,7 @@ struct MapView: View {
                 Image(systemName: cluster.placeId == nil ? "square.3.layers.3d" : "mappin.circle.fill")
                     .font(.system(size: 20))
                     .foregroundStyle(LinkUpPalette.red)
-                    .frame(width: 40, height: 40)
+                    .frame(width: 44, height: 44)
                     .background(LinkUpPalette.red.opacity(0.12))
                     .clipShape(RoundedRectangle(cornerRadius: LinkUpRadius.control))
                 VStack(alignment: .leading, spacing: 3) {
@@ -256,9 +256,10 @@ struct MapView: View {
                     Image(systemName: "xmark")
                         .font(.system(size: 12, weight: .bold))
                         .foregroundStyle(LinkUpPalette.textMuted)
-                        .frame(width: 32, height: 32)
+                        .frame(width: 44, height: 44)
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel(L10n.text("Close map selection"))
             }
 
             if let placeID = cluster.placeId {
@@ -329,7 +330,7 @@ struct MapView: View {
         Image(systemName: symbol)
             .font(.system(size: 18))
             .foregroundStyle(LinkUpPalette.textDimmed)
-            .frame(width: 40, height: 40)
+            .frame(width: 44, height: 44)
             .background(.ultraThinMaterial)
             .clipShape(RoundedRectangle(cornerRadius: LinkUpRadius.control))
             .overlay { RoundedRectangle(cornerRadius: LinkUpRadius.control).stroke(LinkUpPalette.border) }
