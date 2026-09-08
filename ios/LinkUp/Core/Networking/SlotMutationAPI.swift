@@ -9,6 +9,34 @@ extension LinkUpAPI {
         ))
     }
 
+
+    func createDraftSlot(_ body: CreateSlotBody, idempotencyKey: UUID) async throws -> SlotModel {
+        try await sendValidatedSlotMutation(APIRequest(
+            method: .post,
+            path: "/v1/slots/drafts",
+            body: try encodeBody(body),
+            idempotencyKey: idempotencyKey
+        ), additionalValidation: { try validateDraftCreateReplay($0) })
+    }
+
+    func publishDraftSlot(
+        _ slotID: UUID,
+        expectedVersion: Int64,
+        idempotencyKey: UUID
+    ) async throws -> SlotModel {
+        guard expectedVersion > 0 else {
+            throw APIError.protocolViolation("expectedVersion must be positive.")
+        }
+        return try await sendValidatedSlotMutation(APIRequest(
+            method: .post,
+            path: "/v1/slots/\(uuidPath(slotID))/publish",
+            body: try encodeBody(ExpectedVersionBody(expectedVersion: expectedVersion)),
+            idempotencyKey: idempotencyKey
+        ), expectedSlotID: slotID) { value in
+            try validateDraftPublishReplay(value, expectedVersion: expectedVersion)
+        }
+    }
+
     func editSlot(_ slotID: UUID, body: EditSlotBody) async throws -> SlotModel {
         guard body.expectedVersion > 0 else {
             throw APIError.protocolViolation("expectedVersion must be positive.")
@@ -58,5 +86,28 @@ extension LinkUpAPI {
             method: .post,
             path: "/v1/slots/\(uuidPath(slotID))/\(suffix)"
         ), expectedSlotID: slotID)
+    }
+}
+
+
+func validateDraftCreateReplay(_ slot: SlotModel) throws {
+    guard slot.viewerState == .host,
+          slot.accessMode == .approval,
+          slot.visibility == .publicValue else {
+        throw APIError.protocolViolation("Draft creation replay returned an unauthorized Slot shape.")
+    }
+    if slot.state == .draft, slot.acceptedCount != 0 {
+        throw APIError.protocolViolation("Draft Slot cannot contain accepted participants.")
+    }
+}
+
+func validateDraftPublishReplay(_ slot: SlotModel, expectedVersion: Int64) throws {
+    guard expectedVersion > 0,
+          slot.viewerState == .host,
+          slot.accessMode == .approval,
+          slot.visibility == .publicValue,
+          slot.state != .draft,
+          slot.version > expectedVersion else {
+        throw APIError.protocolViolation("Draft publish replay did not confirm a published Slot transition.")
     }
 }

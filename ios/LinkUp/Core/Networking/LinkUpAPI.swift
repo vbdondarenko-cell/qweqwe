@@ -59,6 +59,9 @@ actor LinkUpAPI {
                 expectedSlotID: expectedSlotID,
                 now: now
             ) {
+                if let requestedKey = request.idempotencyKey, existing.idempotencyKey != requestedKey {
+                    throw APIError.mutationSafetyBlocked
+                }
                 command = existing
             } else {
                 let legacy = pendingMutationKeys[identity]
@@ -66,7 +69,10 @@ actor LinkUpAPI {
                     throw APIError.mutationSafetyBlocked
                 }
                 command = DurableMutationCommand(
-                    idempotencyKey: legacy?.key ?? UUID(),
+                    idempotencyKey: try resolveDurableMutationKey(
+                        requested: request.idempotencyKey,
+                        legacy: legacy
+                    ),
                     ownerFingerprint: ownerFingerprint,
                     requestIdentity: identity,
                     method: request.method,
@@ -285,4 +291,12 @@ actor LinkUpAPI {
         pendingMutationKeys.removeValue(forKey: identity)
         mutationStore.persist(pendingMutationKeys)
     }
+}
+
+
+func resolveDurableMutationKey(requested: UUID?, legacy: StoredMutationKey?) throws -> UUID {
+    if let requested, let legacy, legacy.key != requested {
+        throw APIError.mutationSafetyBlocked
+    }
+    return requested ?? legacy?.key ?? UUID()
 }

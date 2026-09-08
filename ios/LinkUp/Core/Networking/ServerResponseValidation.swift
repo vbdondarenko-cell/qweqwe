@@ -23,7 +23,8 @@ extension LinkUpAPI {
 
     func sendValidatedSlotMutation(
         _ request: APIRequest,
-        expectedSlotID: UUID? = nil
+        expectedSlotID: UUID? = nil,
+        additionalValidation: @Sendable @escaping (SlotModel) throws -> Void = { _ in }
     ) async throws -> SlotModel {
         try await sendIdempotent(
             request,
@@ -36,6 +37,7 @@ extension LinkUpAPI {
             guard value.hasValidServerShape else {
                 throw APIError.protocolViolation("Server returned invalid Slot mutation data.")
             }
+            try additionalValidation(value)
         }
     }
 
