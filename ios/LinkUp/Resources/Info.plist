@@ -24,6 +24,10 @@
     <string>$(LINKUP_RECOVERY_RESET_URL)</string>
     <key>LINKUP_RECOVERY_ASSOCIATED_DOMAIN</key>
     <string>$(LINKUP_RECOVERY_ASSOCIATED_DOMAIN)</string>
+    <key>LINKUP_PRIVACY_URL</key>
+    <string>$(LINKUP_PRIVACY_URL)</string>
+    <key>LINKUP_TERMS_URL</key>
+    <string>$(LINKUP_TERMS_URL)</string>
     <key>NSLocationWhenInUseUsageDescription</key>
     <string>LinkUp uses your location only to resolve a privacy-safe city context. Raw coordinates are not stored by the app.</string>
     <key>UILaunchScreen</key>

@@ -32,10 +32,14 @@ targets:
           LINKUP_API_BASE_URL: ""
           LINKUP_RECOVERY_RESET_URL: ""
           LINKUP_RECOVERY_ASSOCIATED_DOMAIN: "applinks:example.invalid"
+          LINKUP_PRIVACY_URL: ""
+          LINKUP_TERMS_URL: ""
         Release:
           LINKUP_API_BASE_URL: ""
           LINKUP_RECOVERY_RESET_URL: ""
           LINKUP_RECOVERY_ASSOCIATED_DOMAIN: "applinks:example.invalid"
+          LINKUP_PRIVACY_URL: ""
+          LINKUP_TERMS_URL: ""
     scheme:
       testTargets:
         - LinkUpTests
