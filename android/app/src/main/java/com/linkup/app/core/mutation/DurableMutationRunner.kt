@@ -31,6 +31,28 @@ class DurableMutationRunner(
     private val outbox: MutationOutbox,
     private val nowEpochMillis: () -> Long = System::currentTimeMillis,
 ) {
+    fun unsafeAmbiguousCount(ownerFingerprint: String): Int {
+        requireValidOwner(ownerFingerprint)
+        return outbox.unsafeAmbiguousCount(ownerFingerprint, safeNow(1L))
+    }
+
+    fun findReplayableEquivalent(
+        ownerFingerprint: String,
+        method: String,
+        path: String,
+        bodyJson: String?,
+        responseKind: DurableResponseKind,
+    ): DurableMutationCommand? {
+        requireValidOwner(ownerFingerprint)
+        val now = safeNow(1L)
+        return outbox.pendingReplayable(ownerFingerprint, now).firstOrNull {
+            it.method == method &&
+                it.path == path &&
+                it.bodyJson == bodyJson &&
+                it.responseKind == responseKind
+        }
+    }
+
     suspend fun submit(
         command: DurableMutationCommand,
         transport: DurableMutationTransport,
@@ -49,7 +71,7 @@ class DurableMutationRunner(
         ownerFingerprint: String,
         transport: DurableMutationTransport,
     ): DurableReplayReport {
-        require(ownerFingerprint.length == 64 && ownerFingerprint.all { it in '0'..'9' || it in 'a'..'f' })
+        requireValidOwner(ownerFingerprint)
         val now = safeNow(1L)
         val unsafe = outbox.unsafeAmbiguousCount(ownerFingerprint, now)
         if (unsafe > 0) {
@@ -84,6 +106,10 @@ class DurableMutationRunner(
             }
         }
         return DurableReplayReport(acknowledgedKeys = acknowledged)
+    }
+
+    private fun requireValidOwner(ownerFingerprint: String) {
+        require(ownerFingerprint.length == 64 && ownerFingerprint.all { it in '0'..'9' || it in 'a'..'f' })
     }
 
     private fun safeNow(createdAtEpochMillis: Long): Long =
