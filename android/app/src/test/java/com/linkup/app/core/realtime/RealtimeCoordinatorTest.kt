@@ -8,6 +8,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
+import kotlinx.coroutines.runBlocking
 
 class RealtimeCoordinatorTest {
     @Test
@@ -117,7 +118,7 @@ class RealtimeCoordinatorTest {
         occurredAtEpochMillis = sequence,
     )
 
-    private fun runSuspend(block: suspend () -> Unit) = kotlinx.coroutines.test.runTest { block() }
+    private fun runSuspend(block: suspend () -> Unit) = runBlocking { block() }
 
     private companion object {
         const val USER_ID = "00000000-0000-0000-0000-000000000010"
