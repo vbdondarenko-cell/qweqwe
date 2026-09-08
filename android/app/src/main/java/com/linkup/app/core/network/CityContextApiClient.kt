@@ -117,7 +117,12 @@ class CityContextApiClient(
         val name = localityJson.optString("name").trim()
         val countryCode = localityJson.optString("countryCode").trim()
         val timezone = localityJson.optString("timezone").trim()
+        val centroidLatitudeE6 = localityJson.optInt("centroidLatitudeE6", Int.MIN_VALUE)
+        val centroidLongitudeE6 = localityJson.optInt("centroidLongitudeE6", Int.MIN_VALUE)
         if (name.isEmpty() || countryCode.length != 2 || countryCode != countryCode.uppercase()) {
+            throw protocolError(requestId)
+        }
+        if (centroidLatitudeE6 !in -90_000_000..90_000_000 || centroidLongitudeE6 !in -180_000_000..180_000_000) {
             throw protocolError(requestId)
         }
         if (runCatching { ZoneId.of(timezone) }.isFailure) throw protocolError(requestId)
@@ -131,7 +136,14 @@ class CityContextApiClient(
         if (expiresAt <= observedAt) throw protocolError(requestId)
 
         return CityContextModel(
-            locality = CityLocality(id, name, countryCode, timezone),
+            locality = CityLocality(
+                id = id,
+                name = name,
+                countryCode = countryCode,
+                timezone = timezone,
+                centroidLatitudeE6 = centroidLatitudeE6,
+                centroidLongitudeE6 = centroidLongitudeE6,
+            ),
             permissionClass = permission,
             accuracyM = accuracyM,
             observedAtEpochMillis = observedAt,
