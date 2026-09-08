@@ -90,3 +90,27 @@ extension MapCluster: ServerShapeValidatable {
         return placeId == nil && placeName == nil
     }
 }
+
+
+extension CityLocality: ServerShapeValidatable {
+    var hasValidServerShape: Bool {
+        let nameCount = InputContracts.scalarCount(name)
+        let timezoneCount = InputContracts.scalarCount(timezone)
+        let countryValid = countryCode.utf8.count == 2 && countryCode.unicodeScalars.allSatisfy {
+            (65...90).contains(Int($0.value))
+        }
+        return (1...160).contains(nameCount) &&
+            countryValid &&
+            (1...80).contains(timezoneCount) &&
+            (-90_000_000...90_000_000).contains(centroidLatitudeE6) &&
+            (-180_000_000...180_000_000).contains(centroidLongitudeE6)
+    }
+}
+
+extension CityContextModel: ServerShapeValidatable {
+    var hasValidServerShape: Bool {
+        locality.hasValidServerShape &&
+        (1...10_000).contains(accuracyM) &&
+        observedAt < expiresAt
+    }
+}

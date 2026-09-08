@@ -1,7 +1,9 @@
 import SwiftUI
 
+@MainActor
 struct PulseView: View {
     @ObservedObject var coordinator: SocialCoordinator
+    @ObservedObject var cityContext: CityContextCoordinator
     let api: LinkUpAPI
     let session: SessionCoordinator
 
@@ -37,25 +39,56 @@ struct PulseView: View {
 
     private var header: some View {
         VStack(spacing: 12) {
-            HStack {
+            HStack(spacing: 12) {
                 VStack(alignment: .leading, spacing: 5) {
-                    Label("City context unavailable", systemImage: "mappin")
-                        .font(LinkUpTypography.body(14, weight: .semibold))
-                    HStack(spacing: 8) {
-                        Circle().fill(LinkUpPalette.red).frame(width: 8, height: 8)
-                        Text("City BPM —").font(LinkUpTypography.mono(12))
-                        Text("· unavailable").font(LinkUpTypography.body(10))
+                    if let context = cityContext.context {
+                        Label("\(context.locality.name), \(context.locality.countryCode)", systemImage: "mappin.circle.fill")
+                            .font(LinkUpTypography.body(14, weight: .semibold))
+                        HStack(spacing: 8) {
+                            Circle().fill(LinkUpPalette.success).frame(width: 8, height: 8)
+                            Text("City lock · \(context.permissionClass.rawValue)")
+                                .font(LinkUpTypography.mono(10))
+                            if context.switchPending {
+                                Text("· switch pending")
+                                    .font(LinkUpTypography.body(10))
+                            }
+                        }
+                        .foregroundStyle(LinkUpPalette.textDimmed)
+                        if let refreshError = cityContext.refreshError {
+                            Text(refreshError)
+                                .font(LinkUpTypography.body(9))
+                                .foregroundStyle(LinkUpPalette.warning)
+                                .lineLimit(2)
+                        }
+                    } else {
+                        Label("City context unavailable", systemImage: "mappin.slash")
+                            .font(LinkUpTypography.body(14, weight: .semibold))
+                        Text(cityContextMessage)
+                            .font(LinkUpTypography.body(10))
+                            .foregroundStyle(LinkUpPalette.textDimmed)
                     }
-                    .foregroundStyle(LinkUpPalette.textDimmed)
                 }
                 Spacer()
-                Image(systemName: "bell")
-                    .font(.system(size: 18))
+                Button {
+                    Task { await cityContext.resolveFromDevice() }
+                } label: {
+                    Group {
+                        if cityContext.isRefreshing || cityContext.phase == .loading {
+                            ProgressView().tint(LinkUpPalette.red).controlSize(.small)
+                        } else {
+                            Image(systemName: cityContext.context == nil ? "location.fill" : "location.circle.fill")
+                                .font(.system(size: 18))
+                        }
+                    }
                     .foregroundStyle(LinkUpPalette.textDimmed)
                     .frame(width: 40, height: 40)
                     .background(LinkUpPalette.elevated)
                     .clipShape(RoundedRectangle(cornerRadius: LinkUpRadius.control))
                     .overlay { RoundedRectangle(cornerRadius: LinkUpRadius.control).stroke(LinkUpPalette.border) }
+                }
+                .buttonStyle(.plain)
+                .disabled(cityContext.isRefreshing || cityContext.phase == .loading)
+                .accessibilityLabel(cityContext.context == nil ? "Set city context" : "Refresh city context")
             }
             HStack(spacing: 10) {
                 Image(systemName: "magnifyingglass").foregroundStyle(LinkUpPalette.textMuted)
@@ -73,6 +106,14 @@ struct PulseView: View {
         .padding(.top, 12)
         .padding(.bottom, 12)
         .linkUpGlass()
+    }
+
+    private var cityContextMessage: String {
+        switch cityContext.phase {
+        case .failed(let message): message
+        case .loading: "Loading server city context…"
+        default: "Set your city to activate the privacy-safe City-Lock."
+        }
     }
 
     private var filters: some View {

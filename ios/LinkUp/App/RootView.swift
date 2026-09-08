@@ -119,15 +119,31 @@ private struct MainShellView: View {
         .fullScreenCover(isPresented: $showingCreate) {
             CreateLinkView(coordinator: social) { showingCreate = false }
         }
-        .onDisappear { social.dispose() }
+        .task {
+            if services.cityContext.phase == .idle { await services.cityContext.loadCurrent() }
+        }
+        .onDisappear {
+            social.dispose()
+            services.cityContext.clear()
+        }
     }
 
     @ViewBuilder private var activeScreen: some View {
         switch selection {
         case .pulse:
-            PulseView(coordinator: social, api: services.api, session: services.session)
+            PulseView(
+                coordinator: social,
+                cityContext: services.cityContext,
+                api: services.api,
+                session: services.session
+            )
         case .map:
-            MapView(api: services.api, session: services.session, social: social)
+            MapView(
+                api: services.api,
+                session: services.session,
+                social: social,
+                cityContext: services.cityContext
+            )
         case .fly:
             FlyView()
         case .me:

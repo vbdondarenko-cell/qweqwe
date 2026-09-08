@@ -5,10 +5,12 @@ import SwiftUI
 struct MapView: View {
     @StateObject private var coordinator: MapCoordinator
     @ObservedObject private var social: SocialCoordinator
+    @ObservedObject private var cityContext: CityContextCoordinator
     @State private var cameraPosition: MapCameraPosition
     @State private var currentRegion: MKCoordinateRegion
     @State private var selectedCluster: MapCluster?
     @State private var showingPlaceSlots = false
+    @State private var lastFocusedLocalityID: UUID?
 
     private let api: LinkUpAPI
     private let session: SessionCoordinator
@@ -18,10 +20,16 @@ struct MapView: View {
         span: MKCoordinateSpan(latitudeDelta: 120, longitudeDelta: 300)
     )
 
-    init(api: LinkUpAPI, session: SessionCoordinator, social: SocialCoordinator) {
+    init(
+        api: LinkUpAPI,
+        session: SessionCoordinator,
+        social: SocialCoordinator,
+        cityContext: CityContextCoordinator
+    ) {
         self.api = api
         self.session = session
         _social = ObservedObject(wrappedValue: social)
+        _cityContext = ObservedObject(wrappedValue: cityContext)
         _coordinator = StateObject(wrappedValue: MapCoordinator(api: api, session: session))
         _cameraPosition = State(initialValue: .region(Self.initialRegion))
         _currentRegion = State(initialValue: Self.initialRegion)
@@ -48,9 +56,11 @@ struct MapView: View {
                 Task { await coordinator.load(region: context.region) }
             }
             .task {
-                if coordinator.phase == .idle {
-                    await coordinator.load(region: currentRegion)
-                }
+                if let context = cityContext.context { await focus(on: context) }
+            }
+            .onChange(of: cityContext.context?.locality.id) { _, _ in
+                guard let context = cityContext.context else { return }
+                Task { await focus(on: context) }
             }
             .onDisappear { coordinator.dispose() }
 
@@ -72,11 +82,22 @@ struct MapView: View {
                 Spacer()
                 VStack(spacing: 8) {
                     Button {
-                        cameraPosition = .automatic
+                        Task { await resolveCityAndFocus() }
                     } label: {
-                        mapControl("scope")
+                        if cityContext.isRefreshing || cityContext.phase == .loading {
+                            ProgressView()
+                                .tint(LinkUpPalette.red)
+                                .frame(width: 40, height: 40)
+                                .background(.ultraThinMaterial)
+                                .clipShape(RoundedRectangle(cornerRadius: LinkUpRadius.control))
+                                .overlay { RoundedRectangle(cornerRadius: LinkUpRadius.control).stroke(LinkUpPalette.border) }
+                        } else {
+                            mapControl("scope")
+                        }
                     }
                     .buttonStyle(.plain)
+                    .disabled(cityContext.isRefreshing || cityContext.phase == .loading)
+                    .accessibilityLabel(cityContext.context == nil ? "Set city context" : "Refresh and center city context")
                     disabledControl("line.3.horizontal.decrease")
                     disabledControl("flame")
                 }
@@ -116,6 +137,34 @@ struct MapView: View {
                 )
             }
         }
+    }
+
+
+    private func resolveCityAndFocus() async {
+        let previousLocalityID = cityContext.context?.locality.id
+        await cityContext.resolveFromDevice()
+        guard let context = cityContext.context else { return }
+        if context.locality.id == previousLocalityID {
+            await focus(on: context, force: true)
+        }
+    }
+
+    private func focus(on context: CityContextModel, force: Bool = false) async {
+        guard force || lastFocusedLocalityID != context.locality.id else { return }
+        lastFocusedLocalityID = context.locality.id
+        let region = MKCoordinateRegion(
+            center: CLLocationCoordinate2D(
+                latitude: context.locality.latitude,
+                longitude: context.locality.longitude
+            ),
+            latitudinalMeters: 30_000,
+            longitudinalMeters: 30_000
+        )
+        selectedCluster = nil
+        showingPlaceSlots = false
+        currentRegion = region
+        cameraPosition = .region(region)
+        await coordinator.load(region: region)
     }
 
     private func clusterMarker(_ cluster: MapCluster) -> some View {
@@ -160,7 +209,7 @@ struct MapView: View {
     private var areaPill: some View {
         HStack(spacing: 8) {
             Circle().fill(LinkUpPalette.red).frame(width: 8, height: 8)
-            Text("Server-authorized map")
+            Text(cityContext.context.map { "\($0.locality.name) · server city lock" } ?? "Server-authorized map")
                 .font(LinkUpTypography.body(12, weight: .semibold))
                 .foregroundStyle(LinkUpPalette.textPrimary)
         }
@@ -257,6 +306,10 @@ struct MapView: View {
 
     private var summaryText: String {
         let count = coordinator.clusters.reduce(0) { $0 + $1.slotCount }
+        if cityContext.context == nil {
+            if cityContext.phase == .loading { return "Loading city context…" }
+            return "Set city context to load nearby LinkUps"
+        }
         if coordinator.phase == .loading { return "Loading viewport…" }
         if count == 0 { return "No scheduled LinkUps in viewport" }
         return "\(count) LinkUps in viewport"

@@ -5,10 +5,12 @@ import SwiftUI
 final class AppServices {
     let api: LinkUpAPI
     let session: SessionCoordinator
+    let cityContext: CityContextCoordinator
 
-    init(api: LinkUpAPI, session: SessionCoordinator) {
+    init(api: LinkUpAPI, session: SessionCoordinator, cityContext: CityContextCoordinator) {
         self.api = api
         self.session = session
+        self.cityContext = cityContext
     }
 }
 
@@ -36,7 +38,9 @@ final class AppRuntime: ObservableObject {
             let client = APIClient(endpoint: endpoint, credentials: credentials)
             let api = LinkUpAPI(client: client, credentials: credentials)
             let session = SessionCoordinator(api: api, credentials: credentials)
-            let services = AppServices(api: api, session: session)
+            let locations = CityLocationProvider()
+            let cityContext = CityContextCoordinator(api: api, session: session, locations: locations)
+            let services = AppServices(api: api, session: session, cityContext: cityContext)
             state = .ready(services)
             await session.bootstrap()
         } catch {
