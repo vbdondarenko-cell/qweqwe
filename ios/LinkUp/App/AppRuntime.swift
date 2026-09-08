@@ -34,9 +34,11 @@ final class AppRuntime: ObservableObject {
 
     @Published private(set) var state: State = .starting
     let authRoutes: AuthRouteCoordinator
+    private let bundle: Bundle
     private var started = false
 
     init(bundle: Bundle = .main) {
+        self.bundle = bundle
         let resetURL = (bundle.object(forInfoDictionaryKey: "LINKUP_RECOVERY_RESET_URL") as? String) ?? ""
         let associatedDomain = (bundle.object(forInfoDictionaryKey: "LINKUP_RECOVERY_ASSOCIATED_DOMAIN") as? String) ?? ""
         authRoutes = AuthRouteCoordinator(trustedResetRoute: PasswordResetRoute(
@@ -50,7 +52,7 @@ final class AppRuntime: ObservableObject {
         started = true
 
         do {
-            guard let raw = Bundle.main.object(forInfoDictionaryKey: "LINKUP_API_BASE_URL") as? String else {
+            guard let raw = bundle.object(forInfoDictionaryKey: "LINKUP_API_BASE_URL") as? String else {
                 throw APIEndpointError.missing
             }
             let credentials = KeychainSessionStore()
