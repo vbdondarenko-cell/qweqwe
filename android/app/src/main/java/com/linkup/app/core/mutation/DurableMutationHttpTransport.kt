@@ -31,13 +31,17 @@ class DurableMutationHttpTransport(
             ?: return@withContext DurableAttemptResult(
                 disposition = DurableAttemptDisposition.DEFINITIVE_FAILURE,
                 errorCode = "unauthorized",
+                httpStatus = HttpURLConnection.HTTP_UNAUTHORIZED,
             )
         try {
             executeOnce(command, stored.token)
         } catch (error: CancellationException) {
             throw error
         } catch (_: IOException) {
-            DurableAttemptResult(DurableAttemptDisposition.AMBIGUOUS_FAILURE, errorCode = "network_error")
+            DurableAttemptResult(
+                disposition = DurableAttemptDisposition.AMBIGUOUS_FAILURE,
+                errorCode = "network_error",
+            )
         }
     }
 
@@ -64,10 +68,11 @@ class DurableMutationHttpTransport(
             val responseText = try {
                 stream?.use { readUtf8Bounded(it, MAX_API_RESPONSE_BYTES) }.orEmpty()
             } catch (_: ResponseTooLargeException) {
-                if (disposition == DurableAttemptDisposition.ACKNOWLEDGED) {
-                    return DurableAttemptResult(disposition, errorCode = "response_too_large")
-                }
-                return DurableAttemptResult(disposition, errorCode = "response_too_large")
+                return DurableAttemptResult(
+                    disposition = disposition,
+                    errorCode = "response_too_large",
+                    httpStatus = status,
+                )
             }
 
             if (status == HttpURLConnection.HTTP_UNAUTHORIZED) sessions.clear()
@@ -83,6 +88,7 @@ class DurableMutationHttpTransport(
                 disposition = disposition,
                 responseJson = responseText.takeIf { it.isNotBlank() },
                 errorCode = errorCode,
+                httpStatus = status,
             )
         } finally {
             connection.disconnect()
