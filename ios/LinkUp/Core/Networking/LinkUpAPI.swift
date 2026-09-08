@@ -4,8 +4,6 @@ actor LinkUpAPI {
     let client: APIClient
     let credentials: KeychainSessionStore
 
-    private let mutationStore: MutationKeyStore
-    private var pendingMutationKeys: [String: StoredMutationKey]
     private let durableOutbox: DurableMutationOutbox
     private let draftWorkflowStore: DraftPublishWorkflowStore
     private var explicitLogoutInProgress = false
@@ -19,9 +17,6 @@ actor LinkUpAPI {
     ) {
         self.client = client
         self.credentials = credentials
-        let mutationStore = MutationKeyStore()
-        self.mutationStore = mutationStore
-        self.pendingMutationKeys = mutationStore.load()
         self.durableOutbox = durableOutbox
         self.draftWorkflowStore = draftWorkflowStore
     }
@@ -66,7 +61,6 @@ actor LinkUpAPI {
             let workflowOwner = workflow?.ownerFingerprint
             guard ExplicitLogoutSafety.canProceed(
                 activeAuthenticatedWrites: activeAuthenticatedWrites,
-                legacyPendingCount: pendingMutationKeys.count,
                 ownerHasCommands: ownerHasCommands,
                 workflowOwnerFingerprint: workflowOwner,
                 currentOwnerFingerprint: ownerFingerprint
@@ -129,15 +123,8 @@ actor LinkUpAPI {
                 }
                 command = existing
             } else {
-                let legacy = pendingMutationKeys[identity]
-                if let legacy, now < legacy.touchedAt || now.timeIntervalSince(legacy.touchedAt) > durableMutationReplayWindow {
-                    throw APIError.mutationSafetyBlocked
-                }
                 command = DurableMutationCommand(
-                    idempotencyKey: try resolveDurableMutationKey(
-                        requested: request.idempotencyKey,
-                        legacy: legacy
-                    ),
+                    idempotencyKey: request.idempotencyKey ?? UUID(),
                     ownerFingerprint: ownerFingerprint,
                     requestIdentity: identity,
                     method: request.method,
@@ -146,11 +133,10 @@ actor LinkUpAPI {
                     body: request.body,
                     responseKind: responseKind,
                     expectedSlotID: expectedSlotID,
-                    createdAt: legacy?.touchedAt ?? now,
-                    firstAttemptAt: legacy?.touchedAt
+                    createdAt: now,
+                    firstAttemptAt: nil
                 )
                 try await durableOutbox.enqueue(command)
-                if legacy != nil { releaseLegacyMutationKey(identity) }
             }
         } catch let error as APIError {
             throw error
@@ -181,7 +167,6 @@ actor LinkUpAPI {
             let response: Response = try await client.send(attempted.apiRequest, as: type)
             try validate(response)
             try await removeDurableCommand(attempted.idempotencyKey)
-            releaseLegacyMutationKey(identity)
             return response
         } catch is CancellationError {
             // Once firstAttemptAt is durably recorded, cancellation is an ambiguous
@@ -190,7 +175,6 @@ actor LinkUpAPI {
         } catch let error as APIError {
             if error.isDefinitiveMutationFailure {
                 try await removeDurableCommand(attempted.idempotencyKey)
-                releaseLegacyMutationKey(identity)
                 throw error
             }
             throw APIError.mutationQueued(attempted.idempotencyKey)
@@ -284,8 +268,6 @@ actor LinkUpAPI {
         } catch {
             throw APIError.mutationJournalUnavailable
         }
-        mutationStore.persist([:])
-        pendingMutationKeys.removeAll(keepingCapacity: false)
         do {
             try await credentials.save(SessionCredential(token: envelope.token, expiresAt: envelope.expiresAt))
         } catch {
@@ -295,8 +277,6 @@ actor LinkUpAPI {
 
     func clearLocalSession() async {
         await credentials.clear()
-        mutationStore.persist([:])
-        pendingMutationKeys.removeAll(keepingCapacity: false)
         try? await durableOutbox.clearAll()
         try? await draftWorkflowStore.clear()
     }
@@ -625,30 +605,16 @@ actor LinkUpAPI {
         }
     }
 
-    private func releaseLegacyMutationKey(_ identity: String) {
-        pendingMutationKeys.removeValue(forKey: identity)
-        mutationStore.persist(pendingMutationKeys)
-    }
-}
-
-
-func resolveDurableMutationKey(requested: UUID?, legacy: StoredMutationKey?) throws -> UUID {
-    if let requested, let legacy, legacy.key != requested {
-        throw APIError.mutationSafetyBlocked
-    }
-    return requested ?? legacy?.key ?? UUID()
 }
 
 enum ExplicitLogoutSafety {
     static func canProceed(
         activeAuthenticatedWrites: Int,
-        legacyPendingCount: Int,
         ownerHasCommands: Bool,
         workflowOwnerFingerprint: String?,
         currentOwnerFingerprint: String
     ) -> Bool {
         guard activeAuthenticatedWrites == 0,
-              legacyPendingCount == 0,
               !ownerHasCommands,
               workflowOwnerFingerprint == nil else { return false }
         return currentOwnerFingerprint.count == 64

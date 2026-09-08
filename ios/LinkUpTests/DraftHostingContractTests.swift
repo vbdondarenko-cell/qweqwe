@@ -34,19 +34,6 @@ final class DraftHostingContractTests: XCTestCase {
         XCTAssertEqual(decoded, original)
     }
 
-    func testCallerStableKeyWinsAndConflictingLegacyKeyFailsClosed() throws {
-        let requested = UUID()
-        XCTAssertEqual(try resolveDurableMutationKey(requested: requested, legacy: nil), requested)
-        XCTAssertEqual(
-            try resolveDurableMutationKey(requested: requested, legacy: StoredMutationKey(key: requested, touchedAt: Date())),
-            requested
-        )
-        XCTAssertThrowsError(try resolveDurableMutationKey(
-            requested: requested,
-            legacy: StoredMutationKey(key: UUID(), touchedAt: Date())
-        ))
-    }
-
     private func slot(
         state: SlotState,
         viewer: SlotViewerState,
