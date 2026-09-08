@@ -11,6 +11,7 @@ struct PulseView: View {
     @State private var time = "Now"
     @State private var category = "All"
     @State private var selectedSlot: SlotModel?
+    @State private var showingNotifications = false
 
     var body: some View {
         ScrollView {
@@ -38,6 +39,11 @@ struct PulseView: View {
                 api: api,
                 session: session
             )
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
+        }
+        .sheet(isPresented: $showingNotifications) {
+            NotificationsPanelView()
                 .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
         }
@@ -75,26 +81,40 @@ struct PulseView: View {
                     }
                 }
                 Spacer()
-                Button {
-                    Task { await cityContext.resolveFromDevice() }
-                } label: {
-                    Group {
-                        if cityContext.isRefreshing || cityContext.phase == .loading {
-                            ProgressView().tint(LinkUpPalette.red).controlSize(.small)
-                        } else {
-                            Image(systemName: cityContext.context == nil ? "location.fill" : "location.circle.fill")
-                                .font(.system(size: 18))
+                HStack(spacing: 8) {
+                    Button {
+                        Task { await cityContext.resolveFromDevice() }
+                    } label: {
+                        Group {
+                            if cityContext.isRefreshing || cityContext.phase == .loading {
+                                ProgressView().tint(LinkUpPalette.red).controlSize(.small)
+                            } else {
+                                Image(systemName: cityContext.context == nil ? "location.fill" : "location.circle.fill")
+                                    .font(.system(size: 18))
+                            }
                         }
+                        .foregroundStyle(LinkUpPalette.textDimmed)
+                        .frame(width: 40, height: 40)
+                        .background(LinkUpPalette.elevated)
+                        .clipShape(RoundedRectangle(cornerRadius: LinkUpRadius.control))
+                        .overlay { RoundedRectangle(cornerRadius: LinkUpRadius.control).stroke(LinkUpPalette.border) }
                     }
-                    .foregroundStyle(LinkUpPalette.textDimmed)
-                    .frame(width: 40, height: 40)
-                    .background(LinkUpPalette.elevated)
-                    .clipShape(RoundedRectangle(cornerRadius: LinkUpRadius.control))
-                    .overlay { RoundedRectangle(cornerRadius: LinkUpRadius.control).stroke(LinkUpPalette.border) }
+                    .buttonStyle(.plain)
+                    .disabled(cityContext.isRefreshing || cityContext.phase == .loading)
+                    .accessibilityLabel(cityContext.context == nil ? "Set city context" : "Refresh city context")
+
+                    Button { showingNotifications = true } label: {
+                        Image(systemName: "bell")
+                            .font(.system(size: 18))
+                            .foregroundStyle(LinkUpPalette.textDimmed)
+                            .frame(width: 40, height: 40)
+                            .background(LinkUpPalette.elevated)
+                            .clipShape(RoundedRectangle(cornerRadius: LinkUpRadius.control))
+                            .overlay { RoundedRectangle(cornerRadius: LinkUpRadius.control).stroke(LinkUpPalette.border) }
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Notifications")
                 }
-                .buttonStyle(.plain)
-                .disabled(cityContext.isRefreshing || cityContext.phase == .loading)
-                .accessibilityLabel(cityContext.context == nil ? "Set city context" : "Refresh city context")
             }
             HStack(spacing: 10) {
                 Image(systemName: "magnifyingglass").foregroundStyle(LinkUpPalette.textMuted)
