@@ -63,6 +63,19 @@ final class DurableMutationOutboxTests: XCTestCase {
         XCTAssertNil(missing)
     }
 
+    func testOutboxPendingOwnerLookupIsOwnerBound() async throws {
+        let root = temporaryRoot()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let outbox = DurableMutationOutbox(baseDirectory: root)
+        let original = command(createdAt: fixedNow, firstAttemptAt: nil)
+        try await outbox.enqueue(original)
+
+        let ownPending = try await outbox.hasCommands(ownerFingerprint: owner)
+        let otherPending = try await outbox.hasCommands(ownerFingerprint: String(repeating: "b", count: 64))
+        XCTAssertTrue(ownPending)
+        XCTAssertFalse(otherPending)
+    }
+
     func testOutboxFlagsAgedAmbiguousCommandInsteadOfReplayingIt() async throws {
         let root = temporaryRoot()
         defer { try? FileManager.default.removeItem(at: root) }

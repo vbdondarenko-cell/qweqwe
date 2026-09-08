@@ -21,6 +21,8 @@ final class MutationRetryContractTests: XCTestCase {
         XCTAssertFalse(APIError.mutationQueued(UUID()).isDefinitiveMutationFailure)
         XCTAssertFalse(APIError.mutationSafetyBlocked.isDefinitiveMutationFailure)
         XCTAssertFalse(APIError.mutationJournalUnavailable.isDefinitiveMutationFailure)
+        XCTAssertFalse(APIError.signOutBlockedByPendingAction.isDefinitiveMutationFailure)
+        XCTAssertFalse(APIError.sessionTransitionInProgress.isDefinitiveMutationFailure)
     }
     func testOnlySafeTransientFailuresRetryIdempotentRelationshipWrites() {
         XCTAssertTrue(APIError.transport("timeout").retryableForIdempotentWrite)

@@ -10,6 +10,8 @@ extension LinkUpAPI {
     }
 
     func resolveCityContext(_ observation: CityLocationObservation) async throws -> CityContextModel {
+        try beginAuthenticatedWrite()
+        defer { endAuthenticatedWrite() }
         guard observation.hasValidClientShape else {
             throw APIError.protocolViolation("Invalid city location observation.")
         }

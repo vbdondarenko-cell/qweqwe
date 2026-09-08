@@ -14,6 +14,8 @@ enum APIError: Error, LocalizedError, Sendable {
     case mutationQueued(UUID)
     case mutationSafetyBlocked
     case mutationJournalUnavailable
+    case signOutBlockedByPendingAction
+    case sessionTransitionInProgress
     case http(status: Int, code: String, message: String, requestID: String?)
     case transport(String)
 
@@ -26,6 +28,8 @@ enum APIError: Error, LocalizedError, Sendable {
         case .mutationQueued(_): "Action is queued for safe retry and will be reconciled with the server."
         case .mutationSafetyBlocked: "An older unconfirmed action must be reconciled before new changes can be sent."
         case .mutationJournalUnavailable: "Protected pending-action storage is unavailable."
+        case .signOutBlockedByPendingAction: "Resolve the pending server action before signing out."
+        case .sessionTransitionInProgress: "Sign-out is already in progress."
         case .http(_, _, let message, _): message
         case .transport: "Network request failed."
         }

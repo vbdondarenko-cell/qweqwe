@@ -35,6 +35,10 @@ actor DurableMutationOutbox {
         try readCommands().first { $0.idempotencyKey == idempotencyKey }
     }
 
+    func hasCommands(ownerFingerprint: String) throws -> Bool {
+        try readCommands().contains { $0.ownerFingerprint == ownerFingerprint }
+    }
+
     func replayableEquivalent(
         ownerFingerprint: String,
         requestIdentity: String,

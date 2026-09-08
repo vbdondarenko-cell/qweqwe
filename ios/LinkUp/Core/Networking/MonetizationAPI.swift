@@ -9,6 +9,8 @@ extension LinkUpAPI {
     }
 
     func bindReferral(code: String) async throws -> MonetizationSnapshot {
+        try beginAuthenticatedWrite()
+        defer { endAuthenticatedWrite() }
         guard let normalized = ReferralCodeContract.normalize(code) else {
             throw APIError.protocolViolation("Invalid referral code.")
         }

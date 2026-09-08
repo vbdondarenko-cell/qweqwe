@@ -122,6 +122,8 @@ extension LinkUpAPI {
         profileVisibility: String? = nil,
         language: String? = nil
     ) async throws -> UserProfile {
+        try beginAuthenticatedWrite()
+        defer { endAuthenticatedWrite() }
         if let displayName, !InputContracts.validProfileDisplayName(displayName) {
             throw APIError.protocolViolation("Invalid display name.")
         }
@@ -147,11 +149,15 @@ extension LinkUpAPI {
         return try validatedServerValue(user, context: "updated profile")
     }
 
-    func logout() async {
+    func logout() async throws {
+        try beginExplicitLogout()
+        defer { endExplicitLogout() }
+        try await assertExplicitLogoutSafe()
         do {
             try await client.sendVoid(APIRequest(method: .post, path: "/v1/auth/logout"))
         } catch {
-            // Local sign-out is authoritative for this device even if remote revocation is unavailable.
+            // With no pending owner-bound work, local sign-out remains authoritative
+            // for this device even if remote revocation is temporarily unavailable.
         }
         await clearLocalSession()
     }
@@ -176,6 +182,8 @@ extension LinkUpAPI {
     }
 
     private func sendIdempotentRelationshipWrite(_ request: APIRequest) async throws {
+        try beginAuthenticatedWrite()
+        defer { endAuthenticatedWrite() }
         guard request.method == .put || request.method == .delete else {
             throw APIError.protocolViolation("Relationship retry helper requires PUT or DELETE.")
         }

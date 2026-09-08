@@ -167,9 +167,9 @@ final class SessionCoordinator: ObservableObject {
         state = .signedIn(updated)
     }
 
-    func logout() async {
+    func logout() async throws {
         generation &+= 1
-        await api.logout()
+        try await api.logout()
         state = .signedOut
     }
 

@@ -8,6 +8,8 @@ actor LinkUpAPI {
     private var pendingMutationKeys: [String: StoredMutationKey]
     private let durableOutbox: DurableMutationOutbox
     private let draftWorkflowStore: DraftPublishWorkflowStore
+    private var explicitLogoutInProgress = false
+    private var activeAuthenticatedWrites = 0
 
     init(
         client: APIClient,
@@ -32,6 +34,54 @@ actor LinkUpAPI {
         value.uuidString.lowercased()
     }
 
+    func ensureAuthenticatedWriteAllowed() throws {
+        if explicitLogoutInProgress {
+            throw APIError.sessionTransitionInProgress
+        }
+    }
+
+    func beginAuthenticatedWrite() throws {
+        try ensureAuthenticatedWriteAllowed()
+        activeAuthenticatedWrites += 1
+    }
+
+    func endAuthenticatedWrite() {
+        activeAuthenticatedWrites = max(0, activeAuthenticatedWrites - 1)
+    }
+
+    func beginExplicitLogout() throws {
+        guard !explicitLogoutInProgress else { throw APIError.sessionTransitionInProgress }
+        explicitLogoutInProgress = true
+    }
+
+    func endExplicitLogout() {
+        explicitLogoutInProgress = false
+    }
+
+    func assertExplicitLogoutSafe() async throws {
+        let ownerFingerprint = try await currentMutationOwnerFingerprint()
+        do {
+            let ownerHasCommands = try await durableOutbox.hasCommands(ownerFingerprint: ownerFingerprint)
+            let workflow = try await draftWorkflowStore.load()
+            let workflowOwner = workflow?.ownerFingerprint
+            guard ExplicitLogoutSafety.canProceed(
+                activeAuthenticatedWrites: activeAuthenticatedWrites,
+                legacyPendingCount: pendingMutationKeys.count,
+                ownerHasCommands: ownerHasCommands,
+                workflowOwnerFingerprint: workflowOwner,
+                currentOwnerFingerprint: ownerFingerprint
+            ) else {
+                throw APIError.signOutBlockedByPendingAction
+            }
+        } catch let error as APIError {
+            throw error
+        } catch let error as DurableMutationOutboxError {
+            throw mapOutboxError(error)
+        } catch {
+            throw APIError.mutationJournalUnavailable
+        }
+    }
+
     func sendIdempotent<Response: Decodable & Sendable>(
         _ request: APIRequest,
         responseKind: DurableMutationResponseKind,
@@ -42,6 +92,8 @@ actor LinkUpAPI {
         guard request.method != .get, request.authenticated else {
             throw APIError.protocolViolation("Durable mutation helper requires an authenticated non-GET request.")
         }
+        try beginAuthenticatedWrite()
+        defer { endAuthenticatedWrite() }
         guard (request.body?.count ?? 0) <= durableMutationMaxBodyBytes else {
             throw APIError.protocolViolation("Mutation body exceeds the durable safety limit.")
         }
@@ -250,6 +302,8 @@ actor LinkUpAPI {
     }
 
     func beginDraftPublishWorkflow(_ body: CreateSlotBody) async throws -> SlotModel {
+        try beginAuthenticatedWrite()
+        defer { endAuthenticatedWrite() }
         let ownerFingerprint = try await currentMutationOwnerFingerprint()
         let encoded = try encodeBody(body)
         let identity = MutationIdentity.digest(for: APIRequest(
@@ -583,4 +637,20 @@ func resolveDurableMutationKey(requested: UUID?, legacy: StoredMutationKey?) thr
         throw APIError.mutationSafetyBlocked
     }
     return requested ?? legacy?.key ?? UUID()
+}
+
+enum ExplicitLogoutSafety {
+    static func canProceed(
+        activeAuthenticatedWrites: Int,
+        legacyPendingCount: Int,
+        ownerHasCommands: Bool,
+        workflowOwnerFingerprint: String?,
+        currentOwnerFingerprint: String
+    ) -> Bool {
+        guard activeAuthenticatedWrites == 0,
+              legacyPendingCount == 0,
+              !ownerHasCommands,
+              workflowOwnerFingerprint == nil else { return false }
+        return currentOwnerFingerprint.count == 64
+    }
 }

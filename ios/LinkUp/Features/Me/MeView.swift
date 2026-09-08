@@ -14,6 +14,9 @@ struct MeView: View {
     @State private var showingMyLinks = false
     @State private var showingEditProfile = false
     @State private var showingLinkUpPlus = false
+    @State private var showingLogoutConfirmation = false
+    @State private var logoutBusy = false
+    @State private var logoutError: String?
 
     init(
         user: UserProfile,
@@ -67,6 +70,16 @@ struct MeView: View {
         }
         .sheet(isPresented: $showingLinkUpPlus) {
             LinkUpPlusView(coordinator: coordinator)
+        }
+        .confirmationDialog(
+            "Log out of LinkUp?",
+            isPresented: $showingLogoutConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("Log out", role: .destructive) { performLogout() }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("Pending server actions must be reconciled before LinkUp can safely remove this device session.")
         }
     }
 
@@ -270,8 +283,15 @@ struct MeView: View {
             settingsSection("Privacy & Safety", ["Privacy Center", "Safety Center", "Guardian", "Ghost Mode"])
             settingsSection("Account", ["Notifications", "Accessibility", "Data & Privacy"])
             settingsSection("App", ["Themes", "Legal", "Version"])
-            LinkUpButton(title: "Log out", variant: .danger) {
-                Task { await session.logout() }
+            if let logoutError {
+                LinkUpInlineError(message: logoutError) { self.logoutError = nil }
+            }
+            LinkUpButton(
+                title: logoutBusy ? "Logging out…" : "Log out",
+                variant: .danger,
+                disabled: logoutBusy
+            ) {
+                showingLogoutConfirmation = true
             }
         }
     }
@@ -377,6 +397,23 @@ struct MeView: View {
                 .background(LinkUpPalette.elevated)
                 .clipShape(RoundedRectangle(cornerRadius: LinkUpRadius.card))
                 .overlay { RoundedRectangle(cornerRadius: LinkUpRadius.card).stroke(LinkUpPalette.border) }
+            }
+        }
+    }
+
+
+    private func performLogout() {
+        guard !logoutBusy else { return }
+        logoutBusy = true
+        logoutError = nil
+        Task {
+            defer { logoutBusy = false }
+            do {
+                try await session.logout()
+            } catch is CancellationError {
+                return
+            } catch {
+                logoutError = error.localizedDescription
             }
         }
     }
