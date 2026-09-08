@@ -16,6 +16,7 @@ enum APIError: Error, LocalizedError, Sendable {
     case mutationJournalUnavailable
     case signOutBlockedByPendingAction
     case sessionTransitionInProgress
+    case authenticationInProgress
     case http(status: Int, code: String, message: String, requestID: String?)
     case transport(String)
 
@@ -30,6 +31,7 @@ enum APIError: Error, LocalizedError, Sendable {
         case .mutationJournalUnavailable: "Protected pending-action storage is unavailable."
         case .signOutBlockedByPendingAction: "Resolve the pending server action before signing out."
         case .sessionTransitionInProgress: "Sign-out is already in progress."
+        case .authenticationInProgress: "Another authentication request is already in progress."
         case .http(_, _, let message, _): message
         case .transport: "Network request failed."
         }

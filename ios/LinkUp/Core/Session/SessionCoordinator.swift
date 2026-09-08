@@ -16,6 +16,7 @@ final class SessionCoordinator: ObservableObject {
     private let api: LinkUpAPI
     private let credentials: KeychainSessionStore
     private var generation: UInt64 = 0
+    private var credentialAuthInProgress = false
 
     init(api: LinkUpAPI, credentials: KeychainSessionStore) {
         self.api = api
@@ -69,6 +70,8 @@ final class SessionCoordinator: ObservableObject {
     }
 
     func login(identifier: String, password: String, deviceLabel: String) async throws {
+        try beginCredentialAuthOperation()
+        defer { endCredentialAuthOperation() }
         generation &+= 1
         let requestGeneration = generation
         let user = try await api.login(identifier: identifier, password: password, deviceLabel: deviceLabel)
@@ -87,6 +90,8 @@ final class SessionCoordinator: ObservableObject {
         language: String,
         deviceLabel: String
     ) async throws {
+        try beginCredentialAuthOperation()
+        defer { endCredentialAuthOperation() }
         generation &+= 1
         let requestGeneration = generation
         let user = try await api.register(
@@ -177,6 +182,15 @@ final class SessionCoordinator: ObservableObject {
         generation &+= 1
         await api.clearLocalSession()
         state = .signedOut
+    }
+
+    private func beginCredentialAuthOperation() throws {
+        guard !credentialAuthInProgress else { throw APIError.authenticationInProgress }
+        credentialAuthInProgress = true
+    }
+
+    private func endCredentialAuthOperation() {
+        credentialAuthInProgress = false
     }
 
     private func revalidateSignedIn(_ current: UserProfile) async {
