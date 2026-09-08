@@ -40,6 +40,10 @@ targets:
           LINKUP_RECOVERY_ASSOCIATED_DOMAIN: "applinks:example.invalid"
           LINKUP_PRIVACY_URL: ""
           LINKUP_TERMS_URL: ""
+    preBuildScripts:
+      - path: scripts/verify_release_configuration.sh
+        name: Verify Release Configuration
+        basedOnDependencyAnalysis: false
     scheme:
       testTargets:
         - LinkUpTests
