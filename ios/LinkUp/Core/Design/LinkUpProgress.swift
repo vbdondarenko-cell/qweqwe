@@ -21,7 +21,7 @@ struct LinkUpProgress: View {
             }
             .frame(height: 6)
             if showsLabel {
-                Text("\(value)/\(maximum) going")
+                Text(L10n.format("fmt.capacity_going", value, maximum))
                     .font(LinkUpTypography.mono(10, weight: .semibold))
                     .foregroundStyle(LinkUpPalette.textMuted)
                     .frame(maxWidth: .infinity, alignment: .trailing)

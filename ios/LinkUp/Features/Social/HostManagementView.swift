@@ -74,12 +74,12 @@ struct HostManagementView: View {
             .refreshable { await roster.load() }
             .onDisappear { roster.dispose() }
             .confirmationDialog(
-                confirmAction == .block ? "Block this account?" : "Remove this participant?",
+                L10n.text(confirmAction == .block ? "Block this account?" : "Remove this participant?"),
                 isPresented: $showConfirmation,
                 titleVisibility: .visible
             ) {
                 if let target {
-                    Button(confirmAction == .block ? "Block" : "Remove", role: .destructive) {
+                    Button(L10n.text(confirmAction == .block ? "Block" : "Remove"), role: .destructive) {
                         runConfirmedAction(target)
                     }
                 }
@@ -172,13 +172,13 @@ struct HostManagementView: View {
         @ViewBuilder content: () -> Content
     ) -> some View {
         VStack(alignment: .leading, spacing: 7) {
-            Text(title)
+            Text(L10n.text(title))
                 .font(LinkUpTypography.mono(10, weight: .semibold))
                 .foregroundStyle(LinkUpPalette.textMuted)
                 .padding(.horizontal, 4)
             if empty {
                 LinkUpCard {
-                    Text(emptyText)
+                    Text(L10n.text(emptyText))
                         .font(LinkUpTypography.body(13))
                         .foregroundStyle(LinkUpPalette.textMuted)
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -199,7 +199,7 @@ struct HostManagementView: View {
                 Text(user.displayName)
                     .font(LinkUpTypography.body(13, weight: .semibold))
                     .foregroundStyle(LinkUpPalette.textPrimary)
-                Text("@\(user.username) · \(subtitle)")
+                Text(L10n.format("fmt.user_subtitle", user.username, L10n.text(subtitle)))
                     .font(LinkUpTypography.body(10))
                     .foregroundStyle(LinkUpPalette.textMuted)
                     .lineLimit(1)
@@ -211,7 +211,7 @@ struct HostManagementView: View {
 
     private func compactButton(_ title: String, tint: Color, action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            Text(title)
+            Text(L10n.text(title))
                 .font(LinkUpTypography.body(11, weight: .semibold))
                 .foregroundStyle(tint)
                 .frame(maxWidth: .infinity)
@@ -272,7 +272,7 @@ struct HostManagementView: View {
     private func errorBanner(_ message: String) -> some View {
         HStack(alignment: .top, spacing: 9) {
             Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(LinkUpPalette.critical)
-            Text(message)
+            Text(L10n.text(message))
                 .font(LinkUpTypography.body(12))
                 .foregroundStyle(LinkUpPalette.textDimmed)
                 .frame(maxWidth: .infinity, alignment: .leading)

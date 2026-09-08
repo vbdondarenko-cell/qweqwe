@@ -46,7 +46,7 @@ final class HostRosterCoordinator: ObservableObject {
             }
         } catch {
             guard requestGeneration == generation else { return }
-            phase = .failed("Unable to load participants.")
+            phase = .failed(L10n.text("Unable to load participants."))
         }
     }
 

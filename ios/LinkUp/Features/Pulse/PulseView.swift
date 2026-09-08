@@ -58,7 +58,7 @@ struct PulseView: View {
                             .font(LinkUpTypography.body(14, weight: .semibold))
                         HStack(spacing: 8) {
                             Circle().fill(LinkUpPalette.success).frame(width: 8, height: 8)
-                            Text("City lock · \(context.permissionClass.rawValue) · \(context.locality.timezone)")
+                            Text(L10n.format("fmt.city_lock", context.permissionClass.rawValue, context.locality.timezone))
                                 .font(LinkUpTypography.mono(10))
                             if context.switchPending {
                                 Text("· switch pending")
@@ -67,7 +67,7 @@ struct PulseView: View {
                         }
                         .foregroundStyle(LinkUpPalette.textDimmed)
                         if let refreshError = cityContext.refreshError {
-                            Text(refreshError)
+                            Text(L10n.text(refreshError))
                                 .font(LinkUpTypography.body(9))
                                 .foregroundStyle(LinkUpPalette.warning)
                                 .lineLimit(2)
@@ -75,7 +75,7 @@ struct PulseView: View {
                     } else {
                         Label("City context unavailable", systemImage: "mappin.slash")
                             .font(LinkUpTypography.body(14, weight: .semibold))
-                        Text(cityContextMessage)
+                        Text(L10n.text(cityContextMessage))
                             .font(LinkUpTypography.body(10))
                             .foregroundStyle(LinkUpPalette.textDimmed)
                     }

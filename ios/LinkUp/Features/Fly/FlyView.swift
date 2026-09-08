@@ -69,7 +69,7 @@ struct FlyView: View {
             Text("—")
                 .font(LinkUpTypography.mono(20, weight: .bold))
                 .foregroundStyle(LinkUpPalette.textMuted)
-            Text(label)
+            Text(L10n.text(label))
                 .font(LinkUpTypography.body(10))
                 .foregroundStyle(LinkUpPalette.textMuted)
         }
@@ -81,7 +81,7 @@ struct FlyView: View {
     }
 
     private func unavailableChip(_ title: String) -> some View {
-        Text(title)
+        Text(L10n.text(title))
             .font(LinkUpTypography.body(12, weight: .semibold))
             .foregroundStyle(LinkUpPalette.textMuted)
             .padding(.horizontal, 14)
@@ -92,6 +92,6 @@ struct FlyView: View {
                 RoundedRectangle(cornerRadius: LinkUpRadius.control)
                     .stroke(LinkUpPalette.border, lineWidth: 1)
             }
-            .accessibilityLabel("\(title), unavailable")
+            .accessibilityLabel(L10n.format("%@, unavailable", L10n.text(title)))
     }
 }

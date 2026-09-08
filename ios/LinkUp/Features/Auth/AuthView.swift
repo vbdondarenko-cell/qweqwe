@@ -210,7 +210,7 @@ struct AuthView: View {
         text: Binding<String>,
         contentType: UITextContentType
     ) -> some View {
-        TextField(placeholder, text: text)
+        TextField(L10n.text(placeholder), text: text)
             .textContentType(contentType)
             .textInputAutocapitalization(.never)
             .autocorrectionDisabled()
@@ -223,7 +223,7 @@ struct AuthView: View {
     }
 
     private func secureField(_ placeholder: String, text: Binding<String>) -> some View {
-        SecureField(placeholder, text: text)
+        SecureField(L10n.text(placeholder), text: text)
             .textContentType(mode == .register ? .newPassword : .password)
             .font(LinkUpTypography.body(14))
             .padding(.horizontal, 14)
@@ -236,7 +236,7 @@ struct AuthView: View {
     private func messageCard(_ text: String, color: Color, symbol: String) -> some View {
         HStack(alignment: .top, spacing: 10) {
             Image(systemName: symbol).foregroundStyle(color)
-            Text(text)
+            Text(L10n.text(text))
                 .font(LinkUpTypography.body(12))
                 .foregroundStyle(LinkUpPalette.textDimmed)
                 .frame(maxWidth: .infinity, alignment: .leading)

@@ -7,9 +7,9 @@ enum APIEndpointError: Error, LocalizedError, Sendable {
 
     var errorDescription: String? {
         switch self {
-        case .missing: "LINKUP_API_BASE_URL is not configured."
-        case .invalid: "LINKUP_API_BASE_URL is invalid."
-        case .insecure: "The API endpoint must use HTTPS."
+        case .missing: L10n.text("LINKUP_API_BASE_URL is not configured.")
+        case .invalid: L10n.text("LINKUP_API_BASE_URL is invalid.")
+        case .insecure: L10n.text("The API endpoint must use HTTPS.")
         }
     }
 }

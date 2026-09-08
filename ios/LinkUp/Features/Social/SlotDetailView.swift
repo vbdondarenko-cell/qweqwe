@@ -83,7 +83,7 @@ struct SlotDetailView: View {
                 isPresented: $showingBlockOrganizerConfirmation,
                 titleVisibility: .visible
             ) {
-                Button("Block @\(slot.organizer.username)", role: .destructive) { blockOrganizer() }
+                Button(L10n.format("fmt.block_username", slot.organizer.username), role: .destructive) { blockOrganizer() }
                 Button("Cancel", role: .cancel) { }
             } message: {
                 Text("Blocking removes your current request/membership, revokes chat access, and hides this organizer's LinkUps from server-authorized discovery.")
@@ -200,7 +200,7 @@ struct SlotDetailView: View {
 
             if canBlockOrganizer {
                 LinkUpButton(
-                    title: "Block @\(slot.organizer.username)",
+                    title: L10n.format("fmt.block_username", slot.organizer.username),
                     variant: .danger,
                     disabled: coordinator.mutationControlsDisabled
                 ) {
@@ -327,7 +327,7 @@ struct SlotDetailView: View {
     private func errorBanner(_ message: String) -> some View {
         HStack(alignment: .top, spacing: 9) {
             Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(LinkUpPalette.critical)
-            Text(message)
+            Text(L10n.text(message))
                 .font(LinkUpTypography.body(12))
                 .foregroundStyle(LinkUpPalette.textDimmed)
                 .frame(maxWidth: .infinity, alignment: .leading)

@@ -104,7 +104,7 @@ struct PlaceSearchField: View {
             }
 
             if let errorMessage {
-                Text(errorMessage)
+                Text(L10n.text(errorMessage))
                     .font(LinkUpTypography.body(10))
                     .foregroundStyle(LinkUpPalette.warning)
             }
@@ -155,7 +155,7 @@ struct PlaceSearchField: View {
         } catch {
             guard !Task.isCancelled else { return }
             suggestions = []
-            errorMessage = "Place search is unavailable. You can still enter a location manually."
+            errorMessage = L10n.text("Place search is unavailable. You can still enter a location manually.")
         }
     }
 }

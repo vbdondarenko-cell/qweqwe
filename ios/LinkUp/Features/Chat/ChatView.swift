@@ -98,7 +98,7 @@ struct ChatView: View {
                     .foregroundStyle(messageCount > InputContracts.chatMessageMaxScalars ? LinkUpPalette.critical : LinkUpPalette.textMuted)
             }
             if let error = coordinator.errorMessage {
-                Text(error)
+                Text(L10n.text(error))
                     .font(LinkUpTypography.body(11))
                     .foregroundStyle(LinkUpPalette.critical)
                     .frame(maxWidth: .infinity, alignment: .leading)

@@ -10,7 +10,7 @@ struct LinkUpButton: View {
 
     var body: some View {
         Button(action: action) {
-            Text(title)
+            Text(L10n.text(title))
                 .font(LinkUpTypography.body(14, weight: .bold))
                 .frame(maxWidth: .infinity, minHeight: 48)
                 .foregroundStyle(foreground)

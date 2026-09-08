@@ -65,7 +65,7 @@ final class MeCoordinator: ObservableObject {
             }
         } catch {
             guard requestGeneration == generation else { return }
-            phase = .failed("Unable to load account data.")
+            phase = .failed(L10n.text("Unable to load account data."))
         }
     }
 
@@ -89,7 +89,7 @@ final class MeCoordinator: ObservableObject {
             }
         } catch {
             guard requestGeneration == monetizationGeneration else { return }
-            monetizationPhase = .failed("Unable to load LinkUp+ status.")
+            monetizationPhase = .failed(L10n.text("Unable to load LinkUp+ status."))
         }
     }
 
@@ -114,7 +114,7 @@ final class MeCoordinator: ObservableObject {
             }
             return false
         } catch {
-            mutationError = "Unable to bind referral code."
+            mutationError = L10n.text("Unable to bind referral code.")
             return false
         }
     }
@@ -138,7 +138,7 @@ final class MeCoordinator: ObservableObject {
             }
             return false
         } catch {
-            mutationError = "Unable to unblock this account."
+            mutationError = L10n.text("Unable to unblock this account.")
             return false
         }
     }

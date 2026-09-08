@@ -102,7 +102,7 @@ struct PasswordResetView: View {
 
     private func submit() {
         guard let token = effectiveResetToken, canSubmit, !isBusy else {
-            errorMessage = "Enter a valid reset link/code and matching new passwords."
+            errorMessage = L10n.text("Enter a valid reset link/code and matching new passwords.")
             return
         }
         isBusy = true
@@ -122,7 +122,7 @@ struct PasswordResetView: View {
     }
 
     private func secureField(_ placeholder: String, text: Binding<String>) -> some View {
-        SecureField(placeholder, text: text)
+        SecureField(L10n.text(placeholder), text: text)
             .textContentType(.newPassword)
             .font(LinkUpTypography.body(14))
             .padding(.horizontal, 14)
@@ -135,7 +135,7 @@ struct PasswordResetView: View {
     private func messageBanner(_ text: String, tint: Color, symbol: String) -> some View {
         HStack(alignment: .top, spacing: 9) {
             Image(systemName: symbol).foregroundStyle(tint)
-            Text(text)
+            Text(L10n.text(text))
                 .font(LinkUpTypography.body(12))
                 .foregroundStyle(LinkUpPalette.textDimmed)
                 .frame(maxWidth: .infinity, alignment: .leading)

@@ -54,7 +54,7 @@ final class SessionCoordinator: ObservableObject {
             await applyVerificationFailure(error, local: local)
         } catch {
             guard requestGeneration == generation else { return }
-            state = .recoverableError("Unable to verify the current session.")
+            state = .recoverableError(L10n.text("Unable to verify the current session."))
         }
     }
 
@@ -228,7 +228,7 @@ final class SessionCoordinator: ObservableObject {
             await applyVerificationFailure(error, local: local)
         } catch {
             guard requestGeneration == generation else { return }
-            state = .recoverableError("Unable to verify the current session.")
+            state = .recoverableError(L10n.text("Unable to verify the current session."))
         }
     }
 

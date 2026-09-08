@@ -123,7 +123,7 @@ struct EditProfileView: View {
         let limit = isAvatar ? InputContracts.avatarURLMaxUTF8Bytes : InputContracts.profileDisplayNameMaxScalars
         return VStack(alignment: .leading, spacing: 6) {
             HStack {
-                Text(label)
+                Text(L10n.text(label))
                     .font(LinkUpTypography.body(12, weight: .semibold))
                 Spacer()
                 Text("\(count)/\(limit)")
@@ -131,7 +131,7 @@ struct EditProfileView: View {
                     .foregroundStyle(count > limit ? LinkUpPalette.critical : LinkUpPalette.textMuted)
             }
             .foregroundStyle(LinkUpPalette.textDimmed)
-            TextField(label, text: text)
+            TextField(L10n.text(label), text: text)
                 .textInputAutocapitalization(isAvatar ? .never : .words)
                 .autocorrectionDisabled(isAvatar)
                 .font(LinkUpTypography.body(14))
@@ -149,7 +149,7 @@ struct EditProfileView: View {
         selection: Binding<String>
     ) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text(title)
+            Text(L10n.text(title))
                 .font(LinkUpTypography.body(12, weight: .semibold))
                 .foregroundStyle(LinkUpPalette.textDimmed)
             HStack(spacing: 8) {
@@ -166,7 +166,7 @@ struct EditProfileView: View {
         HStack(alignment: .top, spacing: 9) {
             Image(systemName: "exclamationmark.triangle.fill")
                 .foregroundStyle(LinkUpPalette.critical)
-            Text(message)
+            Text(L10n.text(message))
                 .font(LinkUpTypography.body(12))
                 .foregroundStyle(LinkUpPalette.textDimmed)
                 .frame(maxWidth: .infinity, alignment: .leading)

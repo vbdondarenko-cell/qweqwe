@@ -194,7 +194,7 @@ struct MapView: View {
                         .foregroundStyle(LinkUpPalette.textPrimary)
                 }
                 if cluster.placeCount > 1 {
-                    Text("\(cluster.placeCount) places")
+                    Text(L10n.format("fmt.map_places", cluster.placeCount))
                         .font(LinkUpTypography.mono(8, weight: .semibold))
                         .foregroundStyle(LinkUpPalette.textPrimary)
                         .padding(.horizontal, 6)
@@ -205,7 +205,7 @@ struct MapView: View {
             }
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("\(cluster.slotCount) LinkUps in this map cluster")
+        .accessibilityLabel(L10n.format("fmt.map_cluster_count", cluster.slotCount))
     }
 
     private func select(_ cluster: MapCluster) {
@@ -243,7 +243,7 @@ struct MapView: View {
                     Text(cluster.placeName ?? "Map cluster")
                         .font(LinkUpTypography.display(14))
                         .foregroundStyle(LinkUpPalette.textPrimary)
-                    Text("\(cluster.slotCount) LinkUps · \(cluster.placeCount) places")
+                    Text(L10n.format("fmt.map_cluster_summary", cluster.slotCount, cluster.placeCount))
                         .font(LinkUpTypography.body(11))
                         .foregroundStyle(LinkUpPalette.textDimmed)
                 }
@@ -299,7 +299,7 @@ struct MapView: View {
                         .font(LinkUpTypography.mono(11, weight: .semibold))
                         .foregroundStyle(coordinator.clusters.isEmpty ? LinkUpPalette.textMuted : LinkUpPalette.success)
                 }
-                Text(summaryText)
+                Text(L10n.text(summaryText))
                     .font(LinkUpTypography.display(14))
                     .foregroundStyle(LinkUpPalette.textPrimary)
             }
@@ -317,12 +317,12 @@ struct MapView: View {
     private var summaryText: String {
         let count = coordinator.clusters.reduce(0) { $0 + $1.slotCount }
         if cityContext.context == nil {
-            if cityContext.phase == .loading { return "Loading city context…" }
-            return "Set city context to load nearby LinkUps"
+            if cityContext.phase == .loading { return L10n.text("Loading city context…") }
+            return L10n.text("Set city context to load nearby LinkUps")
         }
-        if coordinator.phase == .loading { return "Loading viewport…" }
-        if count == 0 { return "No scheduled LinkUps in viewport" }
-        return "\(count) LinkUps in viewport"
+        if coordinator.phase == .loading { return L10n.text("Loading viewport…") }
+        if count == 0 { return L10n.text("No scheduled LinkUps in viewport") }
+        return L10n.format("fmt.map_viewport_count", count)
     }
 
     private func mapControl(_ symbol: String) -> some View {

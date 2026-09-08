@@ -77,7 +77,7 @@ struct SlotCardView: View {
                     .buttonStyle(.plain)
 
                     Button(action: primaryAction) {
-                        Text(actionTitle)
+                        Text(L10n.text(actionTitle))
                             .font(LinkUpTypography.body(13, weight: .bold))
                             .frame(maxWidth: .infinity)
                             .frame(height: 42)

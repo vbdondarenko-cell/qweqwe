@@ -45,7 +45,7 @@ final class ChatCoordinator: ObservableObject {
             }
         } catch {
             guard requestGeneration == generation else { return }
-            errorMessage = "Unable to load chat."
+            errorMessage = L10n.text("Unable to load chat.")
         }
     }
 
@@ -79,7 +79,7 @@ final class ChatCoordinator: ObservableObject {
             }
             return false
         } catch {
-            errorMessage = "Message was not confirmed by the server."
+            errorMessage = L10n.text("Message was not confirmed by the server.")
             return false
         }
     }
@@ -93,7 +93,7 @@ final class ChatCoordinator: ObservableObject {
         }
         if report.definitiveFailureKey == queuedSendKey {
             self.queuedSendKey = nil
-            errorMessage = "Queued message was rejected by the server after reconciliation."
+            errorMessage = L10n.text("Queued message was rejected by the server after reconciliation.")
         }
         return false
     }

@@ -135,7 +135,7 @@ struct MySlotsDashboardView: View {
                         .font(LinkUpTypography.body(11))
                         .foregroundStyle(LinkUpPalette.textMuted)
                         .lineLimit(1)
-                    Text("\(slot.acceptedCount)/\(slot.capacity) · \(slot.state.rawValue)")
+                    Text(L10n.format("fmt.slot_dashboard_summary", slot.acceptedCount, slot.capacity, slot.state.rawValue))
                         .font(LinkUpTypography.mono(9, weight: .semibold))
                         .foregroundStyle(LinkUpPalette.textDimmed)
                 }

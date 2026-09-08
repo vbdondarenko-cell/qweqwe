@@ -56,13 +56,13 @@ final class MapCoordinator: ObservableObject {
             if clusters.isEmpty { phase = .failed(error.localizedDescription) }
         } catch {
             guard requestGeneration == generation else { return }
-            if clusters.isEmpty { phase = .failed("Unable to load map data.") }
+            if clusters.isEmpty { phase = .failed(L10n.text("Unable to load map data.")) }
         }
     }
 
     func loadPlaceSlots(placeID: UUID) async {
         guard let query = lastQuery else {
-            placeSlotsPhase = .failed("Map viewport is not ready.")
+            placeSlotsPhase = .failed(L10n.text("Map viewport is not ready."))
             return
         }
 
@@ -92,7 +92,7 @@ final class MapCoordinator: ObservableObject {
             placeSlotsPhase = .failed(error.localizedDescription)
         } catch {
             guard requestGeneration == placeSlotsGeneration else { return }
-            placeSlotsPhase = .failed("Unable to load LinkUps for this place.")
+            placeSlotsPhase = .failed(L10n.text("Unable to load LinkUps for this place."))
         }
     }
 

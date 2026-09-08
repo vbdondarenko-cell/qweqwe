@@ -89,7 +89,7 @@ struct EditSlotView: View {
                     .font(LinkUpTypography.body(12, weight: .semibold))
                     .foregroundStyle(LinkUpPalette.textDimmed)
                 Spacer()
-                Text("Minimum \(max(InputContracts.slotCapacityMin, slot.acceptedCount))")
+                Text(L10n.format("fmt.minimum_capacity", max(InputContracts.slotCapacityMin, slot.acceptedCount)))
                     .font(LinkUpTypography.mono(9))
                     .foregroundStyle(LinkUpPalette.textMuted)
             }
@@ -111,7 +111,7 @@ struct EditSlotView: View {
                 .disabled(!scheduleEnabled && cityTimeScope == nil)
             if scheduleEnabled {
                 if let scope = cityTimeScope {
-                    Text("City time · \(scope.identifier)")
+                    Text(L10n.format("fmt.city_time", scope.identifier))
                         .font(LinkUpTypography.mono(10))
                         .foregroundStyle(LinkUpPalette.textMuted)
                     DatePicker(
@@ -152,7 +152,7 @@ struct EditSlotView: View {
         let count = InputContracts.scalarCount(text.wrappedValue)
         return VStack(alignment: .leading, spacing: 6) {
             HStack {
-                Text(label)
+                Text(L10n.text(label))
                     .font(LinkUpTypography.body(12, weight: .semibold))
                 Spacer()
                 Text("\(count)/\(limit)")
@@ -160,7 +160,7 @@ struct EditSlotView: View {
                     .foregroundStyle(count > limit ? LinkUpPalette.critical : LinkUpPalette.textMuted)
             }
             .foregroundStyle(LinkUpPalette.textDimmed)
-            TextField(label, text: text, axis: multiline ? .vertical : .horizontal)
+            TextField(L10n.text(label), text: text, axis: multiline ? .vertical : .horizontal)
                 .lineLimit(multiline ? 3...6 : 1...1)
                 .font(LinkUpTypography.body(14))
                 .padding(12)
@@ -231,7 +231,7 @@ struct EditSlotView: View {
             dismiss()
         } else if report.definitiveFailureKey == pendingSaveKey {
             self.pendingSaveKey = nil
-            errorMessage = "Queued edit was rejected by the server after reconciliation."
+            errorMessage = L10n.text("Queued edit was rejected by the server after reconciliation.")
         }
     }
 
@@ -239,7 +239,7 @@ struct EditSlotView: View {
         HStack(alignment: .top, spacing: 9) {
             Image(systemName: "exclamationmark.triangle.fill")
                 .foregroundStyle(LinkUpPalette.critical)
-            Text(message)
+            Text(L10n.text(message))
                 .font(LinkUpTypography.body(12))
                 .foregroundStyle(LinkUpPalette.textDimmed)
                 .frame(maxWidth: .infinity, alignment: .leading)

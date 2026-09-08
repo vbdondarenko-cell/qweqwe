@@ -36,7 +36,7 @@ struct RootView: View {
             Text("LinkUp configuration error")
                 .font(LinkUpTypography.display(20))
                 .foregroundStyle(LinkUpPalette.textPrimary)
-            Text(message)
+            Text(L10n.text(message))
                 .font(LinkUpTypography.body(13))
                 .foregroundStyle(LinkUpPalette.textDimmed)
                 .multilineTextAlignment(.center)
@@ -68,7 +68,7 @@ private struct SessionRootView: View {
             case .offlineSession(let expiresAt):
                 sessionProblem(
                     title: "You're offline",
-                    message: "The local session is still valid until \(expiresAt.formatted(date: .abbreviated, time: .shortened)), but the server could not be reached."
+                    message: L10n.format("fmt.offline_session", expiresAt.formatted(date: .abbreviated, time: .shortened))
                 )
             case .recoverableError(let message):
                 sessionProblem(title: "Session unavailable", message: message)
@@ -89,10 +89,10 @@ private struct SessionRootView: View {
             Image(systemName: "wifi.exclamationmark")
                 .font(.system(size: 34))
                 .foregroundStyle(LinkUpPalette.warning)
-            Text(title)
+            Text(L10n.text(title))
                 .font(LinkUpTypography.display(20))
                 .foregroundStyle(LinkUpPalette.textPrimary)
-            Text(message)
+            Text(L10n.text(message))
                 .font(LinkUpTypography.body(13))
                 .foregroundStyle(LinkUpPalette.textDimmed)
                 .multilineTextAlignment(.center)

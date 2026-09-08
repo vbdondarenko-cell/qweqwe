@@ -10,11 +10,11 @@ private enum CityLocationProviderError: Error, LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .busy: "A location request is already in progress."
-        case .permissionDenied: "Location permission is required to set your city."
-        case .unavailable: "A current location could not be obtained."
-        case .invalidObservation: "The current location is not accurate enough for city resolution."
-        case .simulated: "Simulated locations cannot be used for City Context."
+        case .busy: L10n.text("A location request is already in progress.")
+        case .permissionDenied: L10n.text("Location permission is required to set your city.")
+        case .unavailable: L10n.text("A current location could not be obtained.")
+        case .invalidObservation: L10n.text("The current location is not accurate enough for city resolution.")
+        case .simulated: L10n.text("Simulated locations cannot be used for City Context.")
         }
     }
 }

@@ -128,7 +128,7 @@ struct CreateLinkView: View {
             Spacer()
             VStack(spacing: 2) {
                 Text("Create LINK").font(LinkUpTypography.display(14))
-                Text(!recoveryChecked ? "Checking saved draft" : (recoveryWorkflow == nil ? "Step \(step) of 3" : "Saved draft recovery"))
+                Text(!recoveryChecked ? L10n.text("Checking saved draft") : (recoveryWorkflow == nil ? L10n.format("fmt.step_of_3", step) : L10n.text("Saved draft recovery")))
                     .font(LinkUpTypography.mono(10))
                     .foregroundStyle(LinkUpPalette.textMuted)
             }
@@ -222,7 +222,7 @@ struct CreateLinkView: View {
             .disabled(!scheduleEnabled && cityTimeScope == nil)
 
             if let scope = cityTimeScope {
-                Text("City time · \(scope.identifier)")
+                Text(L10n.format("fmt.city_time", scope.identifier))
                     .font(LinkUpTypography.mono(10))
                     .foregroundStyle(LinkUpPalette.textMuted)
                 if scheduleEnabled {
@@ -262,9 +262,9 @@ struct CreateLinkView: View {
                             .clipShape(RoundedRectangle(cornerRadius: LinkUpRadius.card))
                         VStack(alignment: .leading, spacing: 5) {
                             LinkUpStatusBadge(status: .approval)
-                            Text(title.isEmpty ? "Untitled LinkUp" : title)
+                            Text(title.isEmpty ? L10n.text("Untitled LinkUp") : title)
                                 .font(LinkUpTypography.display(16))
-                            Text(place.isEmpty ? "No location set" : place)
+                            Text(place.isEmpty ? L10n.text("No location set") : place)
                                 .font(LinkUpTypography.body(12))
                                 .foregroundStyle(LinkUpPalette.textDimmed)
                         }
@@ -272,7 +272,7 @@ struct CreateLinkView: View {
                     if let selectedPlace {
                         HStack(spacing: 6) {
                             Image(systemName: "checkmark.seal.fill")
-                            Text("Canonical place · \(selectedPlace.subtitle.isEmpty ? selectedPlace.name : selectedPlace.subtitle)")
+                            Text(L10n.format("fmt.canonical_place", selectedPlace.subtitle.isEmpty ? selectedPlace.name : selectedPlace.subtitle))
                         }
                         .font(LinkUpTypography.body(10, weight: .semibold))
                         .foregroundStyle(LinkUpPalette.success)
@@ -285,7 +285,7 @@ struct CreateLinkView: View {
                             .font(LinkUpTypography.mono(11))
                             .foregroundStyle(LinkUpPalette.textDimmed)
                     }
-                    Text("0/\(capacity) going · Approval required · Public")
+                    Text(L10n.format("fmt.going_approval_public", capacity))
                         .font(LinkUpTypography.mono(11))
                         .foregroundStyle(LinkUpPalette.textMuted)
                 }
@@ -293,7 +293,7 @@ struct CreateLinkView: View {
             if let visiblePublishError {
                 HStack(alignment: .top, spacing: 9) {
                     Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(LinkUpPalette.critical)
-                    Text(visiblePublishError)
+                    Text(L10n.text(visiblePublishError))
                         .font(LinkUpTypography.body(12))
                         .foregroundStyle(LinkUpPalette.textDimmed)
                 }
@@ -364,7 +364,7 @@ struct CreateLinkView: View {
     private func publish() {
         guard let activity else { return }
         if scheduleEnabled && cityTimeScope == nil {
-            publishError = "City-Lock timezone is required for scheduled LinkUps."
+            publishError = L10n.text("City-Lock timezone is required for scheduled LinkUps.")
             return
         }
         publishError = nil
@@ -439,15 +439,15 @@ struct CreateLinkView: View {
 
             LinkUpCard {
                 VStack(alignment: .leading, spacing: 10) {
-                    Text(recoverySlot?.title ?? recoveryBody?.title ?? "Saved LinkUp")
+                    Text(recoverySlot?.title ?? recoveryBody?.title ?? L10n.text("Saved LinkUp"))
                         .font(LinkUpTypography.display(16))
-                    Text(recoverySlot?.placeText ?? recoveryBody?.placeText ?? "Location unavailable")
+                    Text(recoverySlot?.placeText ?? recoveryBody?.placeText ?? L10n.text("Location unavailable"))
                         .font(LinkUpTypography.body(12))
                         .foregroundStyle(LinkUpPalette.textDimmed)
                     HStack(spacing: 8) {
                         Text(recoverySlot?.state.rawValue ?? "RECOVERY")
                         if let version = recoverySlot?.version ?? workflow.draftVersion {
-                            Text("v\(version)")
+                            Text(L10n.format("fmt.version", version))
                         }
                     }
                     .font(LinkUpTypography.mono(10, weight: .semibold))
@@ -461,11 +461,11 @@ struct CreateLinkView: View {
             }
 
             if workflow.requiresAttention {
-                Text(recoveryServerAdvanced
+                Text(L10n.text(recoveryServerAdvanced
                      ? "Resolve server state clears only the stale local workflow record. It does not publish or cancel the already-advanced server Slot again."
                      : (workflow.draftID == nil
                         ? "No server draft ID was confirmed before the safe replay window ended or the create key became unsafe. LinkUp will not replay create because server idempotency retention cannot be guaranteed indefinitely; local discard is also blocked without an authoritative resource ID."
-                        : "Retry first re-reads the authoritative server draft and its current version. Discard cancels the server draft before local recovery state is removed."))
+                        : "Retry first re-reads the authoritative server draft and its current version. Discard cancels the server draft before local recovery state is removed.")))
                     .font(LinkUpTypography.body(12))
                     .foregroundStyle(LinkUpPalette.warning)
             } else {
@@ -511,7 +511,7 @@ struct CreateLinkView: View {
                 } catch is CancellationError {
                     return
                 } catch {
-                    recoveryError = "Saved recovery is intact, but the server draft snapshot is temporarily unavailable."
+                    recoveryError = L10n.text("Saved recovery is intact, but the server draft snapshot is temporarily unavailable.")
                 }
             }
         } catch is CancellationError {
@@ -563,7 +563,7 @@ struct CreateLinkView: View {
         HStack(alignment: .top, spacing: 9) {
             Image(systemName: "exclamationmark.triangle.fill")
                 .foregroundStyle(LinkUpPalette.critical)
-            Text(message)
+            Text(L10n.text(message))
                 .font(LinkUpTypography.body(12))
                 .foregroundStyle(LinkUpPalette.textDimmed)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -585,8 +585,8 @@ struct CreateLinkView: View {
 
     private func heading(_ title: String, _ subtitle: String) -> some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(title).font(LinkUpTypography.display(20))
-            Text(subtitle).font(LinkUpTypography.body(14)).foregroundStyle(LinkUpPalette.textDimmed)
+            Text(L10n.text(title)).font(LinkUpTypography.display(20))
+            Text(L10n.text(subtitle)).font(LinkUpTypography.body(14)).foregroundStyle(LinkUpPalette.textDimmed)
         }
     }
 
@@ -595,14 +595,14 @@ struct CreateLinkView: View {
         let count = InputContracts.scalarCount(text.wrappedValue)
         return VStack(alignment: .leading, spacing: 6) {
             HStack {
-                Text(label).font(LinkUpTypography.body(12, weight: .semibold))
+                Text(L10n.text(label)).font(LinkUpTypography.body(12, weight: .semibold))
                 Spacer()
                 Text("\(count)/\(limit)")
                     .font(LinkUpTypography.mono(9))
                     .foregroundStyle(count > limit ? LinkUpPalette.critical : LinkUpPalette.textMuted)
             }
             .foregroundStyle(LinkUpPalette.textDimmed)
-            TextField(placeholder, text: text, axis: label == "Description" ? .vertical : .horizontal)
+            TextField(L10n.text(placeholder), text: text, axis: label == "Description" ? .vertical : .horizontal)
                 .lineLimit(label == "Description" ? 3...5 : 1...1)
                 .font(LinkUpTypography.body(14))
                 .padding(12)
@@ -616,7 +616,7 @@ struct CreateLinkView: View {
         Button { activity = item } label: {
             VStack(spacing: 6) {
                 Image(systemName: item.symbol).font(.system(size: 22))
-                Text(item.label).font(LinkUpTypography.body(9, weight: .semibold)).lineLimit(1)
+                Text(L10n.text(item.label)).font(LinkUpTypography.body(9, weight: .semibold)).lineLimit(1)
             }
             .foregroundStyle(activity == item ? LinkUpPalette.red : LinkUpPalette.textDimmed)
             .frame(maxWidth: .infinity).aspectRatio(1, contentMode: .fit)
@@ -642,7 +642,7 @@ struct CreateLinkView: View {
 
     private func optionSection(title: String, rowTitle: String, subtitle: String, symbol: String) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text(title).font(LinkUpTypography.body(12, weight: .semibold)).foregroundStyle(LinkUpPalette.textDimmed)
+            Text(L10n.text(title)).font(LinkUpTypography.body(12, weight: .semibold)).foregroundStyle(LinkUpPalette.textDimmed)
             HStack(spacing: 12) {
                 Image(systemName: symbol)
                     .frame(width: 40, height: 40)
@@ -650,8 +650,8 @@ struct CreateLinkView: View {
                     .background(LinkUpPalette.red.opacity(0.15))
                     .clipShape(RoundedRectangle(cornerRadius: LinkUpRadius.control))
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(rowTitle).font(LinkUpTypography.body(14, weight: .semibold))
-                    Text(subtitle).font(LinkUpTypography.body(12)).foregroundStyle(LinkUpPalette.textMuted)
+                    Text(L10n.text(rowTitle)).font(LinkUpTypography.body(14, weight: .semibold))
+                    Text(L10n.text(subtitle)).font(LinkUpTypography.body(12)).foregroundStyle(LinkUpPalette.textMuted)
                 }
                 Spacer()
                 Image(systemName: "checkmark").foregroundStyle(LinkUpPalette.red)

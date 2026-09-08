@@ -63,7 +63,7 @@ final class SocialCoordinator: ObservableObject {
             return false
         } catch {
             guard generation == pulseGeneration else { return false }
-            pulsePhase = pulseItems.isEmpty ? .failed("Unable to load Pulse.") : .content
+            pulsePhase = pulseItems.isEmpty ? .failed(L10n.text("Unable to load Pulse.")) : .content
             return false
         }
     }
@@ -384,7 +384,7 @@ final class SocialCoordinator: ObservableObject {
             }
             throw error
         } catch {
-            mutationError = "The action could not be completed."
+            mutationError = L10n.text("The action could not be completed.")
             throw error
         }
     }

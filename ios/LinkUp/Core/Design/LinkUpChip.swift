@@ -12,7 +12,7 @@ struct LinkUpChip: View {
                 if let systemImage {
                     Image(systemName: systemImage).font(.system(size: 14))
                 }
-                Text(title).font(LinkUpTypography.body(12, weight: .semibold))
+                Text(L10n.text(title)).font(LinkUpTypography.body(12, weight: .semibold))
             }
             .foregroundStyle(active ? LinkUpPalette.textPrimary : LinkUpPalette.textDimmed)
             .padding(.horizontal, 14).padding(.vertical, 8)

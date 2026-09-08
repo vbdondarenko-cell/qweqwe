@@ -22,18 +22,18 @@ enum APIError: Error, LocalizedError, Sendable {
 
     var errorDescription: String? {
         switch self {
-        case .unauthorized: "Authentication required."
-        case .secureStorageUnavailable: "Secure session storage is unavailable."
-        case .responseTooLarge: "Server response exceeded the client safety limit."
+        case .unauthorized: L10n.text("Authentication required.")
+        case .secureStorageUnavailable: L10n.text("Secure session storage is unavailable.")
+        case .responseTooLarge: L10n.text("Server response exceeded the client safety limit.")
         case .protocolViolation(let message): message
-        case .mutationQueued(_): "Action is queued for safe retry and will be reconciled with the server."
-        case .mutationSafetyBlocked: "An older unconfirmed action must be reconciled before new changes can be sent."
-        case .mutationJournalUnavailable: "Protected pending-action storage is unavailable."
-        case .signOutBlockedByPendingAction: "Resolve the pending server action before signing out."
-        case .sessionTransitionInProgress: "Sign-out is already in progress."
-        case .authenticationInProgress: "Another authentication request is already in progress."
+        case .mutationQueued(_): L10n.text("Action is queued for safe retry and will be reconciled with the server.")
+        case .mutationSafetyBlocked: L10n.text("An older unconfirmed action must be reconciled before new changes can be sent.")
+        case .mutationJournalUnavailable: L10n.text("Protected pending-action storage is unavailable.")
+        case .signOutBlockedByPendingAction: L10n.text("Resolve the pending server action before signing out.")
+        case .sessionTransitionInProgress: L10n.text("Sign-out is already in progress.")
+        case .authenticationInProgress: L10n.text("Another authentication request is already in progress.")
         case .http(_, _, let message, _): message
-        case .transport: "Network request failed."
+        case .transport: L10n.text("Network request failed.")
         }
     }
 

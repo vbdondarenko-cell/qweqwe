@@ -210,7 +210,7 @@ struct MeView: View {
                         Text("LinkUp+")
                             .font(LinkUpTypography.body(14, weight: .semibold))
                             .foregroundStyle(LinkUpPalette.textPrimary)
-                        Text(linkUpPlusSubtitle)
+                        Text(L10n.text(linkUpPlusSubtitle))
                             .font(LinkUpTypography.body(10))
                             .foregroundStyle(LinkUpPalette.textMuted)
                     }
@@ -230,16 +230,16 @@ struct MeView: View {
 
     private var linkUpPlusSubtitle: String {
         guard let snapshot = coordinator.monetization else {
-            if case .failed = coordinator.monetizationPhase { return "Server status unavailable" }
-            return "Loading server entitlement…"
+            if case .failed = coordinator.monetizationPhase { return L10n.text("Server status unavailable") }
+            return L10n.text("Loading server entitlement…")
         }
         if snapshot.status.premiumActive {
             if let until = snapshot.status.premiumUntil {
-                return "Active until \(until.formatted(date: .abbreviated, time: .omitted))"
+                return L10n.format("fmt.active_until", until.formatted(date: .abbreviated, time: .omitted))
             }
-            return "Active"
+            return L10n.text("Active")
         }
-        return "Inactive · referral and catalog available"
+        return L10n.text("Inactive · referral and catalog available")
     }
 
     private var passport: some View {
@@ -309,7 +309,7 @@ struct MeView: View {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Subscription & referrals")
                             .font(LinkUpTypography.body(14, weight: .medium))
-                        Text(linkUpPlusSubtitle)
+                        Text(L10n.text(linkUpPlusSubtitle))
                             .font(LinkUpTypography.body(10))
                             .foregroundStyle(LinkUpPalette.textMuted)
                     }
@@ -434,7 +434,7 @@ struct MeView: View {
     private func metric(_ label: String) -> some View {
         VStack(spacing: 2) {
             Text("—").font(LinkUpTypography.mono(14, weight: .bold))
-            Text(label).font(LinkUpTypography.body(9)).lineLimit(1)
+            Text(L10n.text(label)).font(LinkUpTypography.body(9)).lineLimit(1)
         }
         .foregroundStyle(LinkUpPalette.textMuted)
         .frame(maxWidth: .infinity).padding(.vertical, 8)
@@ -445,7 +445,7 @@ struct MeView: View {
     private func linkMetric(_ label: String, _ value: Int) -> some View {
         VStack(spacing: 2) {
             Text("\(value)").font(LinkUpTypography.mono(18, weight: .bold))
-            Text(label).font(LinkUpTypography.body(10)).foregroundStyle(LinkUpPalette.textMuted)
+            Text(L10n.text(label)).font(LinkUpTypography.body(10)).foregroundStyle(LinkUpPalette.textMuted)
         }
         .frame(maxWidth: .infinity).padding(.vertical, 10)
         .background(LinkUpPalette.zone.opacity(0.5))
@@ -455,7 +455,7 @@ struct MeView: View {
     private func passportMetric(_ label: String) -> some View {
         VStack(spacing: 2) {
             Text("—").font(LinkUpTypography.display(24, weight: .black))
-            Text(label).font(LinkUpTypography.body(11)).foregroundStyle(LinkUpPalette.textMuted)
+            Text(L10n.text(label)).font(LinkUpTypography.body(11)).foregroundStyle(LinkUpPalette.textMuted)
         }
         .foregroundStyle(LinkUpPalette.textPrimary)
         .frame(maxWidth: .infinity).padding(.vertical, 16)
@@ -473,7 +473,7 @@ struct MeView: View {
             VStack(spacing: 0) {
                 ForEach(rows, id: \.self) { row in
                     HStack {
-                        Text(row).font(LinkUpTypography.body(14, weight: .medium))
+                        Text(L10n.text(row)).font(LinkUpTypography.body(14, weight: .medium))
                         Spacer()
                         Image(systemName: "chevron.right")
                             .font(.system(size: 12, weight: .semibold))

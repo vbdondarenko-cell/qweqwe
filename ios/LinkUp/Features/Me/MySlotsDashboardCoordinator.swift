@@ -40,7 +40,7 @@ final class MySlotsDashboardCoordinator: ObservableObject {
             }
         } catch {
             guard requestGeneration == generation else { return }
-            phase = .failed("Unable to load My LinkUps.")
+            phase = .failed(L10n.text("Unable to load My LinkUps."))
         }
     }
 

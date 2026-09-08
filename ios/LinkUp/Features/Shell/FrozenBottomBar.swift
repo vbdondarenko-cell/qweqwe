@@ -30,7 +30,7 @@ struct FrozenBottomBar: View {
                     .background(selection == tab ? LinkUpPalette.red.opacity(0.15) : .clear)
                     .clipShape(RoundedRectangle(cornerRadius: LinkUpRadius.control))
                     .foregroundStyle(selection == tab ? LinkUpPalette.red : LinkUpPalette.textMuted)
-                Text(tab.rawValue)
+                Text(L10n.text(tab.rawValue))
                     .font(LinkUpTypography.body(10, weight: .semibold))
                     .foregroundStyle(selection == tab ? LinkUpPalette.red : LinkUpPalette.textMuted)
                 Circle()
@@ -40,7 +40,7 @@ struct FrozenBottomBar: View {
             .frame(maxWidth: .infinity)
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(tab.rawValue)
+        .accessibilityLabel(L10n.text(tab.rawValue))
     }
 
     private var createButton: some View {
