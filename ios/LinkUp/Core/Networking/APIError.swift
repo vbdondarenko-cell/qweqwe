@@ -39,6 +39,17 @@ enum APIError: Error, LocalizedError, Sendable {
         }
     }
 
+    var retryableForIdempotentWrite: Bool {
+        switch self {
+        case .transport:
+            true
+        case .http(let status, _, _, _):
+            [408, 502, 503, 504].contains(status)
+        default:
+            false
+        }
+    }
+
     var isDefinitiveMutationFailure: Bool {
         switch self {
         case .unauthorized:

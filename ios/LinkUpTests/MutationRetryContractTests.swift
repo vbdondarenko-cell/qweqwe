@@ -22,4 +22,13 @@ final class MutationRetryContractTests: XCTestCase {
         XCTAssertFalse(APIError.mutationSafetyBlocked.isDefinitiveMutationFailure)
         XCTAssertFalse(APIError.mutationJournalUnavailable.isDefinitiveMutationFailure)
     }
+    func testOnlySafeTransientFailuresRetryIdempotentRelationshipWrites() {
+        XCTAssertTrue(APIError.transport("timeout").retryableForIdempotentWrite)
+        XCTAssertTrue(APIError.http(status: 408, code: "timeout", message: "timeout", requestID: nil).retryableForIdempotentWrite)
+        XCTAssertTrue(APIError.http(status: 503, code: "not_ready", message: "later", requestID: nil).retryableForIdempotentWrite)
+        XCTAssertFalse(APIError.http(status: 429, code: "rate_limited", message: "later", requestID: nil).retryableForIdempotentWrite)
+        XCTAssertFalse(APIError.http(status: 409, code: "conflict", message: "conflict", requestID: nil).retryableForIdempotentWrite)
+        XCTAssertFalse(APIError.protocolViolation("bad response").retryableForIdempotentWrite)
+    }
+
 }

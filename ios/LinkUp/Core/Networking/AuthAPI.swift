@@ -164,10 +164,32 @@ extension LinkUpAPI {
     }
 
     func blockUser(_ userID: UUID) async throws {
-        try await client.sendVoid(APIRequest(method: .put, path: "/v1/me/blocks/\(uuidPath(userID))"))
+        try await sendIdempotentRelationshipWrite(
+            APIRequest(method: .put, path: "/v1/me/blocks/\(uuidPath(userID))")
+        )
     }
 
     func unblockUser(_ userID: UUID) async throws {
-        try await client.sendVoid(APIRequest(method: .delete, path: "/v1/me/blocks/\(uuidPath(userID))"))
+        try await sendIdempotentRelationshipWrite(
+            APIRequest(method: .delete, path: "/v1/me/blocks/\(uuidPath(userID))")
+        )
+    }
+
+    private func sendIdempotentRelationshipWrite(_ request: APIRequest) async throws {
+        guard request.method == .put || request.method == .delete else {
+            throw APIError.protocolViolation("Relationship retry helper requires PUT or DELETE.")
+        }
+
+        for attempt in 0..<2 {
+            do {
+                try await client.sendVoid(request)
+                return
+            } catch is CancellationError {
+                throw CancellationError()
+            } catch let error as APIError {
+                guard attempt == 0, error.retryableForIdempotentWrite else { throw error }
+                try await Task<Never, Never>.sleep(nanoseconds: 250_000_000)
+            }
+        }
     }
 }

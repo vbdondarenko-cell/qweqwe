@@ -137,6 +137,20 @@ final class SocialCoordinator: ObservableObject {
         }
     }
 
+    func blockOrganizerAndRevoke(_ slot: SlotModel) async throws -> Bool? {
+        guard case .signedIn(let currentUser) = session.state,
+              currentUser.id != slot.organizer.id,
+              slot.viewerState != .host else {
+            throw APIError.protocolViolation("The current account cannot block this organizer from this Slot.")
+        }
+
+        return try await performMutation {
+            try await api.blockUser(slot.organizer.id)
+            applyLocalAccessLoss(slot.id)
+            return true
+        }
+    }
+
     func cancel(_ slot: SlotModel) async throws -> SlotModel? {
         try await performMutation {
             let updated = try await api.cancelSlot(slot.id, expectedVersion: slot.version)
@@ -296,7 +310,7 @@ final class SocialCoordinator: ObservableObject {
         activeChatSlotID = nil
     }
 
-    private func performMutation(_ work: () async throws -> SlotModel) async throws -> SlotModel? {
+    private func performMutation<Value>(_ work: () async throws -> Value) async throws -> Value? {
         guard !mutationControlsDisabled else { return nil }
         isMutating = true
         mutationError = nil
@@ -317,6 +331,21 @@ final class SocialCoordinator: ObservableObject {
             mutationError = "The action could not be completed."
             throw error
         }
+    }
+
+    private func applyLocalAccessLoss(_ slotID: UUID) {
+        pulseGeneration &+= 1
+        pulseItems.removeAll { $0.id == slotID }
+        pulsePhase = pulseItems.isEmpty ? .empty : .content
+        if activeSlot?.id == slotID { activeSlot = nil }
+        if activeChatSlotID == slotID { activeChatSlotID = nil }
+        stagedRelationshipSnapshots.removeValue(forKey: slotID)
+        stagedChatSnapshots.removeValue(forKey: slotID)
+
+        realtimeRevision &+= 1
+        discoveryRevision &+= 1
+        accessLostRealtimeRevisions[slotID] = realtimeRevision
+        pruneRealtimeRevisions()
     }
 
     private func pruneRealtimeRevisions() {

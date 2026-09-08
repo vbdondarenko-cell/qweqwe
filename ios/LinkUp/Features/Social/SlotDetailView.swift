@@ -15,6 +15,7 @@ struct SlotDetailView: View {
     @State private var showingChat = false
     @State private var showingEdit = false
     @State private var showingHostManagement = false
+    @State private var showingBlockOrganizerConfirmation = false
     @State private var lastRealtimeRevision: UInt64 = 0
 
     init(
@@ -76,6 +77,16 @@ struct SlotDetailView: View {
                     api: api,
                     session: session
                 )
+            }
+            .confirmationDialog(
+                "Block organizer?",
+                isPresented: $showingBlockOrganizerConfirmation,
+                titleVisibility: .visible
+            ) {
+                Button("Block @\(slot.organizer.username)", role: .destructive) { blockOrganizer() }
+                Button("Cancel", role: .cancel) { }
+            } message: {
+                Text("Blocking removes your current request/membership, revokes chat access, and hides this organizer's LinkUps from server-authorized discovery.")
             }
         }
         .preferredColorScheme(.dark)
@@ -182,6 +193,16 @@ struct SlotDetailView: View {
             case .host:
                 hostControls
             }
+
+            if canBlockOrganizer {
+                LinkUpButton(
+                    title: "Block @\(slot.organizer.username)",
+                    variant: .danger,
+                    disabled: coordinator.mutationControlsDisabled
+                ) {
+                    showingBlockOrganizerConfirmation = true
+                }
+            }
         }
     }
 
@@ -208,6 +229,29 @@ struct SlotDetailView: View {
         if !slot.isTerminal {
             LinkUpButton(title: "Cancel LinkUp", variant: .danger, disabled: coordinator.mutationControlsDisabled) {
                 runMutation { try await coordinator.cancel(slot) }
+            }
+        }
+    }
+
+    private var canBlockOrganizer: Bool {
+        guard slot.viewerState != .host, case .signedIn(let currentUser) = session.state else { return false }
+        return currentUser.id != slot.organizer.id
+    }
+
+    private func blockOrganizer() {
+        guard canBlockOrganizer else { return }
+        Task {
+            do {
+                if try await coordinator.blockOrganizerAndRevoke(slot) == true {
+                    showingChat = false
+                    showingEdit = false
+                    showingHostManagement = false
+                    dismiss()
+                }
+            } catch is CancellationError {
+                return
+            } catch {
+                loadError = error.localizedDescription
             }
         }
     }
