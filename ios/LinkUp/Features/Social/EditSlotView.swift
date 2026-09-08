@@ -16,6 +16,7 @@ struct EditSlotView: View {
     @State private var scheduledAt: Date
     @State private var errorMessage: String?
     @State private var pendingSaveKey: UUID?
+    @State private var serverReviewRequired = false
 
     private let originalPlace: String
     private let originalCanonicalPlaceID: UUID?
@@ -47,6 +48,9 @@ struct EditSlotView: View {
                     capacityControl
                     scheduleControl
                     if let errorMessage { errorBanner(errorMessage) }
+                    if serverReviewRequired {
+                        LinkUpButton(title: "Close and review latest LINK", variant: .secondary) { dismiss() }
+                    }
                 }
                 .padding(20)
             }
@@ -74,6 +78,7 @@ struct EditSlotView: View {
     }
 
     private var canSave: Bool {
+        !serverReviewRequired &&
         InputContracts.validSlotTitle(title) &&
         InputContracts.validSlotDetails(details) &&
         InputContracts.validSlotPlace(place) &&
@@ -216,6 +221,12 @@ struct EditSlotView: View {
             } catch is CancellationError {
                 return
             } catch let error as APIError {
+                if error.isSlotVersionConflict {
+                    await lockForServerReview(
+                        message: "This LinkUp changed on the server. Review the latest version before editing again."
+                    )
+                    return
+                }
                 if case .mutationQueued(let key) = error { pendingSaveKey = key }
                 errorMessage = error.localizedDescription
             } catch {
@@ -232,7 +243,26 @@ struct EditSlotView: View {
             dismiss()
         } else if report.definitiveFailureKey == pendingSaveKey {
             self.pendingSaveKey = nil
-            errorMessage = L10n.text("Queued edit was rejected by the server after reconciliation.")
+            Task {
+                await lockForServerReview(
+                    message: "The queued edit was rejected. Review the authoritative LinkUp before trying another edit."
+                )
+            }
+        }
+    }
+
+    private func lockForServerReview(message: String) async {
+        serverReviewRequired = true
+        errorMessage = L10n.text(message)
+        do {
+            let refreshed = try await social.loadSlot(slot.id)
+            guard refreshed.id == slot.id else { return }
+            slot = refreshed
+            social.updateActiveSlot(refreshed)
+        } catch is CancellationError {
+            return
+        } catch {
+            // Keep the editor locked. A later screen refresh can recover the authoritative snapshot.
         }
     }
 

@@ -307,3 +307,6 @@
 "Not configured" = "Не налаштовано";
 "Opens in browser" = "Відкривається у браузері";
 "OLED Dark" = "OLED Dark";
+"Close and review latest LINK" = "Закрити й переглянути актуальний LINK";
+"This LinkUp changed on the server. Review the latest version before editing again." = "Цей LinkUp змінився на сервері. Перегляньте актуальну версію перед наступним редагуванням.";
+"The queued edit was rejected. Review the authoritative LinkUp before trying another edit." = "Сервер відхилив редагування з черги. Перегляньте актуальний серверний LinkUp перед новою спробою редагування.";

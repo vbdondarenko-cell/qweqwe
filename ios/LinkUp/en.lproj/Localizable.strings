@@ -307,3 +307,6 @@
 "Not configured" = "Not configured";
 "Opens in browser" = "Opens in browser";
 "OLED Dark" = "OLED Dark";
+"Close and review latest LINK" = "Close and review latest LINK";
+"This LinkUp changed on the server. Review the latest version before editing again." = "This LinkUp changed on the server. Review the latest version before editing again.";
+"The queued edit was rejected. Review the authoritative LinkUp before trying another edit." = "The queued edit was rejected. Review the authoritative LinkUp before trying another edit.";
