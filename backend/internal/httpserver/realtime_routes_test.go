@@ -70,13 +70,13 @@ func TestRealtimeEventsReturnsViewerBatch(t *testing.T) {
 	feed := &fakeRealtimeFeed{batch: realtime.ViewerBatch{
 		Cursor: 42,
 		Events: []realtime.Event{{
-			Sequence: 42,
-			ID: "event-42",
-			Type: "slot.updated",
+			Sequence:      42,
+			ID:            "event-42",
+			Type:          "slot.updated",
 			AggregateType: "slot",
-			AggregateID: "00000000-0000-0000-0000-000000000001",
-			Payload: json.RawMessage(`{"version":2}`),
-			OccurredAt: time.Unix(42, 0).UTC(),
+			AggregateID:   "00000000-0000-0000-0000-000000000001",
+			Payload:       json.RawMessage(`{"version":2}`),
+			OccurredAt:    time.Unix(42, 0).UTC(),
 		}},
 	}}
 	s := &Server{deps: Dependencies{Realtime: feed}}
