@@ -11,6 +11,7 @@ import com.linkup.app.core.network.SocialApi
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 import kotlinx.coroutines.test.runTest
 
@@ -57,7 +58,7 @@ class DurableSocialApiTest {
     }
 
     @Test
-    fun `ambiguous request survives reconstruction and replays with same key`() = runTest {
+    fun `ambiguous request survives reconstruction and retries with same key`() = runTest {
         val outbox = MemoryOutbox()
         var ambiguous = true
         val transport = DurableMutationTransport { command ->
@@ -84,6 +85,11 @@ class DurableSocialApiTest {
         assertEquals("/v1/slots/$SLOT_ID/request", persisted.path)
         assertEquals(2_000L, persisted.firstAttemptAtEpochMillis)
 
+        assertFailsWith<DurableMutationQueuedException> { firstProcess.requestSlot(SLOT_ID) }
+        assertEquals(1, outbox.items.size)
+        assertEquals(originalKey, outbox.items.single().idempotencyKey)
+        assertEquals(2_000L, outbox.items.single().firstAttemptAtEpochMillis)
+
         ambiguous = false
         val afterProcessDeath = DurableSocialApi(
             delegate = UnusedSocialApi,
@@ -96,6 +102,37 @@ class DurableSocialApiTest {
         assertEquals(listOf(originalKey), report.acknowledgedKeys)
         assertTrue(report.completed)
         assertTrue(outbox.items.isEmpty())
+    }
+
+    @Test
+    fun `expired ambiguous mutation blocks new writes instead of risking duplicate side effects`() = runTest {
+        val outbox = MemoryOutbox()
+        val owner = mutationOwnerFingerprint(TOKEN)
+        outbox.enqueue(
+            DurableMutationCommand(
+                idempotencyKey = "00000000-0000-0000-0000-000000000099",
+                ownerFingerprint = owner,
+                method = "POST",
+                path = "/v1/slots/$SLOT_ID/request",
+                bodyJson = null,
+                responseKind = DurableResponseKind.SLOT,
+                createdAtEpochMillis = 1_000L,
+            ).markAttempt(2_000L),
+        )
+        var transportCalled = false
+        val api = DurableSocialApi(
+            delegate = UnusedSocialApi,
+            currentBearerToken = { TOKEN },
+            runner = DurableMutationRunner(outbox) { 2_001L + DURABLE_MUTATION_REPLAY_WINDOW_MS },
+            transport = DurableMutationTransport {
+                transportCalled = true
+                DurableAttemptResult(DurableAttemptDisposition.ACKNOWLEDGED, slotJson(), httpStatus = 200)
+            },
+        )
+
+        assertFailsWith<DurableMutationSafetyException> { api.startSlot(SLOT_ID) }
+        assertFalse(transportCalled)
+        assertEquals(1, outbox.items.size)
     }
 
     private class MemoryOutbox : MutationOutbox {
