@@ -48,24 +48,30 @@ class V11HostingCoordinator(
         }
     }
 
-    suspend fun publishCurrent(): Boolean {
-        val current = (mutableDraft.value as? LoadState.Content)?.value ?: return false
-        if (current.state != SlotState.DRAFT || current.version <= 0) return false
-        if (!mutationMutex.tryLock()) return false
+    suspend fun publishCurrent(): SlotModel? {
+        val current = (mutableDraft.value as? LoadState.Content)?.value ?: return null
+        return publishDraft(current)
+    }
+
+    suspend fun publishDraft(current: SlotModel): SlotModel? {
+        if (current.state != SlotState.DRAFT || current.version <= 0) return null
+        if (!mutationMutex.tryLock()) return null
         val request = ++generation
         mutableDraft.value = LoadState.Content(current, refreshing = true)
         try {
             val published = api.publishDraft(current.id, current.version)
-            if (request != generation) return false
-            if (published.state !in setOf(SlotState.PUBLISHED, SlotState.FILLING, SlotState.FULL)) {
+            if (request != generation) return null
+            if (published.id != current.id || published.version <= current.version ||
+                published.state !in setOf(SlotState.PUBLISHED, SlotState.FILLING, SlotState.FULL)
+            ) {
                 mutableDraft.value = LoadState.Content(
                     current,
                     refreshError = SocialError("protocol_error", "Server did not publish the LINK"),
                 )
-                return false
+                return null
             }
             mutableDraft.value = LoadState.Content(published)
-            return true
+            return published
         } catch (error: CancellationException) {
             if (request == generation) mutableDraft.value = LoadState.Content(current)
             throw error
@@ -73,7 +79,7 @@ class V11HostingCoordinator(
             if (request == generation) {
                 mutableDraft.value = LoadState.Content(current, refreshError = error.toHostingError())
             }
-            return false
+            return null
         } finally {
             mutationMutex.unlock()
         }
