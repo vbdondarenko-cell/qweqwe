@@ -5,6 +5,7 @@ struct EditSlotView: View {
     @Environment(\.dismiss) private var dismiss
     @Binding var slot: SlotModel
     @ObservedObject var social: SocialCoordinator
+    @ObservedObject var cityContext: CityContextCoordinator
 
     @State private var title: String
     @State private var details: String
@@ -20,9 +21,10 @@ struct EditSlotView: View {
     private let originalCanonicalPlaceID: UUID?
     private let originalStartAt: Date?
 
-    init(slot: Binding<SlotModel>, social: SocialCoordinator) {
+    init(slot: Binding<SlotModel>, social: SocialCoordinator, cityContext: CityContextCoordinator) {
         _slot = slot
-        self.social = social
+        _social = ObservedObject(wrappedValue: social)
+        _cityContext = ObservedObject(wrappedValue: cityContext)
         let value = slot.wrappedValue
         _title = State(initialValue: value.title)
         _details = State(initialValue: value.details ?? "")
@@ -76,7 +78,8 @@ struct EditSlotView: View {
         InputContracts.validSlotDetails(details) &&
         InputContracts.validSlotPlace(place) &&
         capacity >= max(InputContracts.slotCapacityMin, slot.acceptedCount) &&
-        capacity <= InputContracts.slotCapacityMax
+        capacity <= InputContracts.slotCapacityMax &&
+        scheduleSelectionValid
     }
 
     private var capacityControl: some View {
@@ -105,14 +108,25 @@ struct EditSlotView: View {
             Toggle("Scheduled start", isOn: $scheduleEnabled)
                 .font(LinkUpTypography.body(12, weight: .semibold))
                 .tint(LinkUpPalette.red)
+                .disabled(!scheduleEnabled && cityTimeScope == nil)
             if scheduleEnabled {
-                DatePicker(
-                    "Start time",
-                    selection: $scheduledAt,
-                    displayedComponents: [.date, .hourAndMinute]
-                )
-                .font(LinkUpTypography.body(13))
-                .tint(LinkUpPalette.red)
+                if let scope = cityTimeScope {
+                    Text("City time · \(scope.identifier)")
+                        .font(LinkUpTypography.mono(10))
+                        .foregroundStyle(LinkUpPalette.textMuted)
+                    DatePicker(
+                        "Start time",
+                        selection: $scheduledAt,
+                        displayedComponents: [.date, .hourAndMinute]
+                    )
+                    .environment(\.timeZone, scope.timeZone)
+                    .font(LinkUpTypography.body(13))
+                    .tint(LinkUpPalette.red)
+                } else {
+                    Text("City-Lock timezone is unavailable. The existing start instant will be preserved unless scheduling is turned off.")
+                        .font(LinkUpTypography.body(10))
+                        .foregroundStyle(LinkUpPalette.warning)
+                }
             }
         }
         .foregroundStyle(LinkUpPalette.textDimmed)
@@ -120,6 +134,17 @@ struct EditSlotView: View {
         .background(LinkUpPalette.elevated)
         .clipShape(RoundedRectangle(cornerRadius: LinkUpRadius.control))
         .overlay { RoundedRectangle(cornerRadius: LinkUpRadius.control).stroke(LinkUpPalette.border) }
+    }
+
+    private var cityTimeScope: CityTimeScope? {
+        guard let context = cityContext.context, context.isFresh() else { return nil }
+        return context.timeScope
+    }
+
+    private var scheduleSelectionValid: Bool {
+        guard scheduleEnabled else { return true }
+        if cityTimeScope != nil { return true }
+        return originalStartAt != nil && scheduledAt == originalStartAt
     }
 
     private func field(_ label: String, text: Binding<String>, multiline: Bool) -> some View {

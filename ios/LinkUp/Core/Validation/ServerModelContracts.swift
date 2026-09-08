@@ -102,6 +102,7 @@ extension CityLocality: ServerShapeValidatable {
         return (1...160).contains(nameCount) &&
             countryValid &&
             (1...80).contains(timezoneCount) &&
+            TimeZone(identifier: timezone) != nil &&
             (-90_000_000...90_000_000).contains(centroidLatitudeE6) &&
             (-180_000_000...180_000_000).contains(centroidLongitudeE6)
     }

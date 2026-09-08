@@ -141,6 +141,7 @@ struct MapView: View {
                     placeID: placeID,
                     mapCoordinator: coordinator,
                     social: social,
+                    cityContext: cityContext,
                     api: api,
                     session: session
                 )
@@ -352,6 +353,7 @@ private struct MapPlaceSlotsView: View {
 
     @ObservedObject var mapCoordinator: MapCoordinator
     @ObservedObject var social: SocialCoordinator
+    @ObservedObject var cityContext: CityContextCoordinator
     @State private var selectedSlot: SlotModel?
 
     var body: some View {
@@ -383,6 +385,7 @@ private struct MapPlaceSlotsView: View {
                             ForEach(mapCoordinator.placeSlots) { slot in
                                 SlotCardView(
                                     slot: slot,
+                                    cityTimeScope: activeCityTimeScope,
                                     isMutating: social.mutationControlsDisabled,
                                     open: { selectedSlot = slot },
                                     primaryAction: { primaryAction(slot) }
@@ -412,12 +415,18 @@ private struct MapPlaceSlotsView: View {
                 SlotDetailView(
                     slot: slot,
                     coordinator: social,
+                    cityContext: cityContext,
                     api: api,
                     session: session
                 )
             }
         }
         .preferredColorScheme(.dark)
+    }
+
+    private var activeCityTimeScope: CityTimeScope? {
+        guard let context = cityContext.context, context.isFresh() else { return nil }
+        return context.timeScope
     }
 
     private func primaryAction(_ slot: SlotModel) {

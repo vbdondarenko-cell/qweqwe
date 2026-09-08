@@ -4,6 +4,7 @@ import SwiftUI
 struct MySlotsDashboardView: View {
     @Environment(\.dismiss) private var dismiss
     @ObservedObject var social: SocialCoordinator
+    @ObservedObject var cityContext: CityContextCoordinator
     @StateObject private var coordinator: MySlotsDashboardCoordinator
 
     private let api: LinkUpAPI
@@ -12,10 +13,16 @@ struct MySlotsDashboardView: View {
     @State private var selectedView: MySlotsView = .hosting
     @State private var selectedSlot: SlotModel?
 
-    init(api: LinkUpAPI, session: SessionCoordinator, social: SocialCoordinator) {
+    init(
+        api: LinkUpAPI,
+        session: SessionCoordinator,
+        social: SocialCoordinator,
+        cityContext: CityContextCoordinator
+    ) {
         self.api = api
         self.session = session
-        self.social = social
+        _social = ObservedObject(wrappedValue: social)
+        _cityContext = ObservedObject(wrappedValue: cityContext)
         _coordinator = StateObject(wrappedValue: MySlotsDashboardCoordinator(api: api, session: session))
     }
 
@@ -42,7 +49,13 @@ struct MySlotsDashboardView: View {
             .sheet(item: $selectedSlot, onDismiss: {
                 Task { await coordinator.load(selectedView) }
             }) { slot in
-                SlotDetailView(slot: slot, coordinator: social, api: api, session: session)
+                SlotDetailView(
+                    slot: slot,
+                    coordinator: social,
+                    cityContext: cityContext,
+                    api: api,
+                    session: session
+                )
                     .presentationDetents([.medium, .large])
             }
         }

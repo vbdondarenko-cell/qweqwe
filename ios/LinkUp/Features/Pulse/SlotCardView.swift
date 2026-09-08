@@ -1,7 +1,9 @@
+import Foundation
 import SwiftUI
 
 struct SlotCardView: View {
     let slot: SlotModel
+    let cityTimeScope: CityTimeScope?
     let isMutating: Bool
     let open: () -> Void
     let primaryAction: () -> Void
@@ -20,7 +22,7 @@ struct SlotCardView: View {
                         HStack(spacing: 8) {
                             LinkUpStatusBadge(status: visualStatus)
                             if let startAt = slot.startAt {
-                                Text(startAt, style: .time)
+                                Text(startTimeLabel(startAt))
                                     .font(LinkUpTypography.mono(10))
                                     .foregroundStyle(LinkUpPalette.textMuted)
                             }
@@ -89,6 +91,15 @@ struct SlotCardView: View {
             }
         }
         .contentShape(Rectangle())
+    }
+
+
+    private func startTimeLabel(_ date: Date) -> String {
+        if let cityTimeScope { return cityTimeScope.shortTimeString(for: date) }
+        let formatter = ISO8601DateFormatter()
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        formatter.formatOptions = [.withInternetDateTime]
+        return "\(formatter.string(from: date)) · UTC"
     }
 
     private var visualStatus: LinkUpVisualStatus {

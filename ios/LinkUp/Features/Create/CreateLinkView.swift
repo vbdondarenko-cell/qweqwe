@@ -9,6 +9,7 @@ private struct ActivityOption: Identifiable, Equatable {
 @MainActor
 struct CreateLinkView: View {
     @ObservedObject var coordinator: SocialCoordinator
+    @ObservedObject var cityContext: CityContextCoordinator
     let close: () -> Void
 
     @State private var step = 1
@@ -22,6 +23,12 @@ struct CreateLinkView: View {
     @State private var scheduledAt = Date().addingTimeInterval(3600)
     @State private var publishError: String?
     @State private var pendingPublishKey: UUID?
+
+    init(coordinator: SocialCoordinator, cityContext: CityContextCoordinator, close: @escaping () -> Void) {
+        _coordinator = ObservedObject(wrappedValue: coordinator)
+        _cityContext = ObservedObject(wrappedValue: cityContext)
+        self.close = close
+    }
 
     private let columns = Array(repeating: GridItem(.flexible(), spacing: 8), count: 4)
 
@@ -179,16 +186,28 @@ struct CreateLinkView: View {
                     .foregroundStyle(LinkUpPalette.textDimmed)
             }
             .tint(LinkUpPalette.red)
-            if scheduleEnabled {
-                DatePicker(
-                    "Start time",
-                    selection: $scheduledAt,
-                    in: Date()...,
-                    displayedComponents: [.date, .hourAndMinute]
-                )
-                .datePickerStyle(.compact)
-                .font(LinkUpTypography.body(13))
-                .tint(LinkUpPalette.red)
+            .disabled(!scheduleEnabled && cityTimeScope == nil)
+
+            if let scope = cityTimeScope {
+                Text("City time · \(scope.identifier)")
+                    .font(LinkUpTypography.mono(10))
+                    .foregroundStyle(LinkUpPalette.textMuted)
+                if scheduleEnabled {
+                    DatePicker(
+                        "Start time",
+                        selection: $scheduledAt,
+                        in: Date()...,
+                        displayedComponents: [.date, .hourAndMinute]
+                    )
+                    .environment(\.timeZone, scope.timeZone)
+                    .datePickerStyle(.compact)
+                    .font(LinkUpTypography.body(13))
+                    .tint(LinkUpPalette.red)
+                }
+            } else {
+                Text("Set City-Lock before scheduling a LinkUp.")
+                    .font(LinkUpTypography.body(10))
+                    .foregroundStyle(LinkUpPalette.warning)
             }
         }
         .padding(12)
@@ -228,8 +247,8 @@ struct CreateLinkView: View {
                     if !details.isEmpty {
                         Text(details).font(LinkUpTypography.body(14)).foregroundStyle(LinkUpPalette.textDimmed)
                     }
-                    if scheduleEnabled {
-                        Text(scheduledAt.formatted(date: .abbreviated, time: .shortened))
+                    if scheduleEnabled, let scope = cityTimeScope {
+                        Text(scope.displayString(for: scheduledAt))
                             .font(LinkUpTypography.mono(11))
                             .foregroundStyle(LinkUpPalette.textDimmed)
                     }
@@ -276,6 +295,10 @@ struct CreateLinkView: View {
 
     private func publish() {
         guard let activity else { return }
+        if scheduleEnabled && cityTimeScope == nil {
+            publishError = "City-Lock timezone is required for scheduled LinkUps."
+            return
+        }
         publishError = nil
         let normalizedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
         let normalizedDetails = details.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -303,6 +326,11 @@ struct CreateLinkView: View {
                 publishError = error.localizedDescription
             }
         }
+    }
+
+    private var cityTimeScope: CityTimeScope? {
+        guard let context = cityContext.context, context.isFresh() else { return nil }
+        return context.timeScope
     }
 
     private var visiblePublishError: String? {

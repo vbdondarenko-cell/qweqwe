@@ -7,6 +7,7 @@ struct MeView: View {
     let social: SocialCoordinator
 
     @ObservedObject var session: SessionCoordinator
+    @ObservedObject var cityContext: CityContextCoordinator
     @StateObject private var coordinator: MeCoordinator
 
     @State private var tab = "Profile"
@@ -14,11 +15,18 @@ struct MeView: View {
     @State private var showingEditProfile = false
     @State private var showingLinkUpPlus = false
 
-    init(user: UserProfile, api: LinkUpAPI, session: SessionCoordinator, social: SocialCoordinator) {
+    init(
+        user: UserProfile,
+        api: LinkUpAPI,
+        session: SessionCoordinator,
+        social: SocialCoordinator,
+        cityContext: CityContextCoordinator
+    ) {
         self.user = user
         self.api = api
         self.social = social
         _session = ObservedObject(wrappedValue: session)
+        _cityContext = ObservedObject(wrappedValue: cityContext)
         _coordinator = StateObject(wrappedValue: MeCoordinator(api: api, session: session))
     }
 
@@ -49,7 +57,7 @@ struct MeView: View {
         .sheet(isPresented: $showingMyLinks, onDismiss: {
             Task { await coordinator.load() }
         }) {
-            MySlotsDashboardView(api: api, session: session, social: social)
+            MySlotsDashboardView(api: api, session: session, social: social, cityContext: cityContext)
         }
         .sheet(isPresented: $showingEditProfile) {
             EditProfileView(user: user, session: session)

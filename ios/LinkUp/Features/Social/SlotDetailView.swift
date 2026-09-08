@@ -1,3 +1,4 @@
+import Foundation
 import SwiftUI
 
 @MainActor
@@ -5,6 +6,7 @@ struct SlotDetailView: View {
     @Environment(\.dismiss) private var dismiss
 
     @ObservedObject var coordinator: SocialCoordinator
+    @ObservedObject var cityContext: CityContextCoordinator
     let api: LinkUpAPI
     let session: SessionCoordinator
 
@@ -15,8 +17,15 @@ struct SlotDetailView: View {
     @State private var showingHostManagement = false
     @State private var lastRealtimeRevision: UInt64 = 0
 
-    init(slot: SlotModel, coordinator: SocialCoordinator, api: LinkUpAPI, session: SessionCoordinator) {
+    init(
+        slot: SlotModel,
+        coordinator: SocialCoordinator,
+        cityContext: CityContextCoordinator,
+        api: LinkUpAPI,
+        session: SessionCoordinator
+    ) {
         _coordinator = ObservedObject(wrappedValue: coordinator)
+        _cityContext = ObservedObject(wrappedValue: cityContext)
         self.api = api
         self.session = session
         _slot = State(initialValue: slot)
@@ -58,7 +67,7 @@ struct SlotDetailView: View {
                 ChatView(slot: slot, api: api, session: session, social: coordinator)
             }
             .sheet(isPresented: $showingEdit) {
-                EditSlotView(slot: $slot, social: coordinator)
+                EditSlotView(slot: $slot, social: coordinator, cityContext: cityContext)
             }
             .sheet(isPresented: $showingHostManagement) {
                 HostManagementView(
@@ -102,7 +111,7 @@ struct SlotDetailView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
         if let startAt = slot.startAt {
-            Label(startAt.formatted(date: .abbreviated, time: .shortened), systemImage: "calendar")
+            Label(startTimeLabel(startAt), systemImage: "calendar")
                 .font(LinkUpTypography.body(12))
                 .foregroundStyle(LinkUpPalette.textDimmed)
         }
@@ -201,6 +210,14 @@ struct SlotDetailView: View {
                 runMutation { try await coordinator.cancel(slot) }
             }
         }
+    }
+
+    private func startTimeLabel(_ date: Date) -> String {
+        if let context = cityContext.context, context.isFresh(), let scope = context.timeScope { return scope.displayString(for: date) }
+        let formatter = ISO8601DateFormatter()
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        formatter.formatOptions = [.withInternetDateTime]
+        return "\(formatter.string(from: date)) · UTC"
     }
 
     private func refresh() async {

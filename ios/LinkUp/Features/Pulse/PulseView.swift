@@ -31,7 +31,13 @@ struct PulseView: View {
             }
         }
         .sheet(item: $selectedSlot) { slot in
-            SlotDetailView(slot: slot, coordinator: coordinator, api: api, session: session)
+            SlotDetailView(
+                slot: slot,
+                coordinator: coordinator,
+                cityContext: cityContext,
+                api: api,
+                session: session
+            )
                 .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
         }
@@ -46,7 +52,7 @@ struct PulseView: View {
                             .font(LinkUpTypography.body(14, weight: .semibold))
                         HStack(spacing: 8) {
                             Circle().fill(LinkUpPalette.success).frame(width: 8, height: 8)
-                            Text("City lock · \(context.permissionClass.rawValue)")
+                            Text("City lock · \(context.permissionClass.rawValue) · \(context.locality.timezone)")
                                 .font(LinkUpTypography.mono(10))
                             if context.switchPending {
                                 Text("· switch pending")
@@ -154,6 +160,7 @@ struct PulseView: View {
                     ForEach(filteredItems) { slot in
                         SlotCardView(
                             slot: slot,
+                            cityTimeScope: activeCityTimeScope,
                             isMutating: coordinator.mutationControlsDisabled,
                             open: { selectedSlot = slot },
                             primaryAction: { primaryAction(slot) }
@@ -175,6 +182,11 @@ struct PulseView: View {
         }
     }
 
+    private var activeCityTimeScope: CityTimeScope? {
+        guard let context = cityContext.context, context.isFresh() else { return nil }
+        return context.timeScope
+    }
+
     private var filteredItems: [SlotModel] {
         coordinator.pulseItems.filter { slot in
             matchesSearch(slot) && matchesTime(slot) && matchesCategory(slot)
@@ -194,13 +206,15 @@ struct PulseView: View {
     private func matchesTime(_ slot: SlotModel) -> Bool {
         guard time != "All" else { return true }
         guard let date = slot.startAt else { return time == "Now" }
-        let calendar = Calendar.autoupdatingCurrent
+        guard let scope = activeCityTimeScope else { return false }
+        let now = Date()
         switch time {
-        case "Tomorrow": return calendar.isDateInTomorrow(date)
+        case "Tomorrow":
+            return scope.isTomorrow(date, relativeTo: now)
         case "Tonight":
-            return calendar.isDateInToday(date) && calendar.component(.hour, from: date) >= 17
+            return scope.isToday(date, relativeTo: now) && scope.localHour(for: date) >= 17
         default:
-            return calendar.isDateInToday(date)
+            return scope.isToday(date, relativeTo: now)
         }
     }
 

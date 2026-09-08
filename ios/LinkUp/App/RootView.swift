@@ -119,7 +119,7 @@ private struct MainShellView: View {
             FrozenBottomBar(selection: $selection) { showingCreate = true }
         }
         .fullScreenCover(isPresented: $showingCreate) {
-            CreateLinkView(coordinator: social) { showingCreate = false }
+            CreateLinkView(coordinator: social, cityContext: services.cityContext) { showingCreate = false }
         }
         .task(id: scenePhase) {
             guard scenePhase == .active else { return }
@@ -413,7 +413,7 @@ private struct MainShellView: View {
         case .fly:
             FlyView()
         case .me:
-            MeView(user: user, api: services.api, session: services.session, social: social)
+            MeView(user: user, api: services.api, session: services.session, social: social, cityContext: services.cityContext)
         }
     }
 }

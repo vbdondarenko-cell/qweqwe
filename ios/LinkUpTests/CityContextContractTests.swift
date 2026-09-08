@@ -1,3 +1,4 @@
+import Foundation
 import XCTest
 @testable import LinkUp
 
@@ -55,6 +56,16 @@ final class CityContextContractTests: XCTestCase {
             centroidLongitudeE6: 30_000_000
         )
         XCTAssertFalse(invalidLocality.hasValidServerShape)
+
+        let invalidTimezone = CityLocality(
+            id: UUID(),
+            name: "Broken timezone",
+            countryCode: "UA",
+            timezone: "Europe/Not-A-Real-City",
+            centroidLatitudeE6: 50_450_000,
+            centroidLongitudeE6: 30_523_000
+        )
+        XCTAssertFalse(invalidTimezone.hasValidServerShape)
     }
 
     func testServerExpiryTimestampIsTheOnlyClientFreshnessBoundary() {
