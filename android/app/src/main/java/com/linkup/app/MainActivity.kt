@@ -97,7 +97,7 @@ class MainActivity : ComponentActivity() {
         val mutationOutbox = SecureMutationOutbox(applicationContext)
         val durableSocialApi = DurableSocialApi(
             delegate = api,
-            sessions = sessionStore,
+            currentBearerToken = { sessionStore.load()?.token },
             runner = DurableMutationRunner(mutationOutbox),
             transport = DurableMutationHttpTransport(apiBaseUrl, sessionStore),
             onUnauthorized = { sessionCoordinator.clearLocalSession() },
