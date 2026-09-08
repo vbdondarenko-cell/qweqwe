@@ -77,7 +77,7 @@ fun CreateLinkScreen(
     onPlaceSearch: (String) -> Unit,
     onClearPlaceSearch: () -> Unit,
     onClose: () -> Unit,
-    onPublish: (CreateSlotInput) -> Unit,
+    onSaveDraft: (CreateSlotInput) -> Unit,
 ) {
     var step by remember { mutableIntStateOf(1) }
     var activity by remember { mutableStateOf<ActivityOption?>(null) }
@@ -247,12 +247,12 @@ fun CreateLinkScreen(
                 PrimaryButton(stringResource(R.string.create_continue), Modifier.weight(2f), enabled = canNext && !submitting) { step++ }
             } else {
                 PrimaryButton(
-                    if (submitting) stringResource(R.string.create_publishing) else stringResource(R.string.create_publish),
+                    if (submitting) stringResource(R.string.create_saving_draft) else stringResource(R.string.create_save_draft),
                     Modifier.weight(2f),
                     enabled = !submitting,
                 ) {
                     val selected = activity ?: return@PrimaryButton
-                    onPublish(
+                    onSaveDraft(
                         CreateSlotInput(
                             title = title.trim(),
                             activity = selected.key,
