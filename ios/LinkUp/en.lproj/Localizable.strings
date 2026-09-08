@@ -310,3 +310,5 @@
 "Close and review latest LINK" = "Close and review latest LINK";
 "This LinkUp changed on the server. Review the latest version before editing again." = "This LinkUp changed on the server. Review the latest version before editing again.";
 "The queued edit was rejected. Review the authoritative LinkUp before trying another edit." = "The queued edit was rejected. Review the authoritative LinkUp before trying another edit.";
+"This LinkUp changed on the server. Review the latest state before retrying the action." = "This LinkUp changed on the server. Review the latest state before retrying the action.";
+"This LinkUp changed on the server. Review the latest roster before retrying the participant action." = "This LinkUp changed on the server. Review the latest roster before retrying the participant action.";

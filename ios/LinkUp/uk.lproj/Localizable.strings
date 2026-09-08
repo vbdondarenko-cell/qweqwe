@@ -310,3 +310,5 @@
 "Close and review latest LINK" = "Закрити й переглянути актуальний LINK";
 "This LinkUp changed on the server. Review the latest version before editing again." = "Цей LinkUp змінився на сервері. Перегляньте актуальну версію перед наступним редагуванням.";
 "The queued edit was rejected. Review the authoritative LinkUp before trying another edit." = "Сервер відхилив редагування з черги. Перегляньте актуальний серверний LinkUp перед новою спробою редагування.";
+"This LinkUp changed on the server. Review the latest state before retrying the action." = "Цей LinkUp змінився на сервері. Перегляньте актуальний стан перед повторенням дії.";
+"This LinkUp changed on the server. Review the latest roster before retrying the participant action." = "Цей LinkUp змінився на сервері. Перегляньте актуальний список учасників перед повторенням дії.";

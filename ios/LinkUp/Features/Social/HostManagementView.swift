@@ -235,10 +235,31 @@ struct HostManagementView: View {
                 await roster.load()
             } catch is CancellationError {
                 return
+            } catch let error as APIError {
+                if error.isSlotVersionConflict {
+                    await refreshAfterVersionConflict()
+                } else {
+                    localError = error.localizedDescription
+                }
             } catch {
                 localError = error.localizedDescription
             }
         }
+    }
+
+    private func refreshAfterVersionConflict() async {
+        do {
+            let refreshed = try await social.loadSlot(slot.id)
+            guard refreshed.id == slot.id else { return }
+            slot = refreshed
+            social.updateActiveSlot(refreshed)
+            await roster.load()
+        } catch is CancellationError {
+            return
+        } catch {
+            // Keep the existing snapshot and require an explicit later refresh.
+        }
+        localError = L10n.text("This LinkUp changed on the server. Review the latest roster before retrying the participant action.")
     }
 
     private func block(_ user: SlotOrganizer) {

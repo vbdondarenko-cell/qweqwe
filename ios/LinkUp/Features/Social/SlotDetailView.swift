@@ -276,6 +276,7 @@ struct SlotDetailView: View {
         do {
             slot = try await coordinator.loadSlot(slot.id)
             coordinator.updateActiveSlot(slot)
+            applySurfaceAvailability(slot)
             loadError = nil
         } catch is CancellationError {
             return
@@ -296,6 +297,13 @@ struct SlotDetailView: View {
                 }
             } catch is CancellationError {
                 return
+            } catch let error as APIError {
+                if error.isSlotVersionConflict {
+                    await refresh()
+                    loadError = L10n.text("This LinkUp changed on the server. Review the latest state before retrying the action.")
+                } else {
+                    loadError = error.localizedDescription
+                }
             } catch {
                 loadError = error.localizedDescription
             }
