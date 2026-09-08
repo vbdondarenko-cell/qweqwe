@@ -30,6 +30,7 @@ class DurableSocialApi(
     private val runner: DurableMutationRunner,
     private val transport: DurableMutationTransport,
     private val onUnauthorized: () -> Unit = {},
+    private val nowEpochMillis: () -> Long = System::currentTimeMillis,
 ) : SocialApi, V11HostingApi {
     override suspend fun mySlots(view: MySlotsView): List<SlotModel> = delegate.mySlots(view)
     override suspend fun pulse(): List<SlotModel> = delegate.pulse()
@@ -170,7 +171,7 @@ class DurableSocialApi(
             path = path,
             bodyJson = bodyJson,
             responseKind = responseKind,
-            createdAtEpochMillis = System.currentTimeMillis().coerceAtLeast(1L),
+            createdAtEpochMillis = nowEpochMillis().coerceAtLeast(1L),
         )
 
         val result = runner.submit(command, transport)
