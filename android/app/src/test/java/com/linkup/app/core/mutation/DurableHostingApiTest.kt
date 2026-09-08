@@ -62,7 +62,7 @@ class DurableHostingApiTest {
 
         assertEquals("/v1/slots/$SLOT_ID/publish", observed?.path)
         assertTrue(observed!!.bodyJson!!.contains("\"expectedVersion\":7"))
-        assertEquals(8, out.version)
+        assertEquals(8L, out.version)
     }
 
     private class MemoryOutbox : MutationOutbox {
