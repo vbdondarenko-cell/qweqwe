@@ -14,6 +14,7 @@ struct MeView: View {
     @State private var showingMyLinks = false
     @State private var showingEditProfile = false
     @State private var showingLinkUpPlus = false
+    @State private var showingAppInfo = false
     @State private var showingLogoutConfirmation = false
     @State private var logoutBusy = false
     @State private var logoutError: String?
@@ -70,6 +71,9 @@ struct MeView: View {
         }
         .sheet(isPresented: $showingLinkUpPlus) {
             LinkUpPlusView(coordinator: coordinator)
+        }
+        .sheet(isPresented: $showingAppInfo) {
+            AppInfoView(configuration: AppInfoConfiguration())
         }
         .confirmationDialog(
             "Log out of LinkUp?",
@@ -282,7 +286,7 @@ struct MeView: View {
             blockedSection
             settingsSection("Privacy & Safety", ["Privacy Center", "Safety Center", "Guardian", "Ghost Mode"])
             settingsSection("Account", ["Notifications", "Accessibility", "Data & Privacy"])
-            settingsSection("App", ["Themes", "Legal", "Version"])
+            appSettings
             if let logoutError {
                 LinkUpInlineError(message: logoutError) { self.logoutError = nil }
             }
@@ -294,6 +298,61 @@ struct MeView: View {
                 showingLogoutConfirmation = true
             }
         }
+    }
+
+    private var appSettings: some View {
+        let appInfo = AppInfoConfiguration()
+        return VStack(alignment: .leading, spacing: 6) {
+            Text(L10n.text("App").uppercased())
+                .font(LinkUpTypography.mono(10, weight: .semibold))
+                .foregroundStyle(LinkUpPalette.textMuted)
+                .padding(.horizontal, 4)
+            VStack(spacing: 0) {
+                settingsValueRow(title: "Themes", value: "OLED Dark")
+                Rectangle().fill(LinkUpPalette.border.opacity(0.5)).frame(height: 1)
+                appInfoButton(title: "Legal", value: nil)
+                Rectangle().fill(LinkUpPalette.border.opacity(0.5)).frame(height: 1)
+                appInfoButton(title: "Version", value: appInfo.version)
+            }
+            .background(LinkUpPalette.elevated)
+            .clipShape(RoundedRectangle(cornerRadius: LinkUpRadius.card))
+            .overlay { RoundedRectangle(cornerRadius: LinkUpRadius.card).stroke(LinkUpPalette.border) }
+        }
+    }
+
+    private func settingsValueRow(title: String, value: String) -> some View {
+        HStack {
+            Text(L10n.text(title)).font(LinkUpTypography.body(14, weight: .medium))
+            Spacer()
+            Text(L10n.text(value))
+                .font(LinkUpTypography.body(11))
+                .foregroundStyle(LinkUpPalette.textMuted)
+        }
+        .foregroundStyle(LinkUpPalette.textPrimary)
+        .padding(.horizontal, 16)
+        .frame(minHeight: 46)
+    }
+
+    private func appInfoButton(title: String, value: String?) -> some View {
+        Button { showingAppInfo = true } label: {
+            HStack {
+                Text(L10n.text(title)).font(LinkUpTypography.body(14, weight: .medium))
+                Spacer()
+                if let value {
+                    Text(value)
+                        .font(LinkUpTypography.mono(10, weight: .semibold))
+                        .foregroundStyle(LinkUpPalette.textMuted)
+                }
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(LinkUpPalette.textMuted)
+            }
+            .foregroundStyle(LinkUpPalette.textPrimary)
+            .padding(.horizontal, 16)
+            .frame(minHeight: 46)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 
     private var linkUpPlusSettings: some View {
