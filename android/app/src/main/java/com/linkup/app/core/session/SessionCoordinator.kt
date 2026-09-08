@@ -80,6 +80,24 @@ class SessionCoordinator(
         return true
     }
 
+    suspend fun refreshSignedInProfile(): Boolean {
+        val userId = (mutableState.value as? SessionState.SignedIn)?.user?.id ?: return false
+        return try {
+            val updated = api.me()
+            if ((mutableState.value as? SessionState.SignedIn)?.user?.id != userId || updated.id != userId) {
+                false
+            } else {
+                mutableState.value = SessionState.SignedIn(updated)
+                true
+            }
+        } catch (error: ApiException) {
+            if (error.status == 401) clearLocalSession()
+            false
+        } catch (_: IOException) {
+            false
+        }
+    }
+
     suspend fun logout() {
         try {
             api.logout()
