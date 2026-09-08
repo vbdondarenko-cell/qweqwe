@@ -156,6 +156,9 @@ struct PulseView: View {
             if let mutationError = coordinator.mutationError {
                 LinkUpInlineError(message: mutationError) { coordinator.clearMutationError() }
             }
+            if let warning = coordinator.pulseRefreshWarning {
+                LinkUpInlineWarning(message: warning)
+            }
             pulseContent
         }
     }

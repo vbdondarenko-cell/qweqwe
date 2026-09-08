@@ -76,6 +76,11 @@ struct MapView: View {
             VStack(spacing: 0) {
                 areaPill
                     .padding(.top, 12)
+                if let warning = coordinator.viewportRefreshWarning {
+                    LinkUpInlineWarning(message: warning)
+                        .padding(.horizontal, 20)
+                        .padding(.top, 8)
+                }
                 Spacer()
                 if let selectedCluster {
                     selectedClusterPanel(selectedCluster)

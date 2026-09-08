@@ -14,6 +14,7 @@ final class SocialCoordinator: ObservableObject {
 
     @Published private(set) var pulseItems: [SlotModel] = []
     @Published private(set) var pulsePhase: PulsePhase = .idle
+    @Published private(set) var pulseRefreshWarning: String?
     @Published private(set) var isMutating = false
     @Published private(set) var durableMutationBlocked = false
     @Published private(set) var queuedMutationKey: UUID?
@@ -52,6 +53,7 @@ final class SocialCoordinator: ObservableObject {
             let items = try await api.pulse()
             guard generation == pulseGeneration else { return false }
             pulseItems = items
+            pulseRefreshWarning = nil
             pulsePhase = items.isEmpty ? .empty : .content
             return true
         } catch is CancellationError {
@@ -59,11 +61,23 @@ final class SocialCoordinator: ObservableObject {
         } catch let error as APIError {
             guard generation == pulseGeneration else { return false }
             if case .unauthorized = error { await session.clearLocalSession(); return false }
-            pulsePhase = pulseItems.isEmpty ? .failed(error.localizedDescription) : .content
+            if pulseItems.isEmpty {
+                pulseRefreshWarning = nil
+                pulsePhase = .failed(error.localizedDescription)
+            } else {
+                pulseRefreshWarning = L10n.text("Showing the last server snapshot. Refresh failed, so this Pulse may be stale.")
+                pulsePhase = .content
+            }
             return false
         } catch {
             guard generation == pulseGeneration else { return false }
-            pulsePhase = pulseItems.isEmpty ? .failed(L10n.text("Unable to load Pulse.")) : .content
+            if pulseItems.isEmpty {
+                pulseRefreshWarning = nil
+                pulsePhase = .failed(L10n.text("Unable to load Pulse."))
+            } else {
+                pulseRefreshWarning = L10n.text("Showing the last server snapshot. Refresh failed, so this Pulse may be stale.")
+                pulsePhase = .content
+            }
             return false
         }
     }
@@ -349,6 +363,7 @@ final class SocialCoordinator: ObservableObject {
         pulseGeneration &+= 1
         pulseItems = []
         pulsePhase = .idle
+        pulseRefreshWarning = nil
         durableMutationBlocked = false
         queuedMutationKey = nil
         lastDurableReplayReport = .empty

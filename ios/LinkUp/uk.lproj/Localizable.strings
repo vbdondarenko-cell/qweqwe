@@ -312,3 +312,5 @@
 "The queued edit was rejected. Review the authoritative LinkUp before trying another edit." = "Сервер відхилив редагування з черги. Перегляньте актуальний серверний LinkUp перед новою спробою редагування.";
 "This LinkUp changed on the server. Review the latest state before retrying the action." = "Цей LinkUp змінився на сервері. Перегляньте актуальний стан перед повторенням дії.";
 "This LinkUp changed on the server. Review the latest roster before retrying the participant action." = "Цей LinkUp змінився на сервері. Перегляньте актуальний список учасників перед повторенням дії.";
+"Showing the last server snapshot. Refresh failed, so this Pulse may be stale." = "Показано останній серверний знімок. Оновлення не вдалося, тому дані Pulse можуть бути застарілими.";
+"Showing the last server map snapshot. Refresh failed, so this viewport may be stale." = "Показано останній серверний знімок карти. Оновлення не вдалося, тому ця область карти може бути застарілою.";

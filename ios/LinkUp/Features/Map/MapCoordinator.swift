@@ -16,6 +16,7 @@ final class MapCoordinator: ObservableObject {
 
     @Published private(set) var clusters: [MapCluster] = []
     @Published private(set) var phase: Phase = .idle
+    @Published private(set) var viewportRefreshWarning: String?
     @Published private(set) var placeSlots: [SlotModel] = []
     @Published private(set) var placeSlotsPhase: PlaceSlotsPhase = .idle
 
@@ -44,6 +45,7 @@ final class MapCoordinator: ObservableObject {
             let items = try await api.mapViewport(query)
             guard requestGeneration == generation else { return }
             clusters = items
+            viewportRefreshWarning = nil
             phase = items.isEmpty ? .empty : .content
         } catch is CancellationError {
             return
@@ -53,10 +55,20 @@ final class MapCoordinator: ObservableObject {
                 await session.clearLocalSession()
                 return
             }
-            if clusters.isEmpty { phase = .failed(error.localizedDescription) }
+            if clusters.isEmpty {
+                viewportRefreshWarning = nil
+                phase = .failed(error.localizedDescription)
+            } else {
+                viewportRefreshWarning = L10n.text("Showing the last server map snapshot. Refresh failed, so this viewport may be stale.")
+            }
         } catch {
             guard requestGeneration == generation else { return }
-            if clusters.isEmpty { phase = .failed(L10n.text("Unable to load map data.")) }
+            if clusters.isEmpty {
+                viewportRefreshWarning = nil
+                phase = .failed(L10n.text("Unable to load map data."))
+            } else {
+                viewportRefreshWarning = L10n.text("Showing the last server map snapshot. Refresh failed, so this viewport may be stale.")
+            }
         }
     }
 
@@ -110,6 +122,7 @@ final class MapCoordinator: ObservableObject {
         placeSlotsGeneration &+= 1
         clusters = []
         phase = .idle
+        viewportRefreshWarning = nil
         lastQuery = nil
         clearPlaceSlotsState()
     }

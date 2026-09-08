@@ -82,3 +82,23 @@ struct LinkUpInlineError: View {
         .overlay { RoundedRectangle(cornerRadius: LinkUpRadius.control).stroke(LinkUpPalette.critical.opacity(0.18)) }
     }
 }
+
+struct LinkUpInlineWarning: View {
+    let message: String
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundStyle(LinkUpPalette.warning)
+            Text(L10n.text(message))
+                .font(LinkUpTypography.body(12))
+                .foregroundStyle(LinkUpPalette.textDimmed)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(12)
+        .background(LinkUpPalette.warning.opacity(0.09))
+        .clipShape(RoundedRectangle(cornerRadius: LinkUpRadius.control))
+        .overlay { RoundedRectangle(cornerRadius: LinkUpRadius.control).stroke(LinkUpPalette.warning.opacity(0.18)) }
+        .accessibilityElement(children: .combine)
+    }
+}
