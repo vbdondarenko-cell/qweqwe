@@ -23,6 +23,17 @@ final class DraftHostingContractTests: XCTestCase {
         XCTAssertThrowsError(try validateDraftPublishReplay(slot(state: .filling, viewer: .host, version: 1), expectedVersion: 1))
     }
 
+    func testCreateBodyRoundTripsWithCanonicalAPICoding() throws {
+        let start = Date(timeIntervalSince1970: 2_000_000_000)
+        let original = CreateSlotBody(
+            title: "Coffee", activity: "coffee", details: "Catch up", placeText: "Podil",
+            zoneText: nil, canonicalPlaceId: UUID(), startAt: start, capacity: 4
+        )
+        let data = try APICoding.encoder().encode(original)
+        let decoded = try APICoding.decoder().decode(CreateSlotBody.self, from: data)
+        XCTAssertEqual(decoded, original)
+    }
+
     func testCallerStableKeyWinsAndConflictingLegacyKeyFailsClosed() throws {
         let requested = UUID()
         XCTAssertEqual(try resolveDurableMutationKey(requested: requested, legacy: nil), requested)

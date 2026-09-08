@@ -282,7 +282,7 @@ actor LinkUpAPI {
                     createdAt: now,
                     requiresAttention: false
                 )
-                try await draftWorkflowStore.save(workflow)
+                try await saveDraftWorkflow(workflow)
             }
         } catch let error as APIError {
             throw error
@@ -302,7 +302,12 @@ actor LinkUpAPI {
             guard existing.ownerFingerprint == ownerFingerprint else {
                 throw APIError.mutationSafetyBlocked
             }
-            guard existing.canAutoResume(at: now), !existing.requiresAttention else { return nil }
+            if !existing.canAutoResume(at: now) && !existing.requiresAttention {
+                let attention = existing.markingNeedsAttention()
+                try await saveDraftWorkflow(attention)
+                return nil
+            }
+            guard !existing.requiresAttention else { return nil }
             workflow = existing
         } catch let error as APIError {
             throw error
@@ -319,9 +324,133 @@ actor LinkUpAPI {
             guard workflow.ownerFingerprint == ownerFingerprint else {
                 throw APIError.mutationSafetyBlocked
             }
+            if !workflow.canAutoResume(at: Date()) && !workflow.requiresAttention {
+                let attention = workflow.markingNeedsAttention()
+                try await saveDraftWorkflow(attention)
+                return attention
+            }
             return workflow
         } catch let error as APIError {
             throw error
+        } catch {
+            throw APIError.mutationJournalUnavailable
+        }
+    }
+
+    func retryDraftPublishWorkflow() async throws -> SlotModel {
+        let ownerFingerprint = try await currentMutationOwnerFingerprint()
+        let workflow: DraftPublishWorkflow
+        do {
+            guard let existing = try await draftWorkflowStore.load() else {
+                throw APIError.protocolViolation("No saved draft publishing workflow exists.")
+            }
+            guard existing.ownerFingerprint == ownerFingerprint, existing.canManuallyResolve else {
+                throw APIError.mutationSafetyBlocked
+            }
+            workflow = existing
+        } catch let error as APIError {
+            throw error
+        } catch {
+            throw APIError.mutationJournalUnavailable
+        }
+
+        guard let draftID = workflow.draftID else {
+            throw APIError.mutationSafetyBlocked
+        }
+        let current = try await slot(draftID)
+        try validateDraftCreateReplay(current)
+        guard current.state == .draft else {
+            try await clearDraftWorkflow()
+            return current
+        }
+        guard let retry = workflow.preparingRetry(version: current.version) else {
+            throw APIError.mutationJournalUnavailable
+        }
+        try await preparePublishCommandForRetry(workflow)
+        try await saveDraftWorkflow(retry)
+        return try await continueDraftPublishWorkflow(retry)
+    }
+
+    func discardDraftPublishWorkflow() async throws -> SlotModel? {
+        let ownerFingerprint = try await currentMutationOwnerFingerprint()
+        let workflow: DraftPublishWorkflow
+        do {
+            guard let existing = try await draftWorkflowStore.load() else { return nil }
+            guard existing.ownerFingerprint == ownerFingerprint else {
+                throw APIError.mutationSafetyBlocked
+            }
+            workflow = existing
+        } catch let error as APIError {
+            throw error
+        } catch {
+            throw APIError.mutationJournalUnavailable
+        }
+
+        try await markDraftWorkflowNeedsAttention()
+        try await ensureWorkflowCommandsAreSafeToDiscard(workflow)
+
+        guard let draftID = workflow.draftID else {
+            throw APIError.mutationSafetyBlocked
+        }
+
+        let current = try await slot(draftID)
+        try validateDraftCreateReplay(current)
+        guard current.state == .draft else {
+            try await clearDraftWorkflow()
+            return current
+        }
+
+        do {
+            let cancelled = try await cancelSlot(
+                draftID,
+                expectedVersion: current.version,
+                idempotencyKey: workflow.cancelKey
+            )
+            guard cancelled.state == .cancelled else {
+                throw APIError.protocolViolation("Draft discard did not return a cancelled Slot.")
+            }
+            try await clearDraftWorkflow()
+            return cancelled
+        } catch let error as APIError {
+            if error.isDefinitiveMutationFailure {
+                try? await markDraftWorkflowNeedsAttention()
+            }
+            throw error
+        }
+    }
+
+    private func preparePublishCommandForRetry(_ workflow: DraftPublishWorkflow) async throws {
+        do {
+            guard let command = try await durableOutbox.command(idempotencyKey: workflow.publishKey) else { return }
+            guard command.ownerFingerprint == workflow.ownerFingerprint, command.firstAttemptAt == nil else {
+                throw APIError.mutationSafetyBlocked
+            }
+            try await durableOutbox.remove(idempotencyKey: workflow.publishKey)
+        } catch let error as APIError {
+            throw error
+        } catch let error as DurableMutationOutboxError {
+            throw mapOutboxError(error)
+        } catch {
+            throw APIError.mutationJournalUnavailable
+        }
+    }
+
+    private func ensureWorkflowCommandsAreSafeToDiscard(_ workflow: DraftPublishWorkflow) async throws {
+        do {
+            for key in [workflow.createKey, workflow.publishKey] {
+                guard let command = try await durableOutbox.command(idempotencyKey: key) else { continue }
+                guard command.ownerFingerprint == workflow.ownerFingerprint else {
+                    throw APIError.mutationSafetyBlocked
+                }
+                if command.firstAttemptAt != nil {
+                    throw APIError.mutationSafetyBlocked
+                }
+                try await durableOutbox.remove(idempotencyKey: key)
+            }
+        } catch let error as APIError {
+            throw error
+        } catch let error as DurableMutationOutboxError {
+            throw mapOutboxError(error)
         } catch {
             throw APIError.mutationJournalUnavailable
         }
@@ -337,17 +466,17 @@ actor LinkUpAPI {
                     idempotencyKey: workflow.createKey
                 )
                 if created.state != .draft {
-                    try await draftWorkflowStore.clear()
+                    try await clearDraftWorkflow()
                     return created
                 }
                 workflow = workflow.recordingDraft(id: created.id, version: created.version)
-                try await draftWorkflowStore.save(workflow)
+                try await saveDraftWorkflow(workflow)
             } catch let error as APIError {
                 if error.isDefinitiveMutationFailure {
                     if case .http(let status, _, _, _) = error, status == 409 {
-                        try? await draftWorkflowStore.markNeedsAttention()
+                        try? await markDraftWorkflowNeedsAttention()
                     } else {
-                        try? await draftWorkflowStore.clear()
+                        try? await clearDraftWorkflow()
                     }
                 }
                 throw error
@@ -364,14 +493,29 @@ actor LinkUpAPI {
                 expectedVersion: draftVersion,
                 idempotencyKey: workflow.publishKey
             )
-            try await draftWorkflowStore.clear()
+            try await clearDraftWorkflow()
             return published
         } catch let error as APIError {
             if error.isDefinitiveMutationFailure {
-                try? await draftWorkflowStore.markNeedsAttention()
+                try? await markDraftWorkflowNeedsAttention()
             }
             throw error
         }
+    }
+
+    private func saveDraftWorkflow(_ workflow: DraftPublishWorkflow) async throws {
+        do { try await draftWorkflowStore.save(workflow) }
+        catch { throw APIError.mutationJournalUnavailable }
+    }
+
+    private func clearDraftWorkflow() async throws {
+        do { try await draftWorkflowStore.clear() }
+        catch { throw APIError.mutationJournalUnavailable }
+    }
+
+    private func markDraftWorkflowNeedsAttention() async throws {
+        do { try await draftWorkflowStore.markNeedsAttention() }
+        catch { throw APIError.mutationJournalUnavailable }
     }
 
     private func currentMutationOwnerFingerprint() async throws -> String {

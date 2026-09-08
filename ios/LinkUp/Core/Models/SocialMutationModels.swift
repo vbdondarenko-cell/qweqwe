@@ -8,7 +8,7 @@ struct ChatMessage: Codable, Identifiable, Equatable, Sendable {
     let createdAt: Date
 }
 
-struct CreateSlotBody: Encodable, Sendable {
+struct CreateSlotBody: Codable, Equatable, Sendable {
     let title: String
     let activity: String
     let details: String?

@@ -1,15 +1,6 @@
 import Foundation
 
 extension LinkUpAPI {
-    func createSlot(_ body: CreateSlotBody) async throws -> SlotModel {
-        try await sendValidatedSlotMutation(APIRequest(
-            method: .post,
-            path: "/v1/slots",
-            body: try encodeBody(body)
-        ))
-    }
-
-
     func createDraftSlot(_ body: CreateSlotBody, idempotencyKey: UUID) async throws -> SlotModel {
         try await createDraftSlot(encodedBody: encodeBody(body), idempotencyKey: idempotencyKey)
     }
@@ -61,14 +52,19 @@ extension LinkUpAPI {
         ), expectedSlotID: slotID)
     }
 
-    func cancelSlot(_ slotID: UUID, expectedVersion: Int64) async throws -> SlotModel {
+    func cancelSlot(
+        _ slotID: UUID,
+        expectedVersion: Int64,
+        idempotencyKey: UUID? = nil
+    ) async throws -> SlotModel {
         guard expectedVersion > 0 else {
             throw APIError.protocolViolation("expectedVersion must be positive.")
         }
         return try await sendValidatedSlotMutation(APIRequest(
             method: .post,
             path: "/v1/slots/\(uuidPath(slotID))/cancel",
-            body: try encodeBody(ExpectedVersionBody(expectedVersion: expectedVersion))
+            body: try encodeBody(ExpectedVersionBody(expectedVersion: expectedVersion)),
+            idempotencyKey: idempotencyKey
         ), expectedSlotID: slotID)
     }
 

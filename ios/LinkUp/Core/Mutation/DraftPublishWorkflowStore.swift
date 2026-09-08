@@ -29,11 +29,24 @@ struct DraftPublishWorkflow: Codable, Equatable, Sendable {
         return now.timeIntervalSince(createdAt) <= durableMutationReplayWindow
     }
 
+    var canManuallyResolve: Bool {
+        requiresAttention && draftID != nil && draftVersion != nil
+    }
+
     func recordingDraft(id: UUID, version: Int64) -> DraftPublishWorkflow {
         DraftPublishWorkflow(
             ownerFingerprint: ownerFingerprint, requestIdentity: requestIdentity, createBody: createBody,
             createKey: createKey, publishKey: publishKey, cancelKey: cancelKey, draftID: id,
             draftVersion: version, createdAt: createdAt, requiresAttention: requiresAttention
+        )
+    }
+
+    func preparingRetry(version: Int64) -> DraftPublishWorkflow? {
+        guard draftID != nil, version > 0 else { return nil }
+        return DraftPublishWorkflow(
+            ownerFingerprint: ownerFingerprint, requestIdentity: requestIdentity, createBody: createBody,
+            createKey: createKey, publishKey: publishKey, cancelKey: cancelKey, draftID: draftID,
+            draftVersion: version, createdAt: createdAt, requiresAttention: false
         )
     }
 

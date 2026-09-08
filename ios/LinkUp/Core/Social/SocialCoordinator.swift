@@ -21,6 +21,7 @@ final class SocialCoordinator: ObservableObject {
     @Published private(set) var mutationError: String?
     @Published private(set) var realtimeRevision: UInt64 = 0
     @Published private(set) var discoveryRevision: UInt64 = 0
+    @Published private(set) var draftWorkflowRevision: UInt64 = 0
 
     var mutationControlsDisabled: Bool { isMutating || durableMutationBlocked }
 
@@ -83,12 +84,37 @@ final class SocialCoordinator: ObservableObject {
         }
     }
 
-    func createSlot(_ body: CreateSlotBody) async throws -> SlotModel? {
+    func createDraftAndPublish(_ body: CreateSlotBody) async throws -> SlotModel? {
         try await performMutation {
-            let slot = try await api.createSlot(body)
-            pulseGeneration &+= 1
-            reconcile(slot)
+            let slot = try await api.beginDraftPublishWorkflow(body)
+            applyDraftPublishResult(slot)
             return slot
+        }
+    }
+
+    func pendingDraftPublishWorkflow() async throws -> DraftPublishWorkflow? {
+        do {
+            return try await api.pendingDraftPublishWorkflow()
+        } catch let error as APIError {
+            if case .unauthorized = error { await session.clearLocalSession() }
+            throw error
+        }
+    }
+
+    func retryDraftPublishWorkflow() async throws -> SlotModel? {
+        try await performMutation {
+            let slot = try await api.retryDraftPublishWorkflow()
+            applyDraftPublishResult(slot)
+            return slot
+        }
+    }
+
+    func discardDraftPublishWorkflow() async throws -> Bool? {
+        try await performMutation {
+            let slot = try await api.discardDraftPublishWorkflow()
+            if let slot { applyDraftPublishResult(slot) }
+            else { draftWorkflowRevision &+= 1 }
+            return true
         }
     }
 
@@ -268,6 +294,7 @@ final class SocialCoordinator: ObservableObject {
         pulseGeneration &+= 1
         reconcile(slot)
         discoveryRevision &+= 1
+        draftWorkflowRevision &+= 1
     }
 
     func registerQueuedMutation(_ key: UUID) {
@@ -328,6 +355,7 @@ final class SocialCoordinator: ObservableObject {
         mutationError = nil
         realtimeRevision = 0
         discoveryRevision = 0
+        draftWorkflowRevision = 0
         slotRealtimeRevisions.removeAll(keepingCapacity: false)
         chatRealtimeRevisions.removeAll(keepingCapacity: false)
         relationshipRealtimeRevisions.removeAll(keepingCapacity: false)

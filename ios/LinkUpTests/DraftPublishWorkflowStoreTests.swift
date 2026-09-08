@@ -65,6 +65,30 @@ final class DraftPublishWorkflowStoreTests: XCTestCase {
         XCTAssertFalse(incomplete.hasValidShape)
     }
 
+    func testManualResolveRequiresAttentionAndConfirmedDraftIdentity() {
+        let base = workflow()
+        XCTAssertFalse(base.canManuallyResolve)
+        XCTAssertFalse(base.markingNeedsAttention().canManuallyResolve)
+
+        let confirmed = base.recordingDraft(id: UUID(), version: 3).markingNeedsAttention()
+        XCTAssertTrue(confirmed.canManuallyResolve)
+    }
+
+    func testPreparingRetryOnlyAdvancesDraftVersionAndClearsAttention() throws {
+        let draftID = UUID()
+        let initial = workflow().recordingDraft(id: draftID, version: 2).markingNeedsAttention()
+        let retry = try XCTUnwrap(initial.preparingRetry(version: 5))
+
+        XCTAssertEqual(retry.draftID, draftID)
+        XCTAssertEqual(retry.draftVersion, 5)
+        XCTAssertFalse(retry.requiresAttention)
+        XCTAssertEqual(retry.createBody, initial.createBody)
+        XCTAssertEqual(retry.createKey, initial.createKey)
+        XCTAssertEqual(retry.publishKey, initial.publishKey)
+        XCTAssertEqual(retry.cancelKey, initial.cancelKey)
+        XCTAssertEqual(retry.requestIdentity, initial.requestIdentity)
+    }
+
     func testWorkflowRejectsReusedOperationKeys() {
         let valid = workflow()
         let invalid = DraftPublishWorkflow(
