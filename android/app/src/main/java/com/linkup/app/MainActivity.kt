@@ -176,29 +176,40 @@ class MainActivity : ComponentActivity() {
         social: SocialCoordinator,
         durableSocial: DurableSocialApi,
     ) {
+        var needsAuthoritativeSnapshot = true
         while (currentCoroutineContext().isActive) {
             val nextDelay = try {
-                val replay = durableSocial.replayPending()
-                if (replay != null && (replay.acknowledgedKeys.isNotEmpty() || replay.definitiveFailureKey != null)) {
-                    if (!reconcileAfterDurableReplay(social)) {
-                        delay(REALTIME_RETRY_MS)
-                        continue
-                    }
-                }
-
-                val pull = realtime.pull(userId, REALTIME_BATCH_SIZE)
-                if (pull.nextCursor > pull.fromCursor) {
-                    val reconciled = reconcileRealtime(pull, sessions, social)
-                    if (reconciled) {
-                        realtime.acknowledge(userId, pull.nextCursor)
-                    }
-                    when {
-                        !reconciled -> REALTIME_RETRY_MS
-                        pull.events.size >= REALTIME_BATCH_SIZE -> REALTIME_DRAIN_MS
-                        else -> REALTIME_POLL_MS
+                if (needsAuthoritativeSnapshot) {
+                    if (!reconcileAuthoritativeSnapshot(sessions, social)) {
+                        REALTIME_RETRY_MS
+                    } else {
+                        needsAuthoritativeSnapshot = false
+                        REALTIME_DRAIN_MS
                     }
                 } else {
-                    REALTIME_POLL_MS
+                    val replay = durableSocial.replayPending()
+                    if (replay != null && (replay.acknowledgedKeys.isNotEmpty() || replay.definitiveFailureKey != null)) {
+                        if (!reconcileAfterDurableReplay(social)) {
+                            REALTIME_RETRY_MS
+                        } else {
+                            REALTIME_DRAIN_MS
+                        }
+                    } else {
+                        val pull = realtime.pull(userId, REALTIME_BATCH_SIZE)
+                        if (pull.nextCursor > pull.fromCursor) {
+                            val reconciled = reconcileRealtime(pull, sessions, social)
+                            if (reconciled) {
+                                realtime.acknowledge(userId, pull.nextCursor)
+                            }
+                            when {
+                                !reconciled -> REALTIME_RETRY_MS
+                                pull.events.size >= REALTIME_BATCH_SIZE -> REALTIME_DRAIN_MS
+                                else -> REALTIME_POLL_MS
+                            }
+                        } else {
+                            REALTIME_POLL_MS
+                        }
+                    }
                 }
             } catch (error: CancellationException) {
                 throw error
@@ -207,6 +218,14 @@ class MainActivity : ComponentActivity() {
             }
             delay(nextDelay)
         }
+    }
+
+    private suspend fun reconcileAuthoritativeSnapshot(
+        sessions: SessionCoordinator,
+        social: SocialCoordinator,
+    ): Boolean {
+        if (!sessions.refreshSignedInProfile()) return false
+        return reconcileAfterDurableReplay(social)
     }
 
     private suspend fun reconcileAfterDurableReplay(social: SocialCoordinator): Boolean {
