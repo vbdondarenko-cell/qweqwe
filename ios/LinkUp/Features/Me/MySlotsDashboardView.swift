@@ -36,6 +36,9 @@ struct MySlotsDashboardView: View {
             .task(id: selectedView) {
                 await coordinator.load(selectedView)
             }
+            .onChange(of: social.discoveryRevision) { _, _ in
+                Task { await coordinator.load(selectedView) }
+            }
             .sheet(item: $selectedSlot, onDismiss: {
                 Task { await coordinator.load(selectedView) }
             }) { slot in

@@ -153,20 +153,20 @@ struct SlotDetailView: View {
             switch slot.viewerState {
             case .none:
                 if slot.accessMode == .approval && slot.state == .filling {
-                    LinkUpButton(title: "Request to join", disabled: coordinator.isMutating) {
+                    LinkUpButton(title: "Request to join", disabled: coordinator.mutationControlsDisabled) {
                         runMutation { try await coordinator.request(slot) }
                     }
                 } else if slot.state == .full {
                     LinkUpButton(title: "Full", variant: .secondary, disabled: true) { }
                 }
             case .pending:
-                LinkUpButton(title: "Withdraw request", variant: .secondary, disabled: coordinator.isMutating) {
+                LinkUpButton(title: "Withdraw request", variant: .secondary, disabled: coordinator.mutationControlsDisabled) {
                     runMutation { try await coordinator.leave(slot) }
                 }
             case .accepted:
                 if !slot.isTerminal {
                     LinkUpButton(title: "Open chat") { showingChat = true }
-                    LinkUpButton(title: "Leave LinkUp", variant: .danger, disabled: coordinator.isMutating) {
+                    LinkUpButton(title: "Leave LinkUp", variant: .danger, disabled: coordinator.mutationControlsDisabled) {
                         runMutation { try await coordinator.leave(slot) }
                     }
                 }
@@ -178,26 +178,26 @@ struct SlotDetailView: View {
 
     @ViewBuilder private var hostControls: some View {
         if !slot.isTerminal {
-            LinkUpButton(title: "Edit LINK", variant: .secondary, disabled: coordinator.isMutating) {
+            LinkUpButton(title: "Edit LINK", variant: .secondary, disabled: coordinator.mutationControlsDisabled) {
                 showingEdit = true
             }
-            LinkUpButton(title: "Manage participants", variant: .secondary, disabled: coordinator.isMutating) {
+            LinkUpButton(title: "Manage participants", variant: .secondary, disabled: coordinator.mutationControlsDisabled) {
                 showingHostManagement = true
             }
             LinkUpButton(title: "Open chat", variant: .secondary) { showingChat = true }
         }
         if slot.state == .filling || slot.state == .full {
-            LinkUpButton(title: "Start LinkUp", variant: .success, disabled: coordinator.isMutating) {
+            LinkUpButton(title: "Start LinkUp", variant: .success, disabled: coordinator.mutationControlsDisabled) {
                 runMutation { try await coordinator.start(slot) }
             }
         }
         if slot.state == .active {
-            LinkUpButton(title: "Complete LinkUp", variant: .success, disabled: coordinator.isMutating) {
+            LinkUpButton(title: "Complete LinkUp", variant: .success, disabled: coordinator.mutationControlsDisabled) {
                 runMutation { try await coordinator.complete(slot) }
             }
         }
         if !slot.isTerminal {
-            LinkUpButton(title: "Cancel LinkUp", variant: .danger, disabled: coordinator.isMutating) {
+            LinkUpButton(title: "Cancel LinkUp", variant: .danger, disabled: coordinator.mutationControlsDisabled) {
                 runMutation { try await coordinator.cancel(slot) }
             }
         }

@@ -1,3 +1,4 @@
+import Foundation
 import XCTest
 @testable import LinkUp
 
@@ -17,5 +18,8 @@ final class MutationRetryContractTests: XCTestCase {
         XCTAssertFalse(APIError.http(status: 429, code: "rate_limited", message: "later", requestID: nil).isDefinitiveMutationFailure)
         XCTAssertFalse(APIError.http(status: 500, code: "internal", message: "failed", requestID: nil).isDefinitiveMutationFailure)
         XCTAssertFalse(APIError.http(status: 503, code: "not_ready", message: "failed", requestID: nil).isDefinitiveMutationFailure)
+        XCTAssertFalse(APIError.mutationQueued(UUID()).isDefinitiveMutationFailure)
+        XCTAssertFalse(APIError.mutationSafetyBlocked.isDefinitiveMutationFailure)
+        XCTAssertFalse(APIError.mutationJournalUnavailable.isDefinitiveMutationFailure)
     }
 }

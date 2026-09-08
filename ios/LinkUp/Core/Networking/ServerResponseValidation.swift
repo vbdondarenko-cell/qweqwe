@@ -25,7 +25,11 @@ extension LinkUpAPI {
         _ request: APIRequest,
         expectedSlotID: UUID? = nil
     ) async throws -> SlotModel {
-        try await sendIdempotent(request) { (value: SlotModel) in
+        try await sendIdempotent(
+            request,
+            responseKind: .slot,
+            expectedSlotID: expectedSlotID
+        ) { (value: SlotModel) in
             if let expectedSlotID, value.id != expectedSlotID {
                 throw APIError.protocolViolation("Server mutation response belongs to a different Slot.")
             }
@@ -39,7 +43,11 @@ extension LinkUpAPI {
         _ request: APIRequest,
         expectedSlotID: UUID
     ) async throws -> ChatMessage {
-        try await sendIdempotent(request) { (value: ChatMessage) in
+        try await sendIdempotent(
+            request,
+            responseKind: .chat,
+            expectedSlotID: expectedSlotID
+        ) { (value: ChatMessage) in
             guard value.slotId == expectedSlotID else {
                 throw APIError.protocolViolation("Server chat response belongs to a different Slot.")
             }

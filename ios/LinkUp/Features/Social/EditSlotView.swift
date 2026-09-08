@@ -14,6 +14,7 @@ struct EditSlotView: View {
     @State private var scheduleEnabled: Bool
     @State private var scheduledAt: Date
     @State private var errorMessage: String?
+    @State private var pendingSaveKey: UUID?
 
     private let originalPlace: String
     private let originalCanonicalPlaceID: UUID?
@@ -57,14 +58,17 @@ struct EditSlotView: View {
                         .disabled(social.isMutating)
                 }
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button(social.isMutating ? "Saving…" : "Save") { save() }
+                    Button(social.isMutating ? "Saving…" : (pendingSaveKey == nil ? "Save" : "Queued")) { save() }
                         .foregroundStyle(canSave ? LinkUpPalette.red : LinkUpPalette.textMuted)
-                        .disabled(!canSave || social.isMutating)
+                        .disabled(!canSave || social.mutationControlsDisabled)
                 }
             }
         }
         .preferredColorScheme(.dark)
         .interactiveDismissDisabled(social.isMutating)
+        .onChange(of: social.lastDurableReplayReport) { _, report in
+            handleDurableReplay(report)
+        }
     }
 
     private var canSave: Bool {
@@ -185,9 +189,24 @@ struct EditSlotView: View {
                 }
             } catch is CancellationError {
                 return
+            } catch let error as APIError {
+                if case .mutationQueued(let key) = error { pendingSaveKey = key }
+                errorMessage = error.localizedDescription
             } catch {
                 errorMessage = error.localizedDescription
             }
+        }
+    }
+
+    private func handleDurableReplay(_ report: DurableMutationReplayReport) {
+        guard let pendingSaveKey else { return }
+        if report.acknowledgedKeys.contains(pendingSaveKey) {
+            self.pendingSaveKey = nil
+            errorMessage = nil
+            dismiss()
+        } else if report.definitiveFailureKey == pendingSaveKey {
+            self.pendingSaveKey = nil
+            errorMessage = "Queued edit was rejected by the server after reconciliation."
         }
     }
 

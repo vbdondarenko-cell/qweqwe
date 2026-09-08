@@ -154,7 +154,7 @@ struct PulseView: View {
                     ForEach(filteredItems) { slot in
                         SlotCardView(
                             slot: slot,
-                            isMutating: coordinator.isMutating,
+                            isMutating: coordinator.mutationControlsDisabled,
                             open: { selectedSlot = slot },
                             primaryAction: { primaryAction(slot) }
                         )

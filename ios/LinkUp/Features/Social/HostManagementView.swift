@@ -221,11 +221,11 @@ struct HostManagementView: View {
                 .overlay { RoundedRectangle(cornerRadius: LinkUpRadius.compact).stroke(tint.opacity(0.3)) }
         }
         .buttonStyle(.plain)
-        .disabled(social.isMutating)
+        .disabled(social.mutationControlsDisabled)
     }
 
     private func mutate(_ operation: @escaping () async throws -> SlotModel?) {
-        guard !social.isMutating else { return }
+        guard !social.mutationControlsDisabled else { return }
         localError = nil
         Task {
             do {

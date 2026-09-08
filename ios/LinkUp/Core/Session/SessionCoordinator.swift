@@ -31,6 +31,7 @@ final class SessionCoordinator: ObservableObject {
         do {
             guard let stored = try await credentials.load() else {
                 guard requestGeneration == generation else { return }
+                await api.clearLocalSession()
                 state = .signedOut
                 return
             }
@@ -69,7 +70,12 @@ final class SessionCoordinator: ObservableObject {
 
     func login(identifier: String, password: String, deviceLabel: String) async throws {
         generation &+= 1
+        let requestGeneration = generation
         let user = try await api.login(identifier: identifier, password: password, deviceLabel: deviceLabel)
+        guard requestGeneration == generation else {
+            await api.clearLocalSession()
+            throw CancellationError()
+        }
         state = .signedIn(user)
     }
 
@@ -82,6 +88,7 @@ final class SessionCoordinator: ObservableObject {
         deviceLabel: String
     ) async throws {
         generation &+= 1
+        let requestGeneration = generation
         let user = try await api.register(
             email: email,
             username: username,
@@ -90,6 +97,10 @@ final class SessionCoordinator: ObservableObject {
             language: language,
             deviceLabel: deviceLabel
         )
+        guard requestGeneration == generation else {
+            await api.clearLocalSession()
+            throw CancellationError()
+        }
         state = .signedIn(user)
     }
 
@@ -176,6 +187,7 @@ final class SessionCoordinator: ObservableObject {
         do {
             guard let stored = try await credentials.load() else {
                 guard requestGeneration == generation else { return }
+                await api.clearLocalSession()
                 state = .signedOut
                 return
             }

@@ -21,6 +21,7 @@ struct CreateLinkView: View {
     @State private var scheduleEnabled = false
     @State private var scheduledAt = Date().addingTimeInterval(3600)
     @State private var publishError: String?
+    @State private var pendingPublishKey: UUID?
 
     private let columns = Array(repeating: GridItem(.flexible(), spacing: 8), count: 4)
 
@@ -70,6 +71,9 @@ struct CreateLinkView: View {
         .background(LinkUpPalette.background.ignoresSafeArea())
         .foregroundStyle(LinkUpPalette.textPrimary)
         .interactiveDismissDisabled(coordinator.isMutating)
+        .onChange(of: coordinator.lastDurableReplayReport) { _, report in
+            handleDurableReplay(report)
+        }
     }
 
     private var header: some View {
@@ -234,10 +238,10 @@ struct CreateLinkView: View {
                         .foregroundStyle(LinkUpPalette.textMuted)
                 }
             }
-            if let publishError {
+            if let visiblePublishError {
                 HStack(alignment: .top, spacing: 9) {
                     Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(LinkUpPalette.critical)
-                    Text(publishError)
+                    Text(visiblePublishError)
                         .font(LinkUpTypography.body(12))
                         .foregroundStyle(LinkUpPalette.textDimmed)
                 }
@@ -256,7 +260,10 @@ struct CreateLinkView: View {
             if step < 3 {
                 LinkUpButton(title: "Continue", disabled: !canContinue || coordinator.isMutating) { step += 1 }
             } else {
-                LinkUpButton(title: coordinator.isMutating ? "Publishing…" : "Publish LinkUp", disabled: coordinator.isMutating) {
+                LinkUpButton(
+                    title: coordinator.isMutating ? "Publishing…" : (pendingPublishKey == nil ? "Publish LinkUp" : "Queued for retry"),
+                    disabled: coordinator.mutationControlsDisabled
+                ) {
                     publish()
                 }
             }
@@ -289,9 +296,28 @@ struct CreateLinkView: View {
                 if try await coordinator.createSlot(body) != nil { close() }
             } catch is CancellationError {
                 return
+            } catch let error as APIError {
+                if case .mutationQueued(let key) = error { pendingPublishKey = key }
+                publishError = error.localizedDescription
             } catch {
                 publishError = error.localizedDescription
             }
+        }
+    }
+
+    private var visiblePublishError: String? {
+        publishError ?? (coordinator.durableMutationBlocked ? coordinator.mutationError : nil)
+    }
+
+    private func handleDurableReplay(_ report: DurableMutationReplayReport) {
+        guard let pendingPublishKey else { return }
+        if report.acknowledgedKeys.contains(pendingPublishKey) {
+            self.pendingPublishKey = nil
+            publishError = nil
+            close()
+        } else if report.definitiveFailureKey == pendingPublishKey {
+            self.pendingPublishKey = nil
+            publishError = "Queued publish was rejected by the server after reconciliation."
         }
     }
 

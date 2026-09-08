@@ -39,6 +39,9 @@ struct ChatView: View {
             .onChange(of: social.realtimeRevision) { _, revision in
                 applyRealtimeRevision(revision)
             }
+            .onChange(of: social.lastDurableReplayReport) { _, report in
+                if coordinator.applyDurableReplayReport(report) { draft = "" }
+            }
             .onDisappear {
                 social.unregisterActiveChat(slot.id)
                 coordinator.dispose()
@@ -119,7 +122,12 @@ struct ChatView: View {
                         .clipShape(Circle())
                 }
                 .buttonStyle(.plain)
-                .disabled(coordinator.isSending || !messageValid)
+                .disabled(
+                    coordinator.isSending ||
+                    coordinator.queuedSendKey != nil ||
+                    social.mutationControlsDisabled ||
+                    !messageValid
+                )
                 .opacity(coordinator.isSending ? 0.5 : 1)
             }
         }
@@ -164,6 +172,8 @@ struct ChatView: View {
         Task {
             if await coordinator.send(text) {
                 draft = ""
+            } else if let queuedKey = coordinator.queuedSendKey {
+                social.registerQueuedMutation(queuedKey)
             }
         }
     }

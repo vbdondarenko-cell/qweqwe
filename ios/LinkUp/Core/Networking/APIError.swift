@@ -11,6 +11,9 @@ enum APIError: Error, LocalizedError, Sendable {
     case secureStorageUnavailable
     case responseTooLarge
     case protocolViolation(String)
+    case mutationQueued(UUID)
+    case mutationSafetyBlocked
+    case mutationJournalUnavailable
     case http(status: Int, code: String, message: String, requestID: String?)
     case transport(String)
 
@@ -20,6 +23,9 @@ enum APIError: Error, LocalizedError, Sendable {
         case .secureStorageUnavailable: "Secure session storage is unavailable."
         case .responseTooLarge: "Server response exceeded the client safety limit."
         case .protocolViolation(let message): message
+        case .mutationQueued(_): "Action is queued for safe retry and will be reconciled with the server."
+        case .mutationSafetyBlocked: "An older unconfirmed action must be reconciled before new changes can be sent."
+        case .mutationJournalUnavailable: "Protected pending-action storage is unavailable."
         case .http(_, _, let message, _): message
         case .transport: "Network request failed."
         }
@@ -45,7 +51,7 @@ enum APIError: Error, LocalizedError, Sendable {
     }
 }
 
-enum HTTPMethod: String, Sendable {
+enum HTTPMethod: String, Codable, Sendable {
     case get = "GET"
     case post = "POST"
     case patch = "PATCH"

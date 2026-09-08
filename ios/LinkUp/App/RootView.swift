@@ -147,29 +147,60 @@ private struct MainShellView: View {
                         continue
                     }
                     let pulseOK = await social.loadPulse()
-                    if pulseOK {
+                    guard pulseOK else {
+                        delay = .seconds(5)
+                        try await Task.sleep(for: delay)
+                        continue
+                    }
+
+                    let replay = try await services.api.replayPendingMutations()
+                    if replay.needsSafetyIntervention || replay.ambiguousFailureKey != nil {
+                        social.applyDurableReplayReport(replay)
+                        delay = .seconds(5)
+                    } else {
+                        if replay.madeProgress {
+                            guard await reconcileAfterDurableReplay() else {
+                                delay = .seconds(5)
+                                try await Task.sleep(for: delay)
+                                continue
+                            }
+                        }
+                        social.applyDurableReplayReport(replay)
                         needsAuthoritativeSnapshot = false
                         delay = .milliseconds(250)
-                    } else {
-                        delay = .seconds(5)
                     }
                 } else {
-                    let pull = try await services.realtime.pull(userID: user.id, limit: 100)
-                    if pull.nextCursor > pull.fromCursor {
-                        let reconciliation = await reconcileRealtime(pull)
-                        if reconciliation.success {
-                            try await services.realtime.acknowledge(userID: user.id, cursor: pull.nextCursor)
-                            social.applyRealtimeHints(
-                                pull.hints,
-                                accessLostSlotIDs: reconciliation.accessLostSlotIDs,
-                                additionalRefreshedSlotIDs: reconciliation.refreshedSlotIDs
-                            )
-                            delay = pull.events.count >= 100 ? .milliseconds(250) : .seconds(4)
-                        } else {
+                    let replay = try await services.api.replayPendingMutations()
+                    if replay.needsSafetyIntervention || replay.ambiguousFailureKey != nil {
+                        social.applyDurableReplayReport(replay)
+                        delay = .seconds(5)
+                    } else if replay.madeProgress {
+                        guard await reconcileAfterDurableReplay() else {
                             delay = .seconds(5)
+                            try await Task.sleep(for: delay)
+                            continue
                         }
+                        social.applyDurableReplayReport(replay)
+                        delay = .milliseconds(250)
                     } else {
-                        delay = .seconds(4)
+                        social.applyDurableReplayReport(replay)
+                        let pull = try await services.realtime.pull(userID: user.id, limit: 100)
+                        if pull.nextCursor > pull.fromCursor {
+                            let reconciliation = await reconcileRealtime(pull)
+                            if reconciliation.success {
+                                try await services.realtime.acknowledge(userID: user.id, cursor: pull.nextCursor)
+                                social.applyRealtimeHints(
+                                    pull.hints,
+                                    accessLostSlotIDs: reconciliation.accessLostSlotIDs,
+                                    additionalRefreshedSlotIDs: reconciliation.refreshedSlotIDs
+                                )
+                                delay = pull.events.count >= 100 ? .milliseconds(250) : .seconds(4)
+                            } else {
+                                delay = .seconds(5)
+                            }
+                        } else {
+                            delay = .seconds(4)
+                        }
                     }
                 }
             } catch is CancellationError {
@@ -179,6 +210,7 @@ private struct MainShellView: View {
                     await services.session.clearLocalSession()
                     return
                 }
+                social.applyDurableReplayFailure(error)
                 delay = .seconds(5)
             } catch {
                 delay = .seconds(5)
@@ -190,6 +222,90 @@ private struct MainShellView: View {
                 return
             }
         }
+    }
+
+    private func reconcileAfterDurableReplay() async -> Bool {
+        guard await social.loadPulse() else { return false }
+
+        let targets = social.realtimeTargets()
+        var refreshedSlotIDs = Set<UUID>()
+        var accessLostSlotIDs = Set<UUID>()
+        var relationshipSlotIDs = Set<UUID>()
+        var chatSlotIDs = Set<UUID>()
+
+        if let activeSlot = targets.slot {
+            do {
+                let updated = try await social.loadSlot(activeSlot.id)
+                social.updateActiveSlot(updated)
+                refreshedSlotIDs.insert(updated.id)
+            } catch let error as APIError {
+                if error.isDefinitiveSlotAccessLoss {
+                    accessLostSlotIDs.insert(activeSlot.id)
+                } else {
+                    return false
+                }
+            } catch is CancellationError {
+                return false
+            } catch {
+                return false
+            }
+        }
+
+        if let activeSlot = social.realtimeTargets().slot,
+           activeSlot.viewerState == .host,
+           !accessLostSlotIDs.contains(activeSlot.id) {
+            do {
+                async let pendingRequest = services.api.pendingRequests(activeSlot.id)
+                async let acceptedRequest = services.api.acceptedParticipants(activeSlot.id)
+                let (pending, accepted) = try await (pendingRequest, acceptedRequest)
+                social.stageRealtimeRelationshipSnapshot(
+                    slotID: activeSlot.id,
+                    pending: pending,
+                    accepted: accepted
+                )
+                relationshipSlotIDs.insert(activeSlot.id)
+            } catch let error as APIError {
+                if case .unauthorized = error { await services.session.clearLocalSession() }
+                return false
+            } catch is CancellationError {
+                return false
+            } catch {
+                return false
+            }
+        }
+
+        if let chatSlotID = targets.chatSlotID, !accessLostSlotIDs.contains(chatSlotID) {
+            do {
+                let messages = try await services.api.chatMessages(chatSlotID)
+                social.stageRealtimeChatSnapshot(slotID: chatSlotID, messages: messages)
+                chatSlotIDs.insert(chatSlotID)
+            } catch let error as APIError {
+                if error.isDefinitiveSlotAccessLoss {
+                    accessLostSlotIDs.insert(chatSlotID)
+                } else {
+                    if case .unauthorized = error { await services.session.clearLocalSession() }
+                    return false
+                }
+            } catch is CancellationError {
+                return false
+            } catch {
+                return false
+            }
+        }
+
+        let allRefreshedSlots = refreshedSlotIDs.union(relationshipSlotIDs)
+        social.applyRealtimeHints(
+            RealtimeInvalidationHints(
+                refreshPulse: true,
+                refreshProfile: false,
+                refreshRelationships: !relationshipSlotIDs.isEmpty,
+                slotIDs: allRefreshedSlots,
+                chatSlotIDs: chatSlotIDs
+            ),
+            accessLostSlotIDs: accessLostSlotIDs,
+            additionalRefreshedSlotIDs: allRefreshedSlots
+        )
+        return true
     }
 
     private func reconcileRealtime(_ pull: RealtimePull) async -> (

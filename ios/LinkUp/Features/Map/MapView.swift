@@ -63,6 +63,15 @@ struct MapView: View {
                 Task { await focus(on: context) }
             }
             .onDisappear { coordinator.dispose() }
+            .onChange(of: social.discoveryRevision) { _, _ in
+                guard cityContext.context != nil else { return }
+                Task {
+                    await coordinator.load(region: currentRegion)
+                    if showingPlaceSlots, let placeID = selectedCluster?.placeId {
+                        await coordinator.refreshPlaceSlots(placeID: placeID)
+                    }
+                }
+            }
 
             VStack(spacing: 0) {
                 areaPill
@@ -374,7 +383,7 @@ private struct MapPlaceSlotsView: View {
                             ForEach(mapCoordinator.placeSlots) { slot in
                                 SlotCardView(
                                     slot: slot,
-                                    isMutating: social.isMutating,
+                                    isMutating: social.mutationControlsDisabled,
                                     open: { selectedSlot = slot },
                                     primaryAction: { primaryAction(slot) }
                                 )

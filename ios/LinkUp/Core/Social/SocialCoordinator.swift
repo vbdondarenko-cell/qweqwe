@@ -11,8 +11,14 @@ final class SocialCoordinator: ObservableObject {
     @Published private(set) var pulseItems: [SlotModel] = []
     @Published private(set) var pulsePhase: PulsePhase = .idle
     @Published private(set) var isMutating = false
+    @Published private(set) var durableMutationBlocked = false
+    @Published private(set) var queuedMutationKey: UUID?
+    @Published private(set) var lastDurableReplayReport = DurableMutationReplayReport.empty
     @Published private(set) var mutationError: String?
     @Published private(set) var realtimeRevision: UInt64 = 0
+    @Published private(set) var discoveryRevision: UInt64 = 0
+
+    var mutationControlsDisabled: Bool { isMutating || durableMutationBlocked }
 
     private var slotRealtimeRevisions: [UUID: UInt64] = [:]
     private var chatRealtimeRevisions: [UUID: UInt64] = [:]
@@ -197,6 +203,7 @@ final class SocialCoordinator: ObservableObject {
     ) {
         realtimeRevision &+= 1
         let revision = realtimeRevision
+        if hints.refreshPulse || !accessLostSlotIDs.isEmpty { discoveryRevision &+= 1 }
         let refreshedSlotIDs = hints.slotIDs.union(additionalRefreshedSlotIDs)
         for id in refreshedSlotIDs { slotRealtimeRevisions[id] = revision }
         for id in hints.chatSlotIDs { chatRealtimeRevisions[id] = revision }
@@ -221,14 +228,64 @@ final class SocialCoordinator: ObservableObject {
     }
     func realtimeChatSnapshot(for slotID: UUID) -> [ChatMessage]? { stagedChatSnapshots[slotID] }
 
-    func clearMutationError() { mutationError = nil }
+    func registerQueuedMutation(_ key: UUID) {
+        durableMutationBlocked = true
+        queuedMutationKey = key
+        mutationError = APIError.mutationQueued(key).localizedDescription
+    }
+
+    func applyDurableReplayReport(_ report: DurableMutationReplayReport) {
+        lastDurableReplayReport = report
+        if report.needsSafetyIntervention {
+            durableMutationBlocked = true
+            mutationError = APIError.mutationSafetyBlocked.localizedDescription
+            return
+        }
+        if let ambiguous = report.ambiguousFailureKey {
+            durableMutationBlocked = true
+            queuedMutationKey = queuedMutationKey ?? ambiguous
+            mutationError = APIError.mutationQueued(ambiguous).localizedDescription
+            return
+        }
+
+        if let queuedMutationKey,
+           report.acknowledgedKeys.contains(queuedMutationKey) || report.definitiveFailureKey == queuedMutationKey {
+            self.queuedMutationKey = nil
+        }
+        durableMutationBlocked = queuedMutationKey != nil
+        if report.madeProgress {
+            mutationError = report.definitiveFailureKey == nil
+                ? nil
+                : "A queued action was rejected by the server after reconciliation."
+        } else if !durableMutationBlocked {
+            mutationError = nil
+        }
+    }
+
+    func applyDurableReplayFailure(_ error: APIError) {
+        switch error {
+        case .mutationSafetyBlocked, .mutationJournalUnavailable:
+            durableMutationBlocked = true
+            mutationError = error.localizedDescription
+        default:
+            break
+        }
+    }
+
+    func clearMutationError() {
+        if !durableMutationBlocked { mutationError = nil }
+    }
 
     func dispose() {
         pulseGeneration &+= 1
         pulseItems = []
         pulsePhase = .idle
+        durableMutationBlocked = false
+        queuedMutationKey = nil
+        lastDurableReplayReport = .empty
         mutationError = nil
         realtimeRevision = 0
+        discoveryRevision = 0
         slotRealtimeRevisions.removeAll(keepingCapacity: false)
         chatRealtimeRevisions.removeAll(keepingCapacity: false)
         relationshipRealtimeRevisions.removeAll(keepingCapacity: false)
@@ -240,15 +297,21 @@ final class SocialCoordinator: ObservableObject {
     }
 
     private func performMutation(_ work: () async throws -> SlotModel) async throws -> SlotModel? {
-        guard !isMutating else { return nil }
+        guard !mutationControlsDisabled else { return nil }
         isMutating = true
         mutationError = nil
         defer { isMutating = false }
         do { return try await work() }
         catch is CancellationError { throw CancellationError() }
         catch let error as APIError {
-            if case .unauthorized = error { await session.clearLocalSession() }
-            else { mutationError = error.localizedDescription }
+            if case .unauthorized = error {
+                await session.clearLocalSession()
+            } else {
+                if case .mutationQueued(let key) = error { registerQueuedMutation(key) }
+                if case .mutationSafetyBlocked = error { durableMutationBlocked = true }
+                if case .mutationJournalUnavailable = error { durableMutationBlocked = true }
+                mutationError = error.localizedDescription
+            }
             throw error
         } catch {
             mutationError = "The action could not be completed."

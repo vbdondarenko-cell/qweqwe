@@ -6,6 +6,7 @@ final class ChatCoordinator: ObservableObject {
     @Published private(set) var messages: [ChatMessage] = []
     @Published private(set) var isLoading = false
     @Published private(set) var isSending = false
+    @Published private(set) var queuedSendKey: UUID?
     @Published private(set) var errorMessage: String?
 
     private let slotID: UUID
@@ -49,7 +50,7 @@ final class ChatCoordinator: ObservableObject {
     }
 
     func send(_ rawText: String) async -> Bool {
-        guard !isSending else { return false }
+        guard !isSending, queuedSendKey == nil else { return false }
         let text = rawText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return false }
 
@@ -73,6 +74,7 @@ final class ChatCoordinator: ObservableObject {
             if case .unauthorized = error {
                 await session.clearLocalSession()
             } else {
+                if case .mutationQueued(let key) = error { queuedSendKey = key }
                 errorMessage = error.localizedDescription
             }
             return false
@@ -80,6 +82,20 @@ final class ChatCoordinator: ObservableObject {
             errorMessage = "Message was not confirmed by the server."
             return false
         }
+    }
+
+    func applyDurableReplayReport(_ report: DurableMutationReplayReport) -> Bool {
+        guard let queuedSendKey else { return false }
+        if report.acknowledgedKeys.contains(queuedSendKey) {
+            self.queuedSendKey = nil
+            errorMessage = nil
+            return true
+        }
+        if report.definitiveFailureKey == queuedSendKey {
+            self.queuedSendKey = nil
+            errorMessage = "Queued message was rejected by the server after reconciliation."
+        }
+        return false
     }
 
     func applyRealtimeSnapshot(_ snapshot: [ChatMessage]) {
@@ -92,6 +108,7 @@ final class ChatCoordinator: ObservableObject {
     func dispose() {
         generation &+= 1
         messages = []
+        queuedSendKey = nil
         errorMessage = nil
     }
 }
