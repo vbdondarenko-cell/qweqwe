@@ -144,5 +144,6 @@ actor DurableMutationOutbox {
             to: fileURL,
             options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication]
         )
+        try TransientStateFilePolicy.excludeFromBackup(fileURL)
     }
 }

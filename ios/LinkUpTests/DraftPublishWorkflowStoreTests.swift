@@ -107,6 +107,20 @@ final class DraftPublishWorkflowStoreTests: XCTestCase {
         XCTAssertFalse(stale.canAutoResume(at: fixedNow))
     }
 
+    func testDraftWorkflowFileIsExcludedFromBackup() async throws {
+        let root = temporaryRoot()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = DraftPublishWorkflowStore(baseDirectory: root)
+        try await store.save(workflow())
+
+        let file = root
+            .appendingPathComponent("LinkUp", isDirectory: true)
+            .appendingPathComponent("DraftPublish", isDirectory: true)
+            .appendingPathComponent("v1.json", isDirectory: false)
+        let values = try file.resourceValues(forKeys: [.isExcludedFromBackupKey])
+        XCTAssertEqual(values.isExcludedFromBackup, true)
+    }
+
     func testCorruptWorkflowFileFailsClosed() async throws {
         let root = temporaryRoot()
         defer { try? FileManager.default.removeItem(at: root) }

@@ -106,6 +106,7 @@ actor DraftPublishWorkflowStore {
         let data = try JSONEncoder().encode(workflow)
         guard data.count <= maxBytes else { throw DraftPublishWorkflowStoreError.invalid }
         try data.write(to: fileURL, options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
+        try TransientStateFilePolicy.excludeFromBackup(fileURL)
     }
 
     func markNeedsAttention() throws {

@@ -76,6 +76,20 @@ final class DurableMutationOutboxTests: XCTestCase {
         XCTAssertFalse(otherPending)
     }
 
+    func testOutboxFileIsExcludedFromBackup() async throws {
+        let root = temporaryRoot()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let outbox = DurableMutationOutbox(baseDirectory: root)
+        try await outbox.enqueue(command(createdAt: fixedNow, firstAttemptAt: nil))
+
+        let file = root
+            .appendingPathComponent("LinkUp", isDirectory: true)
+            .appendingPathComponent("MutationOutbox", isDirectory: true)
+            .appendingPathComponent("v1.json", isDirectory: false)
+        let values = try file.resourceValues(forKeys: [.isExcludedFromBackupKey])
+        XCTAssertEqual(values.isExcludedFromBackup, true)
+    }
+
     func testOutboxFlagsAgedAmbiguousCommandInsteadOfReplayingIt() async throws {
         let root = temporaryRoot()
         defer { try? FileManager.default.removeItem(at: root) }
