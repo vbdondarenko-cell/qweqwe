@@ -32,6 +32,9 @@ struct PasswordResetView: View {
 
                     secureField("New password", text: $password)
                     secureField("Confirm new password", text: $confirmation)
+                    Text("Password payload must be 8…1024 UTF-8 bytes.")
+                        .font(LinkUpTypography.body(10))
+                        .foregroundStyle(LinkUpPalette.textMuted)
 
                     if let errorMessage {
                         messageBanner(errorMessage, tint: LinkUpPalette.critical, symbol: "exclamationmark.triangle.fill")
@@ -71,7 +74,9 @@ struct PasswordResetView: View {
     }
 
     private var canSubmit: Bool {
-        passwordResetToken(from: resetInput) != nil && !password.isEmpty && password == confirmation
+        passwordResetToken(from: resetInput) != nil &&
+            InputContracts.validPasswordPayload(password) &&
+            password == confirmation
     }
 
     private func submit() {

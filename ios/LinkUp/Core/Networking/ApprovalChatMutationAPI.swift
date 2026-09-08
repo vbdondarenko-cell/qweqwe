@@ -32,9 +32,9 @@ extension LinkUpAPI {
     }
 
     func sendChatMessage(_ slotID: UUID, text: String) async throws -> ChatMessage {
-        let normalized = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !normalized.isEmpty else {
-            throw APIError.protocolViolation("Chat message cannot be empty.")
+        let normalized = InputContracts.trimmed(text)
+        guard InputContracts.validChatMessage(normalized) else {
+            throw APIError.protocolViolation("Chat message must contain 1...2000 Unicode characters.")
         }
         return try await sendIdempotent(APIRequest(
             method: .post,

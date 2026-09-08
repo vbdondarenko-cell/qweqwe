@@ -33,10 +33,15 @@ private struct UpdateProfileBody: Encodable, Sendable {
 
 extension LinkUpAPI {
     func login(identifier: String, password: String, deviceLabel: String) async throws -> UserProfile {
+        let normalizedIdentifier = InputContracts.trimmed(identifier)
+        guard InputContracts.validLoginIdentifierShape(normalizedIdentifier),
+              InputContracts.validPasswordPayload(password) else {
+            throw APIError.protocolViolation("Invalid login input.")
+        }
         let envelope: AuthEnvelope = try await client.send(APIRequest(
             method: .post,
             path: "/v1/auth/login",
-            body: try encodeBody(LoginBody(identifier: identifier, password: password, deviceLabel: deviceLabel)),
+            body: try encodeBody(LoginBody(identifier: normalizedIdentifier, password: password, deviceLabel: deviceLabel)),
             authenticated: false
         ))
         try await saveCredential(from: envelope)
@@ -51,13 +56,23 @@ extension LinkUpAPI {
         language: String,
         deviceLabel: String
     ) async throws -> UserProfile {
+        let normalizedEmail = InputContracts.trimmed(email).lowercased()
+        let normalizedUsername = InputContracts.trimmed(username).lowercased()
+        let normalizedDisplayName = InputContracts.trimmed(displayName)
+        guard InputContracts.validAccountEmail(normalizedEmail),
+              InputContracts.validAccountUsername(normalizedUsername),
+              InputContracts.validProfileDisplayName(normalizedDisplayName),
+              InputContracts.validPasswordPayload(password),
+              language == "uk" || language == "en" else {
+            throw APIError.protocolViolation("Invalid registration input.")
+        }
         let envelope: AuthEnvelope = try await client.send(APIRequest(
             method: .post,
             path: "/v1/auth/register",
             body: try encodeBody(RegisterBody(
-                email: email,
-                username: username,
-                displayName: displayName,
+                email: normalizedEmail,
+                username: normalizedUsername,
+                displayName: normalizedDisplayName,
                 password: password,
                 language: language,
                 deviceLabel: deviceLabel
@@ -69,19 +84,27 @@ extension LinkUpAPI {
     }
 
     func requestPasswordRecovery(email: String) async throws {
+        let normalized = InputContracts.trimmed(email).lowercased()
+        guard InputContracts.validAccountEmail(normalized) else {
+            throw APIError.protocolViolation("Invalid recovery email.")
+        }
         try await client.sendVoid(APIRequest(
             method: .post,
             path: "/v1/auth/recovery/request",
-            body: try encodeBody(RecoveryRequestBody(email: email)),
+            body: try encodeBody(RecoveryRequestBody(email: normalized)),
             authenticated: false
         ))
     }
 
     func resetPassword(token: String, newPassword: String) async throws {
+        guard let canonicalToken = OpaqueTokenContract.canonical32ByteBase64URL(InputContracts.trimmed(token)),
+              InputContracts.validPasswordPayload(newPassword) else {
+            throw APIError.protocolViolation("Invalid password reset input.")
+        }
         try await client.sendVoid(APIRequest(
             method: .post,
             path: "/v1/auth/recovery/reset",
-            body: try encodeBody(PasswordResetBody(token: token, newPassword: newPassword)),
+            body: try encodeBody(PasswordResetBody(token: canonicalToken, newPassword: newPassword)),
             authenticated: false
         ))
     }
@@ -96,12 +119,24 @@ extension LinkUpAPI {
         profileVisibility: String? = nil,
         language: String? = nil
     ) async throws -> UserProfile {
+        if let displayName, !InputContracts.validProfileDisplayName(displayName) {
+            throw APIError.protocolViolation("Invalid display name.")
+        }
+        if let avatarUrl, !InputContracts.validAvatarURLPayload(avatarUrl) {
+            throw APIError.protocolViolation("Invalid avatar URL payload.")
+        }
+        if let profileVisibility, profileVisibility != "PUBLIC" && profileVisibility != "HIDDEN" {
+            throw APIError.protocolViolation("Invalid profile visibility.")
+        }
+        if let language, language != "uk" && language != "en" {
+            throw APIError.protocolViolation("Invalid language.")
+        }
         try await client.send(APIRequest(
             method: .patch,
             path: "/v1/me",
             body: try encodeBody(UpdateProfileBody(
-                displayName: displayName,
-                avatarUrl: avatarUrl,
+                displayName: displayName.map(InputContracts.trimmed),
+                avatarUrl: avatarUrl.map(InputContracts.trimmed),
                 profileVisibility: profileVisibility,
                 language: language
             ))

@@ -134,14 +134,16 @@ struct AuthView: View {
     private var canSubmit: Bool {
         switch mode {
         case .login:
-            !identifier.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !password.isEmpty
+            InputContracts.validLoginIdentifierShape(identifier) &&
+                InputContracts.validPasswordPayload(password)
         case .register:
-            !email.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
-            !username.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
-            !displayName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
-            !password.isEmpty && password == confirmation
+            InputContracts.validAccountEmail(email) &&
+                InputContracts.validAccountUsername(username) &&
+                InputContracts.validProfileDisplayName(displayName) &&
+                InputContracts.validPasswordPayload(password) &&
+                password == confirmation
         case .recovery:
-            !email.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            InputContracts.validAccountEmail(email)
         }
     }
 

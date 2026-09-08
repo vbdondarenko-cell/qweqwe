@@ -33,4 +33,36 @@ final class InputContractsTests: XCTestCase {
         XCTAssertTrue(InputContracts.validAvatarURLPayload(String(repeating: "😀", count: 512)))
         XCTAssertFalse(InputContracts.validAvatarURLPayload(String(repeating: "😀", count: 513)))
     }
+    func testChatMessageMatchesBackendRuneLimit() {
+        let combining = "e\u{301}"
+        XCTAssertFalse(InputContracts.validChatMessage("   "))
+        XCTAssertTrue(InputContracts.validChatMessage(String(repeating: combining, count: 1_000)))
+        XCTAssertFalse(InputContracts.validChatMessage(String(repeating: combining, count: 1_001)))
+    }
+
+    func testAccountEmailMatchesBackendShape() {
+        XCTAssertTrue(InputContracts.validAccountEmail(" A@Example.com "))
+        XCTAssertTrue(InputContracts.validAccountEmail("a@b.co"))
+        XCTAssertFalse(InputContracts.validAccountEmail("a@b"))
+        XCTAssertFalse(InputContracts.validAccountEmail("a b@example.com"))
+        XCTAssertFalse(InputContracts.validAccountEmail(String(repeating: "a", count: 310) + "@example.com"))
+    }
+
+    func testUsernameMatchesBackendASCIIAlphabetAfterLowercasing() {
+        XCTAssertTrue(InputContracts.validAccountUsername("Alice_1"))
+        XCTAssertTrue(InputContracts.validAccountUsername("a.b"))
+        XCTAssertFalse(InputContracts.validAccountUsername("ab"))
+        XCTAssertFalse(InputContracts.validAccountUsername("alice-1"))
+        XCTAssertFalse(InputContracts.validAccountUsername("аліса"))
+        XCTAssertFalse(InputContracts.validAccountUsername(String(repeating: "a", count: 33)))
+    }
+
+    func testPasswordLimitUsesUTF8BytesLikeBackend() {
+        XCTAssertFalse(InputContracts.validPasswordPayload("1234567"))
+        XCTAssertTrue(InputContracts.validPasswordPayload("12345678"))
+        XCTAssertTrue(InputContracts.validPasswordPayload("😀😀"))
+        XCTAssertTrue(InputContracts.validPasswordPayload(String(repeating: "a", count: 1_024)))
+        XCTAssertFalse(InputContracts.validPasswordPayload(String(repeating: "a", count: 1_025)))
+    }
+
 }

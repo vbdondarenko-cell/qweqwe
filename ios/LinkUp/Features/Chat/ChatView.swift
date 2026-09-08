@@ -68,7 +68,18 @@ struct ChatView: View {
     }
 
     private var composer: some View {
-        VStack(spacing: 8) {
+        let messageCount = InputContracts.scalarCount(InputContracts.trimmed(draft))
+        let messageValid = InputContracts.validChatMessage(draft)
+        return VStack(spacing: 8) {
+            HStack {
+                Text("Coordination only")
+                    .font(LinkUpTypography.body(10))
+                    .foregroundStyle(LinkUpPalette.textMuted)
+                Spacer()
+                Text("\(messageCount)/\(InputContracts.chatMessageMaxScalars)")
+                    .font(LinkUpTypography.mono(9))
+                    .foregroundStyle(messageCount > InputContracts.chatMessageMaxScalars ? LinkUpPalette.critical : LinkUpPalette.textMuted)
+            }
             if let error = coordinator.errorMessage {
                 Text(error)
                     .font(LinkUpTypography.body(11))
@@ -94,7 +105,7 @@ struct ChatView: View {
                         .clipShape(Circle())
                 }
                 .buttonStyle(.plain)
-                .disabled(coordinator.isSending || draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                .disabled(coordinator.isSending || !messageValid)
                 .opacity(coordinator.isSending ? 0.5 : 1)
             }
         }
