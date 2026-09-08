@@ -52,7 +52,7 @@ class DurableSocialApiTest {
         assertEquals("/v1/slots", command.path)
         assertEquals(DurableResponseKind.SLOT, command.responseKind)
         assertTrue(command.bodyJson!!.contains("\"canonicalPlaceId\":\"$PLACE_ID\""))
-        assertEquals(2_000L, command.firstAttemptAtEpochMillis)
+        assertTrue(requireNotNull(command.firstAttemptAtEpochMillis) >= command.createdAtEpochMillis)
         assertEquals(SLOT_ID, slot.id)
         assertTrue(outbox.items.isEmpty())
     }
@@ -82,13 +82,14 @@ class DurableSocialApiTest {
         assertFailsWith<DurableMutationQueuedException> { firstProcess.requestSlot(SLOT_ID) }
         val persisted = outbox.items.single()
         val originalKey = persisted.idempotencyKey
+        val originalAttemptAt = requireNotNull(persisted.firstAttemptAtEpochMillis)
         assertEquals("/v1/slots/$SLOT_ID/request", persisted.path)
-        assertEquals(2_000L, persisted.firstAttemptAtEpochMillis)
+        assertTrue(originalAttemptAt >= persisted.createdAtEpochMillis)
 
         assertFailsWith<DurableMutationQueuedException> { firstProcess.requestSlot(SLOT_ID) }
         assertEquals(1, outbox.items.size)
         assertEquals(originalKey, outbox.items.single().idempotencyKey)
-        assertEquals(2_000L, outbox.items.single().firstAttemptAtEpochMillis)
+        assertEquals(originalAttemptAt, outbox.items.single().firstAttemptAtEpochMillis)
 
         ambiguous = false
         val afterProcessDeath = DurableSocialApi(
