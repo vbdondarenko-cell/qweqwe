@@ -30,6 +30,6 @@ extension LinkUpAPI {
             path: "/v1/places/search",
             queryItems: queryItems
         ))
-        return envelope.items
+        return try validatedServerItems(envelope.items, context: "canonical place")
     }
 }

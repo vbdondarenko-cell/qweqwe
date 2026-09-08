@@ -1,6 +1,8 @@
 import Foundation
 
 enum InputContracts {
+    static let slotCapacityMin = 2
+    static let slotCapacityMax = 100
     static let slotTitleMaxScalars = 120
     static let slotDetailsMaxScalars = 2_000
     static let slotPlaceMaxScalars = 240

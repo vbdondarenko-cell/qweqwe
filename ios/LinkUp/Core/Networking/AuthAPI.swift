@@ -44,8 +44,9 @@ extension LinkUpAPI {
             body: try encodeBody(LoginBody(identifier: normalizedIdentifier, password: password, deviceLabel: deviceLabel)),
             authenticated: false
         ))
+        let user = try validatedServerValue(envelope.user, context: "authenticated user")
         try await saveCredential(from: envelope)
-        return envelope.user
+        return user
     }
 
     func register(
@@ -79,8 +80,9 @@ extension LinkUpAPI {
             )),
             authenticated: false
         ))
+        let user = try validatedServerValue(envelope.user, context: "authenticated user")
         try await saveCredential(from: envelope)
-        return envelope.user
+        return user
     }
 
     func requestPasswordRecovery(email: String) async throws {
@@ -110,7 +112,8 @@ extension LinkUpAPI {
     }
 
     func me() async throws -> UserProfile {
-        try await client.send(APIRequest(method: .get, path: "/v1/me"))
+        let user: UserProfile = try await client.send(APIRequest(method: .get, path: "/v1/me"))
+        return try validatedServerValue(user, context: "profile")
     }
 
     func updateMe(
@@ -131,7 +134,7 @@ extension LinkUpAPI {
         if let language, language != "uk" && language != "en" {
             throw APIError.protocolViolation("Invalid language.")
         }
-        try await client.send(APIRequest(
+        let user: UserProfile = try await client.send(APIRequest(
             method: .patch,
             path: "/v1/me",
             body: try encodeBody(UpdateProfileBody(
@@ -141,6 +144,7 @@ extension LinkUpAPI {
                 language: language
             ))
         ))
+        return try validatedServerValue(user, context: "updated profile")
     }
 
     func logout() async {
@@ -156,7 +160,7 @@ extension LinkUpAPI {
         let envelope: ItemsEnvelope<BlockedUser> = try await client.send(
             APIRequest(method: .get, path: "/v1/me/blocks")
         )
-        return envelope.items
+        return try validatedServerItems(envelope.items, context: "blocked user")
     }
 
     func blockUser(_ userID: UUID) async throws {

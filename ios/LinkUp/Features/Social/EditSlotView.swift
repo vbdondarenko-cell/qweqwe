@@ -71,8 +71,8 @@ struct EditSlotView: View {
         InputContracts.validSlotTitle(title) &&
         InputContracts.validSlotDetails(details) &&
         InputContracts.validSlotPlace(place) &&
-        capacity >= max(2, slot.acceptedCount) &&
-        capacity <= 50
+        capacity >= max(InputContracts.slotCapacityMin, slot.acceptedCount) &&
+        capacity <= InputContracts.slotCapacityMax
     }
 
     private var capacityControl: some View {
@@ -82,16 +82,16 @@ struct EditSlotView: View {
                     .font(LinkUpTypography.body(12, weight: .semibold))
                     .foregroundStyle(LinkUpPalette.textDimmed)
                 Spacer()
-                Text("Minimum \(max(2, slot.acceptedCount))")
+                Text("Minimum \(max(InputContracts.slotCapacityMin, slot.acceptedCount))")
                     .font(LinkUpTypography.mono(9))
                     .foregroundStyle(LinkUpPalette.textMuted)
             }
             HStack(spacing: 16) {
-                capacityButton("minus") { capacity = max(max(2, slot.acceptedCount), capacity - 1) }
+                capacityButton("minus") { capacity = max(max(InputContracts.slotCapacityMin, slot.acceptedCount), capacity - 1) }
                 Text("\(capacity)")
                     .font(LinkUpTypography.mono(28, weight: .bold))
                     .frame(maxWidth: .infinity)
-                capacityButton("plus") { capacity = min(50, capacity + 1) }
+                capacityButton("plus") { capacity = min(InputContracts.slotCapacityMax, capacity + 1) }
             }
         }
     }

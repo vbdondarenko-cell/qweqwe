@@ -158,11 +158,11 @@ struct CreateLinkView: View {
                 .font(LinkUpTypography.body(12, weight: .semibold))
                 .foregroundStyle(LinkUpPalette.textDimmed)
             HStack(spacing: 16) {
-                capacityButton("minus") { capacity = max(2, capacity - 1) }
+                capacityButton("minus") { capacity = max(InputContracts.slotCapacityMin, capacity - 1) }
                 Text("\(capacity)")
                     .font(LinkUpTypography.mono(30, weight: .bold))
                     .frame(maxWidth: .infinity)
-                capacityButton("plus") { capacity = min(50, capacity + 1) }
+                capacityButton("plus") { capacity = min(InputContracts.slotCapacityMax, capacity + 1) }
             }
         }
     }

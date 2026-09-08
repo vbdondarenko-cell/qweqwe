@@ -25,7 +25,8 @@ actor LinkUpAPI {
 
     func sendIdempotent<Response: Decodable & Sendable>(
         _ request: APIRequest,
-        as type: Response.Type = Response.self
+        as type: Response.Type = Response.self,
+        validate: @Sendable (Response) throws -> Void = { _ in }
     ) async throws -> Response {
         guard request.method != .get else {
             throw APIError.protocolViolation("Idempotent mutation helper cannot send GET requests.")
@@ -42,6 +43,7 @@ actor LinkUpAPI {
         keyedRequest.idempotencyKey = key
         do {
             let response: Response = try await client.send(keyedRequest, as: type)
+            try validate(response)
             releaseMutationKey(identity)
             return response
         } catch is CancellationError {

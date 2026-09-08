@@ -10,10 +10,10 @@ extension LinkUpAPI {
     }
 
     private func requestDecision(_ slotID: UUID, userID: UUID, decision: String) async throws -> SlotModel {
-        try await sendIdempotent(APIRequest(
+        try await sendValidatedSlotMutation(APIRequest(
             method: .post,
             path: "/v1/slots/\(uuidPath(slotID))/requests/\(uuidPath(userID))/\(decision)"
-        ))
+        ), expectedSlotID: slotID)
     }
 
     func removeParticipant(
@@ -24,11 +24,11 @@ extension LinkUpAPI {
         guard expectedVersion > 0 else {
             throw APIError.protocolViolation("expectedVersion must be positive.")
         }
-        return try await sendIdempotent(APIRequest(
+        return try await sendValidatedSlotMutation(APIRequest(
             method: .post,
             path: "/v1/slots/\(uuidPath(slotID))/members/\(uuidPath(userID))/remove",
             body: try encodeBody(ExpectedVersionBody(expectedVersion: expectedVersion))
-        ))
+        ), expectedSlotID: slotID)
     }
 
     func sendChatMessage(_ slotID: UUID, text: String) async throws -> ChatMessage {
@@ -36,10 +36,10 @@ extension LinkUpAPI {
         guard InputContracts.validChatMessage(normalized) else {
             throw APIError.protocolViolation("Chat message must contain 1...2000 Unicode characters.")
         }
-        return try await sendIdempotent(APIRequest(
+        return try await sendValidatedChatMutation(APIRequest(
             method: .post,
             path: "/v1/slots/\(uuidPath(slotID))/chat/messages",
             body: try encodeBody(ChatSendBody(text: normalized))
-        ))
+        ), expectedSlotID: slotID)
     }
 }

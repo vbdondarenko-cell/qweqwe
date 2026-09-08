@@ -22,7 +22,7 @@ extension LinkUpAPI {
                 URLQueryItem(name: "limit", value: String(query.limit))
             ]
         ))
-        return response.items
+        return try validatedServerItems(response.items, context: "map cluster")
     }
 
     func mapPlaceSlots(
@@ -48,6 +48,10 @@ extension LinkUpAPI {
                 URLQueryItem(name: "limit", value: String(limit))
             ]
         ))
-        return response.items
+        let slots = try validatedServerItems(response.items, context: "map place Slot")
+        guard slots.allSatisfy({ $0.canonicalPlaceId == placeID }) else {
+            throw APIError.protocolViolation("Server returned Slots for a different canonical place.")
+        }
+        return slots
     }
 }
