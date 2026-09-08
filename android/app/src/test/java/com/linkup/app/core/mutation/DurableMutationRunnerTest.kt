@@ -138,6 +138,6 @@ class DurableMutationRunnerTest {
     )
 
     private companion object {
-        const val OWNER = "a".repeat(64)
+        val OWNER = "a".repeat(64)
     }
 }
