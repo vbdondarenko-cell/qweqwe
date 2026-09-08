@@ -59,6 +59,9 @@ fun SlotDetailScreen(
     onRefreshAccepted: (String) -> Unit,
     onRemoveParticipant: (String, String, Long) -> Unit,
     mutation: MutationState,
+    hostingBusy: Boolean,
+    hostingError: String?,
+    onPublishDraft: (SlotModel) -> Unit,
     onBack: () -> Unit,
     onRefresh: (String) -> Unit,
     onRequest: (String) -> Unit,
@@ -126,6 +129,7 @@ fun SlotDetailScreen(
                     }
 
                     MutationError(mutation)
+                    hostingError?.let { Text(it, color = LinkUpWarning, fontSize = 12.sp) }
 
                     when (slot.viewerState) {
                         SlotViewerState.NONE -> if (slot.state in setOf(SlotState.PUBLISHED, SlotState.FILLING) && slot.acceptedCount < slot.capacity) {
@@ -145,7 +149,8 @@ fun SlotDetailScreen(
                                 accepted = accepted,
                                 onRefreshAccepted = onRefreshAccepted,
                                 onRemoveParticipant = onRemoveParticipant,
-                                busy = mutation is MutationState.Running,
+                                busy = mutation is MutationState.Running || hostingBusy,
+                                onPublishDraft = onPublishDraft,
                                 onRefreshPending = onRefreshPending,
                                 onApprove = onApprove,
                                 onReject = onReject,
@@ -176,6 +181,7 @@ private fun HostControls(
     onRefreshAccepted: (String) -> Unit,
     onRemoveParticipant: (String, String, Long) -> Unit,
     busy: Boolean,
+    onPublishDraft: (SlotModel) -> Unit,
     onRefreshPending: (String) -> Unit,
     onApprove: (String, String) -> Unit,
     onReject: (String, String) -> Unit,
@@ -190,6 +196,10 @@ private fun HostControls(
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         SmallAction(stringResource(R.string.slot_edit), Modifier.weight(1f), !busy) { onEdit(slot) }
         SmallAction(stringResource(R.string.slot_requests), Modifier.weight(1f), !busy) { onRefreshPending(slot.id) }
+    }
+
+    if (slot.state == SlotState.DRAFT) {
+        ActionButton(stringResource(R.string.slot_publish_draft), LinkUpSuccess, !busy) { onPublishDraft(slot) }
     }
 
     when (pending) {
