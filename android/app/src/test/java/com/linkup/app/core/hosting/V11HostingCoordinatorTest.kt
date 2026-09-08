@@ -27,7 +27,8 @@ class V11HostingCoordinatorTest {
         assertEquals(SlotState.DRAFT, draft.state)
         assertEquals(0, api.publishCalls)
 
-        assertTrue(coordinator.publishCurrent())
+        val publishedResult = assertIs<SlotModel>(coordinator.publishCurrent())
+        assertEquals(SlotState.FILLING, publishedResult.state)
         val published = assertIs<LoadState.Content<SlotModel>>(coordinator.draft.value).value
         assertEquals(SlotState.FILLING, published.state)
         assertEquals(1, api.publishCalls)
