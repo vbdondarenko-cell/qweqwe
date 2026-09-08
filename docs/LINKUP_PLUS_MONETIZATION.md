@@ -1,30 +1,194 @@
-# LinkUp+ — Monetization Contract
+# LinkUp+ — Monetization and Entitlement Contract
 
-Status: **canonical product contract for LinkUp+ monetization**, sourced from the user-provided `LinkUp Monetization Model.md` on 2026-09-07.
+Статус: **canonical product contract для монетизації та складу LinkUp+**.
 
-This is an early **v1.2** foundation. Active release remains **v1.0** and must not be blocked by this work. `PROJECT_RULES.md` and `README.md` keep higher priority for release ordering, security, server authority and platform boundaries.
+Документ визначає:
 
-## 1. Paid premium plans
+- стартову цінову сітку;
+- єдиний набір переваг для всіх тривалостей підписки;
+- межу між безкоштовним LinkUp і LinkUp+;
+- rewarded/referral правила;
+- вимоги до billing, entitlement і UX;
+- фактичну різницю між target scope та поточною реалізацією.
 
-| Plan | Customer price | Effective monthly price | 12-month amount |
+LinkUp+ належить до **v1.2**. Активний release не можна блокувати незавершеним LinkUp+, а LinkUp+ не можна продавати як готовий продукт, поки оплачувані переваги та store/server verification не працюють end-to-end. `PROJECT_RULES.md` і `README.md` мають вищий пріоритет щодо release ordering, security, server authority та platform boundaries.
+
+## 1. Продуктове позиціонування
+
+**LinkUp+ — це розширений набір інструментів для активніших учасників, організаторів і мандрівників.**
+
+Користувач платить за:
+
+- ширше та точніше керування пошуком реальних активностей;
+- потужніші інструменти організації LINK;
+- планування активностей в інших містах і часових поясах;
+- автоматизацію повторюваних дій із жорсткими safety/rate-limit межами;
+- приватну self-only аналітику;
+- розширену персоналізацію;
+- додаткові convenience/privacy режими, які не підміняють базову безпеку.
+
+Усі плани відкривають **однаковий LinkUp+ entitlement**. Відрізняється лише тривалість і ціна. Заборонено створювати приховані feature-відмінності між 7 днями, місяцем, 3 місяцями та роком.
+
+## 2. Стартові ціни
+
+Це рекомендована **launch pricing сітка для раннього етапу**, а не доведений оптимум. Її потрібно перевіряти на реальних даних paywall funnel, purchase conversion, renewals, refunds, churn і використанні кожної premium capability.
+
+| План | Ціна користувача | Ефективно за місяць | Економія відносно місячного плану |
 |---|---:|---:|---:|
-| Monthly | 149.99 UAH/month | 149.99 UAH | 1,799.88 UAH |
-| Annual prepaid | 1,199.88 UAH/year | 99.99 UAH/month | 1,199.88 UAH |
+| 7 днів | **39,99 грн** | не застосовується | короткий гнучкий доступ |
+| 1 місяць | **99,99 грн** | **99,99 грн** | базова ціна |
+| 3 місяці | **249,99 грн** | **83,33 грн/міс.** | **49,98 грн / 16,7%** |
+| 12 місяців | **799,99 грн** | **66,67 грн/міс.** | **399,89 грн / 33,3%** |
 
-Annual saving versus twelve monthly payments: **600.00 UAH / 33.3%**.
+Рекомендований порядок у paywall:
 
-External Google Play product IDs are intentionally **not invented here**. Paid entitlement becomes active only after server-side Play Billing verification is implemented and configured.
+1. **3 місяці — рекомендований стартовий вибір**;
+2. 1 місяць — базовий вибір;
+3. 12 місяців — максимальна економія;
+4. 7 днів — короткий доступ без нав'язування довгого зобов'язання.
 
-## 2. Rewarded premium day
+Правила показу ціни:
+
+- показувати повну суму списання, період і auto-renewal/prepaid type до підтвердження;
+- не називати оплачувані 7 днів “free trial”;
+- не використовувати фальшивий countdown, fake discount або приховане автопродовження;
+- реальна локальна store price є authority для checkout UI; серверний catalog не може підміняти ціну, повернену Google Play/App Store;
+- зовнішні product/base-plan IDs не вигадуються в документації;
+- перед зміною ціни аналізувати реальні cohort retention, conversion, churn, refund rate, net revenue після store fee/tax та feature usage;
+- не підвищувати ціну тільки через календарну дату або бажаний revenue без продуктового сигналу.
+
+## 3. Що входить у LinkUp+
+
+Нижче описаний **повний target entitlement v1.2**. У production paywall дозволено обіцяти лише capabilities, які реально ввімкнені сервером і пройшли відповідний release gate.
+
+### 3.1. Travel Pro
+
+- Global Astral Jump — перегляд підтримуваних міст без підміни фізичної присутності;
+- remote exploration підтримуваних locality;
+- чітке розділення physical і astral state;
+- Pre-Flight Slots;
+- розширений горизонт планування подорожей і scheduled LINK;
+- timezone/DST-safe planning;
+- Voice Babel: тимчасове speech-to-text і переклад для координації;
+- відсутність постійного voice archive.
+
+### 3.2. Host Power Tools
+
+- Mega-Slots до серверного product ceiling;
+- масштабований roster із pagination/realtime;
+- Stealth Slots з invite-link-only visibility;
+- opaque revocable invite tokens;
+- розширені Slot Blueprints;
+- Co-Hosting;
+- granular organizer permissions;
+- owner protection;
+- audited grants/revokes;
+- шаблон ніколи не клонує старих учасників, приватні адреси або токени.
+
+### 3.3. Advanced Discovery
+
+- Radius Overdrive у межах server-defined radius;
+- Vibe-Match Filters;
+- фільтри за мовою, інтересами, assets і accessibility compatibility;
+- Auto-Pilot Join із явною згодою, caps, cooldowns і dedupe;
+- для Approval Slot автоматизація створює тільки REQUEST;
+- для Instant Slot auto-JOIN можливий лише після explicit opt-in;
+- Pulse Time-Machine;
+- historical privacy-safe city/map aggregates;
+- заборона реконструкції індивідуальних маршрутів.
+
+### 3.4. Privacy and Quality of Life
+
+- Ghost Mode як розширений режим керування видимістю;
+- відсутність passive public presence/BPM contribution під час Ghost Mode;
+- Priority Boarding як візуальний/request aid без переваги за місце або waitlist;
+- Oops-Rewind через compensating commands, а не видалення audit history;
+- Multi-Threading / intent groups;
+- atomic winner lock;
+- відсутність silent cancellation після зовнішнього commitment;
+- Guardian Auto-Ping для заздалегідь визначених trusted contacts;
+- ніколи не вмикати `LIVE_PRECISE` без окремої явної згоди.
+
+### 3.5. Identity, Analytics and Personalization
+
+- Hex-Aura як cosmetic-only оформлення;
+- BUMP Vault Pro: self-only аналітика;
+- unique people met;
+- repeat BUMPs;
+- verified meetup count;
+- activity/city trends без exact route reconstruction;
+- Custom App Icons;
+- OLED Black / Neon Cyberpunk class themes;
+- contrast, font scaling і Reduce Motion сумісність.
+
+Косметика та оплата не дають ranking, BPM, Hotspot, trust, moderation або capacity переваги.
+
+### 3.6. Forgiveness
+
+- один non-stacking eligible No-Strike Forgiveness credit на policy period;
+- вихідна cancellation event лишається auditable;
+- forgiveness не діє на no-show, safety або moderation порушення;
+- reliability modifier обмежений server policy.
+
+## 4. Що завжди залишається безкоштовним
+
+LinkUp+ не може paywallити core social network або базову безпеку.
+
+Безкоштовними лишаються:
+
+- реєстрація, login, profile і session restore;
+- створення базового LINK;
+- перегляд базового Pulse/Map scope;
+- REQUEST/JOIN/LEAVE, host approval/rejection і basic roster;
+- accepted-only Zero-Trace coordination chat;
+- block, report, moderation appeals та emergency/safety entry points;
+- Privacy Center і базові visibility controls;
+- приховування exact location від незнайомців;
+- базові accessibility controls;
+- manual guardian/safety action, якщо вона потрібна для особистої безпеки;
+- cancellation та керування підпискою.
+
+Важлива межа: **базова приватність безкоштовна**. LinkUp+ може давати automation, scheduling або extended convenience навколо Ghost/Guardian, але не може змушувати платити за припинення небажаного стеження, блокування людини, приховування точної геолокації чи виклик допомоги.
+
+## 5. Мінімальний склад першого платного релізу
+
+Не можна запускати billing лише з красивим paywall. Перед першою реальною оплатою мають працювати щонайменше:
+
+- store purchase + restore;
+- server-side receipt/purchase verification;
+- entitlement states `ACTIVE / GRACE / BILLING_RETRY / EXPIRED / REVOKED`;
+- refund/revoke/renewal/account-switch handling;
+- subscription management/cancellation entry;
+- щонайменше один реально корисний shipped блок із Host Power Tools;
+- щонайменше один реально корисний shipped блок із Advanced Discovery;
+- щонайменше один shipped блок із Analytics або Personalization;
+- чесний feature availability list із server capability flags;
+- Android/iOS UI не показує unavailable target features як already included and active.
+
+Travel Pro, Voice Babel, Auto-Pilot, Pulse Time-Machine, Ghost automation або Guardian Auto-Ping можуть з'являтися пізніше, але до активації їх не можна використовувати як неправдиву причину купівлі.
+
+## 6. Rewarded LinkUp+ Free Day
 
 Product policy:
 
-- one credited video every **4 hours**;
-- **5** credited videos per reward cycle;
-- source model describes the journey as **20 hours**;
-- reward: **1 day of premium**;
-- premium-day claim: at most **once per 7 days**;
-- approximate monthly exposure: **~4 free premium days**.
+- rewarded quest доступний тільки всередині LinkUp+ surface;
+- **5** server-verified rewarded views;
+- мінімум **4 години** між зарахованими кроками;
+- quest window: **24 години**;
+- п'ятий verified view атомарно надає **24 години LinkUp+**;
+- cooldown: **7 днів після завершення earned grant**;
+- multi-device state синхронізується через сервер;
+- paid subscription має пріоритет; reward не stack-иться поверх оплачуваного періоду;
+- provider outage/no-fill не створює fake completion.
+
+Заборонено:
+
+- ads у Pulse, Map, LINK, Fly, chat або safety flows;
+- forced interstitials;
+- вимогу click/install/purchase для зарахування;
+- precise social/location targeting;
+- rewarded flow у probable driver state;
+- client-authoritative `watched=true`.
 
 Canonical tracking state:
 
@@ -32,129 +196,133 @@ Canonical tracking state:
 - `videos_watched_count` (`0..5`);
 - `last_free_premium_claimed_at`.
 
-A client callback is never sufficient proof. A video counts only after a server-side rewarded-ad verifier accepts a provider receipt/event. Raw provider receipts/tokens must not be persisted or logged; only hashes and normalized verified facts may be stored.
+Raw provider receipts/tokens не зберігаються й не логуються. Зберігаються hash та нормалізовані verified facts.
 
-### Timing note
+## 7. Referral program
 
-The supplied model states both “one video every 4 hours” and “5 videos = 20 hours”. If video #1 were immediately eligible, five views separated by four-hour gaps could span 16 hours from first to fifth. The product contract retains the supplied **20-hour** user-facing target; provider activation semantics must be finalized before rewarded verification is enabled so the implementation does not silently change this rule.
+Referral кваліфікується лише після server-verified paid subscription запрошеного користувача протягом **14 днів** після реєстрації його account.
 
-## 3. Referral program
-
-A referral qualifies **only after the invited user pays for a verified subscription**, and the payment must happen within **14 days of the invited account registration**.
-
-Progressive milestones:
-
-| Qualified referrals | Inviter reward | Triggering invitee reward |
+| Qualified referrals | Нагорода inviter | Нагорода triggering invitee |
 |---:|---:|---:|
-| 1 | 1 premium day | 1 premium day |
-| 3 | 7 premium days | 3 premium days |
-| 5 | 30 premium days | 7 premium days |
-| 10 | 90 premium days + badge/status | 7 premium days |
+| 1 | 1 день LinkUp+ | 1 день LinkUp+ |
+| 3 | 7 днів LinkUp+ | 3 дні LinkUp+ |
+| 5 | 30 днів LinkUp+ | 7 днів LinkUp+ |
+| 10 | 90 днів LinkUp+ + badge/status | 7 днів LinkUp+ |
 
-Implementation interpretation: each milestone is awarded **once** per inviter. The qualifying invitee whose verified paid conversion crosses the milestone receives the invitee-side reward for that milestone. This prevents replaying lower milestones for the same paid event.
+Правила:
 
-Referral-code binding is server-authoritative:
+- кожний milestone видається inviter лише один раз;
+- один invitee може прив'язати лише одного inviter;
+- повторне прив'язування того самого code idempotent;
+- self-referral заборонений;
+- deadline обчислюється від server `app_users.created_at`;
+- binding сам по собі не дає reward;
+- refund/revocation до qualification не може створити paid referral;
+- leaderboard reward не видається, доки окремо не визначені amount, ranking window, ties і anti-fraud policy.
 
-- every authenticated account can obtain one stable referral code;
-- an invitee can bind only one inviter;
-- binding the same code again is idempotent;
-- self-referral is rejected;
-- the qualification deadline is calculated from canonical `app_users.created_at + 14 days`, not from the Android clock;
-- binding alone grants **no premium**; the referral becomes qualified only after a future verified paid-subscription event.
+## 8. Server authority and anti-fraud
 
-The source also calls for a monthly referral leaderboard and an additional monthly reward, but does **not specify the reward amount or exact ranking policy**. The system may expose verified monthly counts/ranking later, but must not invent or automatically grant an unspecified leaderboard reward.
+- mobile client ніколи не надає LinkUp+ локально;
+- billing/rewarded/referral qualification вирішує Go;
+- store/provider price є checkout authority, а Go перевіряє product, purchase state і entitlement;
+- purchase/ad tokens є secrets і не логуються;
+- duplicate provider events idempotent;
+- refund/revoke/chargeback/grace представлені server-side;
+- новий grant ніколи не скорочує вже довший valid grant;
+- direct Supabase `anon`/`authenticated` access до monetization tables заборонений;
+- entitlement не дає обхід block, moderation, safety, capacity, lifecycle або privacy rules;
+- capability flags fail closed.
 
-## 4. Server authority / anti-fraud
+## 9. Android and iOS UX contract
 
-- Android never grants premium locally.
-- Billing/rewarded/referral qualification is decided by Go.
-- purchase/ad tokens are treated as secrets and never logged;
-- provider receipts are stored only as hashes after verification;
-- duplicate provider receipts must be idempotent;
-- refunded/revoked paid periods must be represented server-side;
-- premium grants must never be shortened by a later grant;
-- referral self-invites are forbidden;
-- one invitee can bind to at most one inviter;
-- direct Supabase `anon`/`authenticated` access to monetization tables is forbidden.
+LinkUp+ відкривається з **Me** і не змінює `Pulse · Map · LINK · Fly · Me`.
 
-## 5. Android UX contract
+Surface показує:
 
-LinkUp+ is entered from **Me**, without changing the canonical `Pulse · Map · LINK · Fly · Me` navigation.
+- чіткий список доступних зараз переваг;
+- 7-day, monthly, 3-month і annual plans;
+- одну й ту саму entitlement для всіх durations;
+- current status, expiry і billing state;
+- повну суму списання та renewal/prepaid behavior;
+- effective monthly price і реальну економію;
+- purchase, restore і manage/cancel actions;
+- rewarded progress, next step і cooldown;
+- own referral code, binding deadline, milestones і qualified count;
+- unavailable/fail-closed state, якщо store/provider/server verification не готові.
 
-The screen must show real server state plus:
+Заборонені fake activation, fake ad completion, fake referral count, hardcoded checkout price як заміна store price та client-authoritative entitlement.
 
-- monthly/annual plans and 600 UAH annual saving;
-- current premium status/expiry;
-- rewarded progress (`x/5`), 4-hour cadence, next availability/weekly claim timing when known;
-- the user's own referral code;
-- one-time inviter-code binding with the canonical qualification deadline;
-- referral milestones and verified qualified-referral count;
-- clear unavailable/fail-closed messaging while Play Billing or rewarded verification adapters are not configured.
+## 10. Current repository implementation status — 2026-09-08
 
-No fake “premium activated”, fake ad completion, fake referral count or client-authoritative entitlement state is allowed.
-
-## 6. Repository implementation status — 2026-09-07
-
-Implemented in `main` as an **early v1.2 production foundation**:
+У `main` уже є early v1.2 foundation:
 
 ### Database
 
-`db/migrations/000009_linkup_plus_monetization.sql` adds canonical tables for:
+`db/migrations/000009_linkup_plus_monetization.sql` містить таблиці для:
 
 - premium grants;
-- rewarded progress and hashed verified rewarded receipts;
+- rewarded progress і hashed verified rewarded receipts;
 - verified subscription receipts;
-- referral codes and invitee→inviter binding;
+- referral codes і invitee-to-inviter binding;
 - one-time referral milestone awards.
 
-The migration explicitly revokes direct table access from `PUBLIC`, `anon` and `authenticated`. It has **not been applied to production Supabase in this work block**, because the user requested repository-only work.
+Direct access для `PUBLIC`, `anon` і `authenticated` revoked.
 
 ### Go
 
-New monetization domain/read model:
+Наявні:
 
-- exact plan/reward/referral policy constants;
-- authenticated `GET /v1/me/monetization`;
-- authenticated `POST /v1/me/referral`;
-- PostgreSQL-backed premium/reward/referral state;
-- stable per-account referral codes;
-- server-side 14-day referral binding deadline;
-- self-referral and rebinding protection;
-- provider capability flags default to `false` so unconfigured payment/ad verification fails closed.
+- `GET /v1/me/monetization`;
+- referral binding endpoint;
+- server-backed status;
+- referral codes/deadlines/milestones;
+- fail-closed provider capability flags.
 
-Pure Go policy tests were added for prices, savings, rewarded cadence/cooldown, referral milestones, code normalization and fail-closed capabilities. These tests are **present but not claimed as executed in this repository-only block**.
+Поточний Go catalog **ще застарілий відносно цього контракту**:
+
+- повертає тільки `monthly` і `annual`;
+- використовує 149,99 грн/місяць та 1 199,88 грн/рік;
+- не має 7-day і 3-month plans;
+- не повертає feature availability/entitlement-benefit catalog.
 
 ### Android
 
-Added:
+Наявні model/client/native LinkUp+ surface, status, old plan catalog, rewarded progress і referrals.
 
-- `MonetizationModels.kt`;
-- authenticated `MonetizationApiClient.kt` with bounded responses and GET-only retry;
-- native `LinkUpPlusScreen.kt`;
-- entry from existing `Me` without changing bottom navigation;
-- Ukrainian and English LinkUp+ resources;
-- real server-backed premium status, plan prices, rewarded progress/timing, referral count/milestones;
-- own referral code and real one-time referral-code submission to Go.
+Потрібно оновити:
 
-The Android client never creates a premium grant and never treats a local purchase/ad callback as proof.
+- generic rendering усіх чотирьох plan durations;
+- launch prices;
+- store-returned localized checkout prices;
+- benefits/availability section;
+- purchase/restore/manage actions;
+- server verification flow.
 
-### Commits in this work block
+### iOS
 
-- data foundation: `d759755783e595d40bec931666237d293207a32e`;
-- monetization contract: `3ddb61ff8e5bf37c6d057f436e331c7e054284c7`;
-- Go domain/test/store/API wiring: `f8f7828a0c1b7f7cc900cecf5e63a9cfe41ad4d7` → `68933d41af484793502bb1ab7c927be9e1b72f0f`;
-- Android model/client/screen/Me wiring/resources: `8036fc6cd854b015009368c3b38a39d7e4115232` → `9cff1579525934b6919947f9a49df532d76f2c0b`.
+Наявні Swift models, API/session binding, LinkUp+ view, status, plan list, rewarded progress і referrals.
 
-## 7. Intentionally still locked / not claimed complete
+Потрібно оновити:
 
-The following require external product/provider configuration and are **not** faked:
+- коректні labels для `WEEK`, `MONTH`, `THREE_MONTH`, `YEAR`;
+- усі чотири plan durations;
+- localized strings;
+- StoreKit purchase/restore/manage;
+- App Store server verification;
+- benefits/availability section.
 
-- actual Google Play subscription purchase flow and server-side Play purchase verification;
-- RTDN/subscription renewal/refund/revocation processing;
-- rewarded-ad SDK/provider integration and server-side rewarded receipt verification;
-- mutation that increments the 0..5 rewarded counter and grants the verified weekly premium day;
-- qualification of a referral after a verified paid receipt and atomic milestone premium grants;
-- the monthly referral leaderboard reward, because its exact reward and ranking/tie policy were not specified by the supplied model;
-- production migration execution, runtime role grants and end-to-end Android/Go/PostgreSQL verification.
+## 11. Required synchronization after approval
 
-These are v1.2 completion gates and do not change the active v1.0 release order.
+Перед production activation цього pricing contract потрібно синхронно оновити:
+
+- `README.md` §7.7: `WEEKLY / MONTHLY / THREE_MONTH / ANNUAL`;
+- Go catalog constants, plan model і policy tests;
+- Android parser, UI labels, tests і localization;
+- iOS parser, UI labels, tests і localization;
+- Google Play base plans/offers;
+- App Store subscription products/group;
+- server product allowlist і provider verification adapters;
+- paywall analytics events без sensitive/social/location payload;
+- implementation ledger після фактично виконаних змін.
+
+Зміна цього документа **не означає**, що billing уже активований або що target LinkUp+ features реалізовані.
