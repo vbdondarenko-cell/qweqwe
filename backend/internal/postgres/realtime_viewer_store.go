@@ -22,6 +22,9 @@ func NewRealtimeViewerStore(pool *pgxpool.Pool) (*RealtimeViewerStore, error) {
 // PullViewer treats canonical outbox events as invalidation deltas, not as
 // client authority. The cursor advances across invisible events so a client
 // cannot use the feed as a side channel by repeatedly probing the same range.
+// When more than limit visible events occur inside the scanned range, however,
+// the cursor stops at the last returned visible event so no authorized delta is
+// skipped by pagination.
 func (s *RealtimeViewerStore) PullViewer(ctx context.Context, viewerID string, after int64, limit int) (realtime.ViewerBatch, error) {
 	if viewerID == "" || after < 0 || limit < 1 || limit > realtime.MaxViewerBatch {
 		return realtime.ViewerBatch{}, realtime.ErrInvalidInput
@@ -35,7 +38,7 @@ func (s *RealtimeViewerStore) PullViewer(ctx context.Context, viewerID string, a
 		scanLimit = realtime.MaxBatch
 	}
 
-	var cursor int64
+	var scannedCursor int64
 	if err := s.pool.QueryRow(ctx, `
 		SELECT COALESCE(max(sequence), $1)
 		FROM (
@@ -44,21 +47,21 @@ func (s *RealtimeViewerStore) PullViewer(ctx context.Context, viewerID string, a
 			WHERE sequence > $1
 			ORDER BY sequence ASC
 			LIMIT $2
-		) scanned`, after, scanLimit).Scan(&cursor); err != nil {
+		) scanned`, after, scanLimit).Scan(&scannedCursor); err != nil {
 		return realtime.ViewerBatch{}, err
 	}
 
-	batch := realtime.ViewerBatch{Cursor: cursor, Events: make([]realtime.Event, 0, limit)}
-	if cursor == after {
-		return batch, nil
+	if scannedCursor == after {
+		return realtime.ViewerBatch{Cursor: after, Events: []realtime.Event{}}, nil
 	}
 
-	rows, err := s.pool.Query(ctx, viewerRealtimeSQL, viewerID, after, cursor, limit)
+	rows, err := s.pool.Query(ctx, viewerRealtimeSQL, viewerID, after, scannedCursor, limit+1)
 	if err != nil {
 		return realtime.ViewerBatch{}, err
 	}
 	defer rows.Close()
 
+	items := make([]realtime.Event, 0, limit+1)
 	for rows.Next() {
 		var event realtime.Event
 		if err := rows.Scan(
@@ -70,12 +73,22 @@ func (s *RealtimeViewerStore) PullViewer(ctx context.Context, viewerID string, a
 		if !event.Valid() {
 			return realtime.ViewerBatch{}, errors.New("invalid viewer realtime event")
 		}
-		batch.Events = append(batch.Events, event)
+		items = append(items, event)
 	}
 	if err := rows.Err(); err != nil {
 		return realtime.ViewerBatch{}, err
 	}
-	return batch, nil
+	return finalizeViewerBatch(scannedCursor, items, limit), nil
+}
+
+func finalizeViewerBatch(scannedCursor int64, events []realtime.Event, limit int) realtime.ViewerBatch {
+	if len(events) > limit {
+		return realtime.ViewerBatch{
+			Cursor: events[limit-1].Sequence,
+			Events: events[:limit],
+		}
+	}
+	return realtime.ViewerBatch{Cursor: scannedCursor, Events: events}
 }
 
 const viewerRealtimeSQL = `
