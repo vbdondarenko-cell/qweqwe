@@ -31,6 +31,10 @@ actor DurableMutationOutbox {
         try writeCommands(commands)
     }
 
+    func command(idempotencyKey: UUID) throws -> DurableMutationCommand? {
+        try readCommands().first { $0.idempotencyKey == idempotencyKey }
+    }
+
     func replayableEquivalent(
         ownerFingerprint: String,
         requestIdentity: String,

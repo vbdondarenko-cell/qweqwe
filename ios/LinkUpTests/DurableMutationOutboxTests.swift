@@ -50,6 +50,19 @@ final class DurableMutationOutboxTests: XCTestCase {
         XCTAssertEqual(equivalent?.body, original.body)
     }
 
+    func testOutboxFindsExactCallerKeyWithoutIdentitySubstitution() async throws {
+        let root = temporaryRoot()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let outbox = DurableMutationOutbox(baseDirectory: root)
+        let original = command(createdAt: fixedNow, firstAttemptAt: nil)
+        try await outbox.enqueue(original)
+
+        let exact = try await outbox.command(idempotencyKey: original.idempotencyKey)
+        let missing = try await outbox.command(idempotencyKey: UUID())
+        XCTAssertEqual(exact, original)
+        XCTAssertNil(missing)
+    }
+
     func testOutboxFlagsAgedAmbiguousCommandInsteadOfReplayingIt() async throws {
         let root = temporaryRoot()
         defer { try? FileManager.default.removeItem(at: root) }

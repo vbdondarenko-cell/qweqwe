@@ -11,10 +11,17 @@ extension LinkUpAPI {
 
 
     func createDraftSlot(_ body: CreateSlotBody, idempotencyKey: UUID) async throws -> SlotModel {
-        try await sendValidatedSlotMutation(APIRequest(
+        try await createDraftSlot(encodedBody: encodeBody(body), idempotencyKey: idempotencyKey)
+    }
+
+    func createDraftSlot(encodedBody: Data, idempotencyKey: UUID) async throws -> SlotModel {
+        guard !encodedBody.isEmpty, encodedBody.count <= durableMutationMaxBodyBytes else {
+            throw APIError.protocolViolation("Draft creation body exceeds the durable safety limit.")
+        }
+        return try await sendValidatedSlotMutation(APIRequest(
             method: .post,
             path: "/v1/slots/drafts",
-            body: try encodeBody(body),
+            body: encodedBody,
             idempotencyKey: idempotencyKey
         ), additionalValidation: { try validateDraftCreateReplay($0) })
     }
