@@ -26,6 +26,8 @@
     <string name="create_public_subtitle">Visible to people allowed by server privacy rules</string>
     <string name="create_review_subtitle">Review before publishing.</string>
     <string name="create_preview_capacity_format">0/%1$d going · Approval required · Public</string>
-    <string name="create_server_backed_notice">Publishing creates a real server-backed LinkUp.</string>
+    <string name="create_server_backed_notice">Saving creates a real server-backed draft. Publish the LINK after review.</string>
     <string name="create_publishing">Publishing…</string>
+    <string name="create_save_draft">Save draft</string>
+    <string name="create_saving_draft">Saving…</string>
 </resources>
