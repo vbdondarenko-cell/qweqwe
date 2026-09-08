@@ -22,6 +22,7 @@ import (
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/postgres"
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/push"
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/ratelimit"
+	"github.com/vbdondarenko-cell/qweqwe/backend/internal/realtime"
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/recovery"
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/slot"
 )
@@ -74,6 +75,10 @@ func main() {
 	if err != nil { slog.Error("map service init failed", "error", err); os.Exit(1) }
 	placeService, err := places.NewService(postgres.NewPlaceStore(pool))
 	if err != nil { slog.Error("place service init failed", "error", err); os.Exit(1) }
+	realtimeStore, err := postgres.NewRealtimeViewerStore(pool)
+	if err != nil { slog.Error("realtime store init failed", "error", err); os.Exit(1) }
+	realtimeService, err := realtime.NewFeedService(realtimeStore)
+	if err != nil { slog.Error("realtime service init failed", "error", err); os.Exit(1) }
 
 	monetizationService := monetization.NewService(postgres.NewMonetizationStore(pool))
 
@@ -102,6 +107,7 @@ func main() {
 		Chats: chatService,
 		Map: mapService,
 		Places: placeService,
+		Realtime: realtimeService,
 		Monetization: monetizationService,
 		Push: pushService,
 		Ready: pool.Ping,
