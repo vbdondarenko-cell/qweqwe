@@ -24,8 +24,10 @@ targets:
       configs:
         Debug:
           LINKUP_API_BASE_URL: ""
+          LINKUP_RECOVERY_RESET_URL: ""
         Release:
           LINKUP_API_BASE_URL: ""
+          LINKUP_RECOVERY_RESET_URL: ""
     scheme:
       testTargets:
         - LinkUpTests

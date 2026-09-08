@@ -33,8 +33,13 @@ final class AppRuntime: ObservableObject {
     }
 
     @Published private(set) var state: State = .starting
-    let authRoutes = AuthRouteCoordinator()
+    let authRoutes: AuthRouteCoordinator
     private var started = false
+
+    init(bundle: Bundle = .main) {
+        let raw = (bundle.object(forInfoDictionaryKey: "LINKUP_RECOVERY_RESET_URL") as? String) ?? ""
+        authRoutes = AuthRouteCoordinator(trustedResetRoute: PasswordResetRoute(configuredURL: raw))
+    }
 
     func start() async {
         guard !started else { return }

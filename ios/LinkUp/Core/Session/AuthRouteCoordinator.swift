@@ -4,15 +4,16 @@ import SwiftUI
 @MainActor
 final class AuthRouteCoordinator: ObservableObject {
     @Published private(set) var pendingPasswordResetToken: String?
+    private let trustedResetRoute: PasswordResetRoute?
+
+    init(trustedResetRoute: PasswordResetRoute? = nil) {
+        self.trustedResetRoute = trustedResetRoute
+    }
 
     @discardableResult
     func accept(_ url: URL) -> Bool {
-        guard url.scheme?.lowercased() == "https",
-              let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
-              let items = components.queryItems,
-              items.count == 1,
-              items[0].name == "token",
-              let token = passwordResetToken(from: url.absoluteString) else {
+        guard let trustedResetRoute,
+              let token = trustedResetRoute.token(fromIncomingURL: url) else {
             return false
         }
         pendingPasswordResetToken = token

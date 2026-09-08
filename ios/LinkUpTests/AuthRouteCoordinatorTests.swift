@@ -5,9 +5,12 @@ import XCTest
 @MainActor
 final class AuthRouteCoordinatorTests: XCTestCase {
     private let token = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+    private var trustedRoute: PasswordResetRoute {
+        PasswordResetRoute(configuredURL: "https://app.example/reset-password")!
+    }
 
     func testAcceptsHTTPSResetRouteAndConsumesTokenOnce() throws {
-        let router = AuthRouteCoordinator()
+        let router = AuthRouteCoordinator(trustedResetRoute: trustedRoute)
         let url = try XCTUnwrap(URL(string: "https://app.example/reset-password?token=\(token)"))
 
         XCTAssertTrue(router.accept(url))
@@ -18,7 +21,7 @@ final class AuthRouteCoordinatorTests: XCTestCase {
     }
 
     func testRejectsNonHTTPSAndNonResetQueryShapes() throws {
-        let router = AuthRouteCoordinator()
+        let router = AuthRouteCoordinator(trustedResetRoute: trustedRoute)
         let http = try XCTUnwrap(URL(string: "http://app.example/reset-password?token=\(token)"))
         let extraQuery = try XCTUnwrap(URL(string: "https://app.example/reset-password?token=\(token)&source=mail"))
         let missing = try XCTUnwrap(URL(string: "https://app.example/reset-password"))
@@ -31,8 +34,27 @@ final class AuthRouteCoordinatorTests: XCTestCase {
         XCTAssertNil(router.pendingPasswordResetToken)
     }
 
-    func testRejectsMalformedResetToken() throws {
+    func testRejectsWrongRecoveryOriginPathAndPort() throws {
+        let router = AuthRouteCoordinator(trustedResetRoute: trustedRoute)
+        let wrongHost = try XCTUnwrap(URL(string: "https://evil.example/reset-password?token=\(token)"))
+        let wrongPath = try XCTUnwrap(URL(string: "https://app.example/other?token=\(token)"))
+        let wrongPort = try XCTUnwrap(URL(string: "https://app.example:8443/reset-password?token=\(token)"))
+
+        XCTAssertFalse(router.accept(wrongHost))
+        XCTAssertFalse(router.accept(wrongPath))
+        XCTAssertFalse(router.accept(wrongPort))
+        XCTAssertNil(router.pendingPasswordResetToken)
+    }
+
+    func testRejectsAutomaticRouteWhenTrustedRecoveryURLIsNotConfigured() throws {
         let router = AuthRouteCoordinator()
+        let url = try XCTUnwrap(URL(string: "https://app.example/reset-password?token=\(token)"))
+        XCTAssertFalse(router.accept(url))
+        XCTAssertNil(router.pendingPasswordResetToken)
+    }
+
+    func testRejectsMalformedResetToken() throws {
+        let router = AuthRouteCoordinator(trustedResetRoute: trustedRoute)
         let url = try XCTUnwrap(URL(string: "https://app.example/reset-password?token=abc"))
 
         XCTAssertFalse(router.accept(url))
@@ -40,7 +62,7 @@ final class AuthRouteCoordinatorTests: XCTestCase {
     }
 
     func testClearDropsPendingSensitiveRouteState() throws {
-        let router = AuthRouteCoordinator()
+        let router = AuthRouteCoordinator(trustedResetRoute: trustedRoute)
         let url = try XCTUnwrap(URL(string: "https://app.example/reset-password?token=\(token)"))
         XCTAssertTrue(router.accept(url))
 
