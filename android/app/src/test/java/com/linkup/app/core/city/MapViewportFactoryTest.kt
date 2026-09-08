@@ -34,6 +34,20 @@ class MapViewportFactoryTest {
         assertTrue(longitudeFraction(place.longitudeE6, query.westE6, query.eastE6) in 0.49f..0.51f)
     }
 
+    @Test
+    fun `privacy safe locality centroid can center the same viewport without device coordinates`() {
+        val query = mapViewportAroundCoordinates(
+            latitudeE6 = 50_450_000,
+            longitudeE6 = 30_523_000,
+            zoom = 13,
+            fromEpochMillis = 1_000,
+            toEpochMillis = 2_000,
+        )
+
+        assertTrue(latitudeFraction(50_450_000, query.southE6, query.northE6) in 0.49f..0.51f)
+        assertTrue(longitudeFraction(30_523_000, query.westE6, query.eastE6) in 0.49f..0.51f)
+    }
+
     private fun place(latitudeE6: Int, longitudeE6: Int) = CanonicalPlace(
         id = "00000000-0000-0000-0000-000000000001",
         name = "Place",
