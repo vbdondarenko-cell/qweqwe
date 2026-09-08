@@ -39,6 +39,14 @@ enum SlotState: String, Codable, Sendable {
     var allowsHostStart: Bool {
         self == .filling || self == .full
     }
+
+    var allowsChat: Bool {
+        self == .filling || self == .full || self == .active
+    }
+
+    var allowsHostManagement: Bool {
+        self == .published || self == .filling || self == .full || self == .active
+    }
 }
 
 enum SlotAccessMode: String, Codable, Sendable {

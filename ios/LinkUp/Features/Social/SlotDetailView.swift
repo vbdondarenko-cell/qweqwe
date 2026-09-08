@@ -180,12 +180,16 @@ struct SlotDetailView: View {
                     LinkUpButton(title: "Full", variant: .secondary, disabled: true) { }
                 }
             case .pending:
-                LinkUpButton(title: "Withdraw request", variant: .secondary, disabled: coordinator.mutationControlsDisabled) {
-                    runMutation { try await coordinator.leave(slot) }
+                if slot.canLeaveRelationship {
+                    LinkUpButton(title: "Withdraw request", variant: .secondary, disabled: coordinator.mutationControlsDisabled) {
+                        runMutation { try await coordinator.leave(slot) }
+                    }
                 }
             case .accepted:
-                if !slot.isTerminal {
+                if slot.canUseChat {
                     LinkUpButton(title: "Open chat") { showingChat = true }
+                }
+                if slot.canLeaveRelationship {
                     LinkUpButton(title: "Leave LinkUp", variant: .danger, disabled: coordinator.mutationControlsDisabled) {
                         runMutation { try await coordinator.leave(slot) }
                     }
@@ -207,15 +211,17 @@ struct SlotDetailView: View {
     }
 
     @ViewBuilder private var hostControls: some View {
-        if !slot.isTerminal {
-            if slot.canHostEdit {
-                LinkUpButton(title: "Edit LINK", variant: .secondary, disabled: coordinator.mutationControlsDisabled) {
-                    showingEdit = true
-                }
+        if slot.canHostEdit {
+            LinkUpButton(title: "Edit LINK", variant: .secondary, disabled: coordinator.mutationControlsDisabled) {
+                showingEdit = true
             }
+        }
+        if slot.canManageParticipants {
             LinkUpButton(title: "Manage participants", variant: .secondary, disabled: coordinator.mutationControlsDisabled) {
                 showingHostManagement = true
             }
+        }
+        if slot.canUseChat {
             LinkUpButton(title: "Open chat", variant: .secondary) { showingChat = true }
         }
         if slot.canHostStart {
@@ -286,11 +292,7 @@ struct SlotDetailView: View {
                     slot = updated
                     coordinator.updateActiveSlot(updated)
                     loadError = nil
-                    if updated.isTerminal {
-                        showingChat = false
-                        showingEdit = false
-                        showingHostManagement = false
-                    }
+                    applySurfaceAvailability(updated)
                 }
             } catch is CancellationError {
                 return
@@ -319,11 +321,7 @@ struct SlotDetailView: View {
         slot = updated
         coordinator.updateActiveSlot(updated)
         loadError = nil
-        if updated.isTerminal {
-            showingChat = false
-            showingEdit = false
-            showingHostManagement = false
-        }
+        applySurfaceAvailability(updated)
     }
 
     private func errorBanner(_ message: String) -> some View {
@@ -337,6 +335,12 @@ struct SlotDetailView: View {
         .padding(12)
         .background(LinkUpPalette.critical.opacity(0.09))
         .clipShape(RoundedRectangle(cornerRadius: LinkUpRadius.control))
+    }
+
+    private func applySurfaceAvailability(_ updated: SlotModel) {
+        if !updated.canUseChat { showingChat = false }
+        if !updated.canHostEdit { showingEdit = false }
+        if !updated.canManageParticipants { showingHostManagement = false }
     }
 
     private var visualStatus: LinkUpVisualStatus {

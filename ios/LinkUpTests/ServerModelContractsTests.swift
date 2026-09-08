@@ -91,6 +91,38 @@ final class ServerModelContractsTests: XCTestCase {
         XCTAssertFalse(slot(acceptedCount: 1, state: .filling, viewerState: .none).canHostStart)
     }
 
+    func testChatAccessMatchesServerStateAndViewerAuthority() {
+        for state in [SlotState.filling, .full, .active] {
+            XCTAssertTrue(slot(state: state, viewerState: .host).canUseChat)
+            XCTAssertTrue(slot(state: state, viewerState: .accepted).canUseChat)
+            XCTAssertFalse(slot(state: state, viewerState: .pending).canUseChat)
+            XCTAssertFalse(slot(state: state, viewerState: .none).canUseChat)
+        }
+        XCTAssertFalse(slot(state: .draft, viewerState: .host).canUseChat)
+        XCTAssertFalse(slot(state: .published, viewerState: .host).canUseChat)
+        XCTAssertFalse(slot(state: .completed, viewerState: .host).canUseChat)
+    }
+
+    func testHostManagementMatchesAcceptedRosterLifecycle() {
+        XCTAssertFalse(slot(state: .draft, viewerState: .host).canManageParticipants)
+        XCTAssertTrue(slot(state: .published, viewerState: .host).canManageParticipants)
+        XCTAssertTrue(slot(state: .filling, viewerState: .host).canManageParticipants)
+        XCTAssertTrue(slot(state: .full, viewerState: .host).canManageParticipants)
+        XCTAssertTrue(slot(state: .active, viewerState: .host).canManageParticipants)
+        XCTAssertFalse(slot(state: .completed, viewerState: .host).canManageParticipants)
+        XCTAssertFalse(slot(state: .filling, viewerState: .accepted).canManageParticipants)
+    }
+
+    func testLeaveRelationshipRequiresCurrentNonterminalRelationship() {
+        XCTAssertTrue(slot(state: .published, viewerState: .pending).canLeaveRelationship)
+        XCTAssertTrue(slot(state: .filling, viewerState: .accepted).canLeaveRelationship)
+        XCTAssertTrue(slot(state: .active, viewerState: .accepted).canLeaveRelationship)
+        XCTAssertFalse(slot(state: .completed, viewerState: .accepted).canLeaveRelationship)
+        XCTAssertFalse(slot(state: .cancelled, viewerState: .pending).canLeaveRelationship)
+        XCTAssertFalse(slot(state: .filling, viewerState: .none).canLeaveRelationship)
+        XCTAssertFalse(slot(state: .filling, viewerState: .host).canLeaveRelationship)
+    }
+
     func testSlotShapeAcceptsServiceMaximumCapacity() {
         XCTAssertEqual(InputContracts.slotCapacityMax, 100)
         XCTAssertTrue(slot(capacity: 100).hasValidServerShape)

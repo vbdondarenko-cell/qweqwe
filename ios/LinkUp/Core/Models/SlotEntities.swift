@@ -41,6 +41,18 @@ struct SlotModel: Codable, Identifiable, Equatable, Sendable {
     var canHostStart: Bool {
         viewerState == .host && state.allowsHostStart && acceptedCount > 0
     }
+
+    var canUseChat: Bool {
+        (viewerState == .host || viewerState == .accepted) && state.allowsChat
+    }
+
+    var canManageParticipants: Bool {
+        viewerState == .host && state.allowsHostManagement
+    }
+
+    var canLeaveRelationship: Bool {
+        (viewerState == .pending || viewerState == .accepted) && !state.isTerminal
+    }
 }
 
 struct PendingSlotRequest: Codable, Equatable, Sendable {
