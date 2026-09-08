@@ -682,3 +682,24 @@ Source verification executed on the Ubuntu host for the latest blocks: repeated 
 Still **not verified**: Swift compilation, XCTest execution, XcodeGen generation under Xcode, simulator/device behavior, APNs/device notification delivery, signing, archive/App Store build and physical multi-account iOS runtime. This Ubuntu host has no `swiftc`, `xcodebuild` or `xcodegen`; none of those gates may be marked green from source review alone.
 
 Exact next iOS verification priority: run XcodeGen and compile/tests on macOS/Xcode, fix compiler/concurrency findings first, then execute signed-in auth/Create/Pulse/Map/Me/Slot/chat flows on simulator and physical device before any iOS production-readiness claim.
+
+## 31. 2026-09-08 — iOS recovery/session/privacy/localization hardening (supersedes §30 verification list)
+
+Section 30 remains the prior source snapshot. Current `main` has additional native iOS hardening and release-gate work:
+
+- `b3595ad` — authoritative Slot reconciliation no longer performs chat/roster reads after the refreshed lifecycle closes those surfaces, preventing terminal 404/closed responses from stalling realtime/durable convergence;
+- `9cfd93c` — transient durable mutation and DRAFT→publish workflow journals retain iOS Data Protection and are also excluded from device/iCloud backup; source tests assert the actual file backup-exclusion resource flag;
+- `d2d9ac1` — automatic password-reset routing trusts only the configured HTTPS recovery origin/port/path and exact single token parameter; manual pasted-code/link parsing remains a separate local-only path;
+- `4461e84` — legacy mutation-key persistence was removed after durable owner-bound journaling became the single mutation replay authority;
+- `3140716` — Associated Domains entitlement wiring was added for password-recovery Universal Links with a reserved fail-closed default rather than a fabricated production domain;
+- `432e3dd` — iOS runtime build inputs were consolidated into one validated configuration authority instead of independent bundle reads;
+- `0dba2bd` — local session deletion/security-storage failures now fail closed rather than silently claiming sign-out/session removal succeeded;
+- `1e2b791` — active native v1.0 surfaces gained an English/Ukrainian localization baseline with 297 parity-checked keys, localized client safety/error copy, localized dynamic framing, and a Linux-runnable `ios/scripts/verify_localizations.py` gate.
+
+Executed on the Ubuntu source host for the localization/hardening blocks: repeated origin parity guards, `git diff --check`, plist/YAML parsing where configuration changed, Swift delimiter/source scans, and the localization verifier (`297` en/uk keys, exact key parity, no empty values, active v1.0 static UI literals covered). These are source/configuration checks only.
+
+The iOS localization baseline follows the same release semantics as Android: device/system locale selects app resources, while the server `uk`/`en` account field remains the user's profile language preference and is not promoted into a second client-localization authority.
+
+Still external/unverified: macOS/Xcode compilation and XCTest, generated Xcode project inspection, simulator/physical-device language switching, VoiceOver/Dynamic Type/Reduce Motion QA, Universal Link delivery through the final production domain/AASA/Apple CDN, signing/archive/App Store validation, and physical multi-account iOS smoke.
+
+Push remains a backend dependency rather than an iOS source claim. Current canonical Go push endpoints/store/sender are Android/FCM-only (`/v1/me/push/android`, `platform='ANDROID'`, Firebase sender). No APNs client registration path is added until Go/PostgreSQL expose an authoritative iOS/APNs contract.

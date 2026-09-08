@@ -87,3 +87,21 @@ Automatic password-reset routing is fail-closed and requires both build settings
 `ios/project.yml` wires `com.apple.developer.associated-domains` through `LinkUp.entitlements`. The repository default is the reserved non-production value `applinks:example.invalid`; release configuration must replace it together with the real reset URL.
 
 The website side remains an external release gate: the configured host must serve a valid `/.well-known/apple-app-site-association` for the final signed app identifier. This Ubuntu source host cannot verify Apple CDN association, device Universal Link delivery, or signing.
+
+## Current release-gate hardening
+
+Recent `main` additionally includes:
+
+- trusted password-reset origin/path validation plus fail-closed Universal Link entitlement wiring;
+- a single validated runtime configuration authority;
+- fail-closed local session deletion and explicit logout protection around pending owner-bound work;
+- terminal Slot reconciliation that does not continue unauthorized chat/roster reads;
+- Data Protection plus backup exclusion for transient mutation/DRAFT recovery journals;
+- active v1.0 English/Ukrainian resources with 297 parity-checked keys and localized client safety/error framing;
+- `ios/scripts/verify_localizations.py`, executable on the Ubuntu source host, for `.strings` syntax/key parity and active-v1.0 static UI coverage.
+
+The account `language` field remains a profile preference, matching Android behavior; normal Apple localization selection follows the device/system locale.
+
+The current backend has no canonical iOS/APNs registration/delivery contract. Its push path is Android/FCM-only, so the native iOS client intentionally does not fabricate an APNs endpoint or claim push readiness.
+
+Localization is source-complete only at the baseline level. Xcode compilation, app-bundle resource inclusion, real en/uk rendering, Dynamic Type, VoiceOver, Reduce Motion, simulator/device behavior and signing remain macOS/Xcode/device verification gates.
