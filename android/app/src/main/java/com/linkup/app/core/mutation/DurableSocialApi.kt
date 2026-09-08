@@ -21,6 +21,7 @@ import org.json.JSONException
 import org.json.JSONObject
 
 class DurableMutationQueuedException : IOException("Mutation is queued for safe retry")
+class DurableMutationSafetyException : IOException("An older ambiguous mutation needs reconciliation before new writes")
 
 class DurableSocialApi(
     private val delegate: SocialApi,
@@ -134,15 +135,28 @@ class DurableSocialApi(
             onUnauthorized()
             throw ApiException(401, "unauthorized", "Authentication required")
         }
-        val command = DurableMutationCommand(
-            idempotencyKey = UUID.randomUUID().toString(),
-            ownerFingerprint = mutationOwnerFingerprint(token),
+        val ownerFingerprint = mutationOwnerFingerprint(token)
+        if (runner.unsafeAmbiguousCount(ownerFingerprint) > 0) {
+            throw DurableMutationSafetyException()
+        }
+
+        val bodyJson = body?.toString()
+        val command = runner.findReplayableEquivalent(
+            ownerFingerprint = ownerFingerprint,
             method = method,
             path = path,
-            bodyJson = body?.toString(),
+            bodyJson = bodyJson,
+            responseKind = responseKind,
+        ) ?: DurableMutationCommand(
+            idempotencyKey = UUID.randomUUID().toString(),
+            ownerFingerprint = ownerFingerprint,
+            method = method,
+            path = path,
+            bodyJson = bodyJson,
             responseKind = responseKind,
             createdAtEpochMillis = System.currentTimeMillis().coerceAtLeast(1L),
         )
+
         val result = runner.submit(command, transport)
         return when (result.disposition) {
             DurableAttemptDisposition.ACKNOWLEDGED -> parseAcknowledged(result)
