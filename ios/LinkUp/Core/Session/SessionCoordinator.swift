@@ -32,8 +32,7 @@ final class SessionCoordinator: ObservableObject {
         do {
             guard let stored = try await credentials.load() else {
                 guard requestGeneration == generation else { return }
-                await api.clearLocalSession()
-                state = .signedOut
+                _ = try? await transitionToSignedOutStrictly()
                 return
             }
             local = stored
@@ -76,7 +75,7 @@ final class SessionCoordinator: ObservableObject {
         let requestGeneration = generation
         let user = try await api.login(identifier: identifier, password: password, deviceLabel: deviceLabel)
         guard requestGeneration == generation else {
-            await api.clearLocalSession()
+            try await transitionToSignedOutStrictly()
             throw CancellationError()
         }
         state = .signedIn(user)
@@ -103,7 +102,7 @@ final class SessionCoordinator: ObservableObject {
             deviceLabel: deviceLabel
         )
         guard requestGeneration == generation else {
-            await api.clearLocalSession()
+            try await transitionToSignedOutStrictly()
             throw CancellationError()
         }
         state = .signedIn(user)
@@ -117,8 +116,7 @@ final class SessionCoordinator: ObservableObject {
             let updated = try await api.me()
             guard requestGeneration == generation else { return false }
             guard updated.id == current.id else {
-                await api.clearLocalSession()
-                state = .signedOut
+                _ = try? await transitionToSignedOutStrictly()
                 return false
             }
             state = .signedIn(updated)
@@ -128,8 +126,7 @@ final class SessionCoordinator: ObservableObject {
         } catch let error as APIError {
             guard requestGeneration == generation else { return false }
             if case .unauthorized = error {
-                await api.clearLocalSession()
-                state = .signedOut
+                _ = try? await transitionToSignedOutStrictly()
             }
             return false
         } catch {
@@ -165,8 +162,7 @@ final class SessionCoordinator: ObservableObject {
             throw CancellationError()
         }
         guard updated.id == current.id else {
-            await api.clearLocalSession()
-            state = .signedOut
+            try await transitionToSignedOutStrictly()
             throw APIError.protocolViolation("Profile response belongs to a different account.")
         }
         state = .signedIn(updated)
@@ -180,8 +176,20 @@ final class SessionCoordinator: ObservableObject {
 
     func clearLocalSession() async {
         generation &+= 1
-        await api.clearLocalSession()
-        state = .signedOut
+        _ = try? await transitionToSignedOutStrictly()
+    }
+
+    private func transitionToSignedOutStrictly() async throws {
+        do {
+            try await api.clearLocalSessionStrict()
+            state = .signedOut
+        } catch let error as APIError {
+            state = .recoverableError(error.localizedDescription)
+            throw error
+        } catch {
+            state = .recoverableError(L10n.text("Secure session storage is unavailable."))
+            throw APIError.secureStorageUnavailable
+        }
     }
 
     private func beginCredentialAuthOperation() throws {
@@ -201,8 +209,7 @@ final class SessionCoordinator: ObservableObject {
         do {
             guard let stored = try await credentials.load() else {
                 guard requestGeneration == generation else { return }
-                await api.clearLocalSession()
-                state = .signedOut
+                _ = try? await transitionToSignedOutStrictly()
                 return
             }
             local = stored
@@ -216,8 +223,7 @@ final class SessionCoordinator: ObservableObject {
             let updated = try await api.me()
             guard requestGeneration == generation else { return }
             guard updated.id == current.id else {
-                await api.clearLocalSession()
-                state = .signedOut
+                _ = try? await transitionToSignedOutStrictly()
                 return
             }
             state = .signedIn(updated)
@@ -235,8 +241,7 @@ final class SessionCoordinator: ObservableObject {
     private func applyVerificationFailure(_ error: APIError, local: SessionCredential) async {
         switch error {
         case .unauthorized:
-            await api.clearLocalSession()
-            state = .signedOut
+            _ = try? await transitionToSignedOutStrictly()
         case .transport:
             state = .offlineSession(expiresAt: local.expiresAt)
         default:
