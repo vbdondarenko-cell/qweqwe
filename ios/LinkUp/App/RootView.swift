@@ -293,7 +293,7 @@ private struct MainShellView: View {
         }
 
         if let activeSlot = social.realtimeTargets().slot,
-           activeSlot.viewerState == .host,
+           activeSlot.canManageParticipants,
            !accessLostSlotIDs.contains(activeSlot.id) {
             do {
                 async let pendingRequest = services.api.pendingRequests(activeSlot.id)
@@ -315,7 +315,9 @@ private struct MainShellView: View {
             }
         }
 
-        if let chatSlotID = targets.chatSlotID, !accessLostSlotIDs.contains(chatSlotID) {
+        if let chatSlotID = targets.chatSlotID,
+           !accessLostSlotIDs.contains(chatSlotID),
+           realtimeChatRefreshAllowed(activeSlot: social.realtimeTargets().slot, chatSlotID: chatSlotID) {
             do {
                 let messages = try await services.api.chatMessages(chatSlotID)
                 social.stageRealtimeChatSnapshot(slotID: chatSlotID, messages: messages)
@@ -392,7 +394,7 @@ private struct MainShellView: View {
 
         if hints.refreshRelationships,
            let activeSlot = social.realtimeTargets().slot,
-           activeSlot.viewerState == .host,
+           activeSlot.canManageParticipants,
            (hints.slotIDs.contains(activeSlot.id) || refreshedSlotIDs.contains(activeSlot.id)),
            !accessLost.contains(activeSlot.id) {
             do {
@@ -416,7 +418,9 @@ private struct MainShellView: View {
             }
         }
 
-        if let chatSlotID = targets.chatSlotID, hints.chatSlotIDs.contains(chatSlotID) {
+        if let chatSlotID = targets.chatSlotID,
+           hints.chatSlotIDs.contains(chatSlotID),
+           realtimeChatRefreshAllowed(activeSlot: social.realtimeTargets().slot, chatSlotID: chatSlotID) {
             do {
                 let messages = try await services.api.chatMessages(chatSlotID)
                 social.stageRealtimeChatSnapshot(slotID: chatSlotID, messages: messages)
@@ -469,4 +473,10 @@ private extension APIError {
             false
         }
     }
+}
+
+
+func realtimeChatRefreshAllowed(activeSlot: SlotModel?, chatSlotID: UUID) -> Bool {
+    guard let activeSlot, activeSlot.id == chatSlotID else { return true }
+    return activeSlot.canUseChat
 }

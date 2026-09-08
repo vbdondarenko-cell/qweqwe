@@ -123,6 +123,23 @@ final class ServerModelContractsTests: XCTestCase {
         XCTAssertFalse(slot(state: .filling, viewerState: .host).canLeaveRelationship)
     }
 
+    func testRealtimeChatRefreshStopsAfterAuthoritativeChatClosure() {
+        let current = slot(state: .filling, viewerState: .accepted)
+        XCTAssertTrue(realtimeChatRefreshAllowed(activeSlot: current, chatSlotID: current.id))
+
+        let completed = slot(state: .completed, viewerState: .accepted)
+        XCTAssertFalse(realtimeChatRefreshAllowed(activeSlot: completed, chatSlotID: completed.id))
+
+        let cancelled = slot(state: .cancelled, viewerState: .host)
+        XCTAssertFalse(realtimeChatRefreshAllowed(activeSlot: cancelled, chatSlotID: cancelled.id))
+    }
+
+    func testRealtimeChatRefreshDoesNotUseUnrelatedActiveSlotState() {
+        let current = slot(state: .completed, viewerState: .host)
+        XCTAssertTrue(realtimeChatRefreshAllowed(activeSlot: current, chatSlotID: UUID()))
+        XCTAssertTrue(realtimeChatRefreshAllowed(activeSlot: nil, chatSlotID: UUID()))
+    }
+
     func testSlotShapeAcceptsServiceMaximumCapacity() {
         XCTAssertEqual(InputContracts.slotCapacityMax, 100)
         XCTAssertTrue(slot(capacity: 100).hasValidServerShape)
