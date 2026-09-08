@@ -11,6 +11,7 @@
     <string name="slot_no_pending_requests">Немає запитів, що очікують</string>
     <string name="slot_decline">Відхилити</string>
     <string name="slot_accept">Прийняти</string>
+    <string name="slot_publish_draft">Опублікувати LINK</string>
     <string name="slot_delete_cancel">Видалити / скасувати LINK</string>
     <string name="slot_state_draft">ЧЕРНЕТКА</string>
     <string name="slot_state_published">ОПУБЛІКОВАНО</string>
