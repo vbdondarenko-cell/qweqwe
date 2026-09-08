@@ -15,6 +15,7 @@ struct MeView: View {
     @State private var showingEditProfile = false
     @State private var showingLinkUpPlus = false
     @State private var showingAppInfo = false
+    @State private var showingNotifications = false
     @State private var showingLogoutConfirmation = false
     @State private var logoutBusy = false
     @State private var logoutError: String?
@@ -74,6 +75,11 @@ struct MeView: View {
         }
         .sheet(isPresented: $showingAppInfo) {
             AppInfoView(configuration: AppInfoConfiguration())
+        }
+        .sheet(isPresented: $showingNotifications) {
+            NotificationsPanelView()
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
         }
         .confirmationDialog(
             "Log out of LinkUp?",
@@ -284,8 +290,8 @@ struct MeView: View {
             accountSummary
             linkUpPlusSettings
             blockedSection
-            settingsSection("Privacy & Safety", ["Privacy Center", "Safety Center", "Guardian", "Ghost Mode"])
-            settingsSection("Account", ["Notifications", "Accessibility", "Data & Privacy"])
+            inactiveSettingsSection("Privacy & Safety", ["Privacy Center", "Safety Center", "Guardian", "Ghost Mode"])
+            accountSettings
             appSettings
             if let logoutError {
                 LinkUpInlineError(message: logoutError) { self.logoutError = nil }
@@ -523,23 +529,47 @@ struct MeView: View {
         .overlay { RoundedRectangle(cornerRadius: LinkUpRadius.card).stroke(LinkUpPalette.border) }
     }
 
-    private func settingsSection(_ title: String, _ rows: [String]) -> some View {
+    private var accountSettings: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(title.uppercased())
+            Text(L10n.text("Account").uppercased())
                 .font(LinkUpTypography.mono(10, weight: .semibold))
                 .foregroundStyle(LinkUpPalette.textMuted)
                 .padding(.horizontal, 4)
             VStack(spacing: 0) {
-                ForEach(rows, id: \.self) { row in
+                Button { showingNotifications = true } label: {
                     HStack {
-                        Text(L10n.text(row)).font(LinkUpTypography.body(14, weight: .medium))
+                        Text(L10n.text("Notifications")).font(LinkUpTypography.body(14, weight: .medium))
                         Spacer()
                         Image(systemName: "chevron.right")
                             .font(.system(size: 12, weight: .semibold))
                             .foregroundStyle(LinkUpPalette.textMuted)
                     }
                     .foregroundStyle(LinkUpPalette.textPrimary)
-                    .padding(.horizontal, 16).frame(height: 46)
+                    .padding(.horizontal, 16)
+                    .frame(minHeight: 46)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                Rectangle().fill(LinkUpPalette.border.opacity(0.5)).frame(height: 1)
+                inactiveSettingsRow("Accessibility")
+                Rectangle().fill(LinkUpPalette.border.opacity(0.5)).frame(height: 1)
+                inactiveSettingsRow("Data & Privacy")
+            }
+            .background(LinkUpPalette.elevated)
+            .clipShape(RoundedRectangle(cornerRadius: LinkUpRadius.card))
+            .overlay { RoundedRectangle(cornerRadius: LinkUpRadius.card).stroke(LinkUpPalette.border) }
+        }
+    }
+
+    private func inactiveSettingsSection(_ title: String, _ rows: [String]) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(L10n.text(title).uppercased())
+                .font(LinkUpTypography.mono(10, weight: .semibold))
+                .foregroundStyle(LinkUpPalette.textMuted)
+                .padding(.horizontal, 4)
+            VStack(spacing: 0) {
+                ForEach(rows, id: \.self) { row in
+                    inactiveSettingsRow(row)
                     if row != rows.last { Rectangle().fill(LinkUpPalette.border.opacity(0.5)).frame(height: 1) }
                 }
             }
@@ -547,6 +577,20 @@ struct MeView: View {
             .clipShape(RoundedRectangle(cornerRadius: LinkUpRadius.card))
             .overlay { RoundedRectangle(cornerRadius: LinkUpRadius.card).stroke(LinkUpPalette.border) }
         }
+    }
+
+    private func inactiveSettingsRow(_ title: String) -> some View {
+        HStack {
+            Text(L10n.text(title)).font(LinkUpTypography.body(14, weight: .medium))
+            Spacer()
+            Text(L10n.text("Not active"))
+                .font(LinkUpTypography.body(11))
+                .foregroundStyle(LinkUpPalette.textMuted)
+        }
+        .foregroundStyle(LinkUpPalette.textPrimary)
+        .padding(.horizontal, 16)
+        .frame(minHeight: 46)
+        .accessibilityElement(children: .combine)
     }
 
     private var initials: String { initials(user.displayName) }
