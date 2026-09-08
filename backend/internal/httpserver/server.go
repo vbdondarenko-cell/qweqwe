@@ -15,6 +15,7 @@ import (
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/account"
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/blocklist"
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/chat"
+	"github.com/vbdondarenko-cell/qweqwe/backend/internal/citycontext"
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/citymap"
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/identifier"
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/monetization"
@@ -29,6 +30,7 @@ type Dependencies struct {
 	Blocks       *blocklist.Service
 	Slots        *slot.Service
 	Chats        *chat.Service
+	CityContext  *citycontext.Service
 	Map          *citymap.Service
 	Places       *places.Service
 	Realtime     RealtimeFeed
@@ -87,6 +89,8 @@ func New(deps Dependencies) *Server {
 	mux.Handle("DELETE /v1/me/push/android/{installationID}", s.requireAuth(http.HandlerFunc(s.revokeAndroidPush)))
 
 	mux.Handle("GET /v1/realtime/events", s.requireAuth(http.HandlerFunc(s.realtimeEvents)))
+	mux.Handle("GET /v1/city-context", s.requireAuth(http.HandlerFunc(s.getCityContext)))
+	mux.Handle("POST /v1/city-context/resolve", s.requireAuth(http.HandlerFunc(s.resolveCityContext)))
 	mux.Handle("GET /v1/places/search", s.requireAuth(http.HandlerFunc(s.searchPlaces)))
 	mux.Handle("GET /v1/map", s.requireAuth(http.HandlerFunc(s.mapViewport)))
 	mux.Handle("GET /v1/map/places/{placeID}/slots", s.requireAuth(http.HandlerFunc(s.mapPlaceSlots)))
