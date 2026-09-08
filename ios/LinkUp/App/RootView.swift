@@ -95,6 +95,8 @@ private struct SessionRootView: View {
 
 @MainActor
 private struct MainShellView: View {
+    @Environment(\.scenePhase) private var scenePhase
+
     let services: AppServices
     let user: UserProfile
 
@@ -119,13 +121,161 @@ private struct MainShellView: View {
         .fullScreenCover(isPresented: $showingCreate) {
             CreateLinkView(coordinator: social) { showingCreate = false }
         }
-        .task {
-            if services.cityContext.phase == .idle { await services.cityContext.loadCurrent() }
+        .task(id: scenePhase) {
+            guard scenePhase == .active else { return }
+            await services.cityContext.loadCurrent()
+            guard !Task.isCancelled else { return }
+            await runRealtimeLoop()
         }
         .onDisappear {
             social.dispose()
             services.cityContext.clear()
         }
+    }
+
+
+    private func runRealtimeLoop() async {
+        var needsAuthoritativeSnapshot = true
+        while !Task.isCancelled {
+            let delay: Duration
+            do {
+                if needsAuthoritativeSnapshot {
+                    let profileOK = await services.session.refreshSignedInProfileSnapshot()
+                    guard profileOK else {
+                        delay = .seconds(5)
+                        try await Task.sleep(for: delay)
+                        continue
+                    }
+                    let pulseOK = await social.loadPulse()
+                    if pulseOK {
+                        needsAuthoritativeSnapshot = false
+                        delay = .milliseconds(250)
+                    } else {
+                        delay = .seconds(5)
+                    }
+                } else {
+                    let pull = try await services.realtime.pull(userID: user.id, limit: 100)
+                    if pull.nextCursor > pull.fromCursor {
+                        let reconciliation = await reconcileRealtime(pull)
+                        if reconciliation.success {
+                            try await services.realtime.acknowledge(userID: user.id, cursor: pull.nextCursor)
+                            social.applyRealtimeHints(
+                                pull.hints,
+                                accessLostSlotIDs: reconciliation.accessLostSlotIDs,
+                                additionalRefreshedSlotIDs: reconciliation.refreshedSlotIDs
+                            )
+                            delay = pull.events.count >= 100 ? .milliseconds(250) : .seconds(4)
+                        } else {
+                            delay = .seconds(5)
+                        }
+                    } else {
+                        delay = .seconds(4)
+                    }
+                }
+            } catch is CancellationError {
+                return
+            } catch let error as APIError {
+                if case .unauthorized = error {
+                    await services.session.clearLocalSession()
+                    return
+                }
+                delay = .seconds(5)
+            } catch {
+                delay = .seconds(5)
+            }
+
+            do {
+                try await Task.sleep(for: delay)
+            } catch {
+                return
+            }
+        }
+    }
+
+    private func reconcileRealtime(_ pull: RealtimePull) async -> (
+        success: Bool,
+        accessLostSlotIDs: Set<UUID>,
+        refreshedSlotIDs: Set<UUID>
+    ) {
+        let hints = pull.hints
+        var accessLost = Set<UUID>()
+        var refreshedSlotIDs = Set<UUID>()
+
+        if hints.refreshProfile {
+            guard await services.session.refreshSignedInProfileSnapshot() else {
+                return (false, accessLost, refreshedSlotIDs)
+            }
+        }
+
+        if hints.refreshPulse {
+            guard await social.loadPulse() else {
+                return (false, accessLost, refreshedSlotIDs)
+            }
+        }
+
+        let targets = social.realtimeTargets()
+        if let activeSlot = targets.slot,
+           hints.slotIDs.contains(activeSlot.id) || (hints.refreshRelationships && hints.slotIDs.isEmpty) {
+            do {
+                let updated = try await social.loadSlot(activeSlot.id)
+                social.updateActiveSlot(updated)
+                refreshedSlotIDs.insert(activeSlot.id)
+            } catch let error as APIError {
+                if error.isDefinitiveSlotAccessLoss {
+                    accessLost.insert(activeSlot.id)
+                } else {
+                    return (false, accessLost, refreshedSlotIDs)
+                }
+            } catch is CancellationError {
+                return (false, accessLost, refreshedSlotIDs)
+            } catch {
+                return (false, accessLost, refreshedSlotIDs)
+            }
+        }
+
+        if hints.refreshRelationships,
+           let activeSlot = social.realtimeTargets().slot,
+           activeSlot.viewerState == .host,
+           (hints.slotIDs.contains(activeSlot.id) || refreshedSlotIDs.contains(activeSlot.id)),
+           !accessLost.contains(activeSlot.id) {
+            do {
+                async let pendingRequest = services.api.pendingRequests(activeSlot.id)
+                async let acceptedRequest = services.api.acceptedParticipants(activeSlot.id)
+                let (pending, accepted) = try await (pendingRequest, acceptedRequest)
+                social.stageRealtimeRelationshipSnapshot(
+                    slotID: activeSlot.id,
+                    pending: pending,
+                    accepted: accepted
+                )
+            } catch let error as APIError {
+                if case .unauthorized = error {
+                    await services.session.clearLocalSession()
+                }
+                return (false, accessLost, refreshedSlotIDs)
+            } catch is CancellationError {
+                return (false, accessLost, refreshedSlotIDs)
+            } catch {
+                return (false, accessLost, refreshedSlotIDs)
+            }
+        }
+
+        if let chatSlotID = targets.chatSlotID, hints.chatSlotIDs.contains(chatSlotID) {
+            do {
+                let messages = try await services.api.chatMessages(chatSlotID)
+                social.stageRealtimeChatSnapshot(slotID: chatSlotID, messages: messages)
+            } catch let error as APIError {
+                if case .unauthorized = error {
+                    await services.session.clearLocalSession()
+                }
+                return (false, accessLost, refreshedSlotIDs)
+            } catch is CancellationError {
+                return (false, accessLost, refreshedSlotIDs)
+            } catch {
+                return (false, accessLost, refreshedSlotIDs)
+            }
+        }
+
+        return (true, accessLost, refreshedSlotIDs)
     }
 
     @ViewBuilder private var activeScreen: some View {
@@ -148,6 +298,18 @@ private struct MainShellView: View {
             FlyView()
         case .me:
             MeView(user: user, api: services.api, session: services.session, social: social)
+        }
+    }
+}
+
+
+private extension APIError {
+    var isDefinitiveSlotAccessLoss: Bool {
+        switch self {
+        case .http(let status, _, _, _):
+            status == 403 || status == 404
+        default:
+            false
         }
     }
 }

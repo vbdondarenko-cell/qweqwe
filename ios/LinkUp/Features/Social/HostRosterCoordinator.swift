@@ -50,6 +50,13 @@ final class HostRosterCoordinator: ObservableObject {
         }
     }
 
+    func applyRealtimeSnapshot(pending: [PendingSlotRequest], accepted: [SlotOrganizer]) {
+        generation &+= 1
+        self.pending = pending
+        self.accepted = accepted
+        phase = .content
+    }
+
     func dispose() {
         generation &+= 1
         pending = []

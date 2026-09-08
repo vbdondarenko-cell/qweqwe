@@ -6,11 +6,18 @@ final class AppServices {
     let api: LinkUpAPI
     let session: SessionCoordinator
     let cityContext: CityContextCoordinator
+    let realtime: RealtimeCoordinator
 
-    init(api: LinkUpAPI, session: SessionCoordinator, cityContext: CityContextCoordinator) {
+    init(
+        api: LinkUpAPI,
+        session: SessionCoordinator,
+        cityContext: CityContextCoordinator,
+        realtime: RealtimeCoordinator
+    ) {
         self.api = api
         self.session = session
         self.cityContext = cityContext
+        self.realtime = realtime
     }
 }
 
@@ -40,7 +47,13 @@ final class AppRuntime: ObservableObject {
             let session = SessionCoordinator(api: api, credentials: credentials)
             let locations = CityLocationProvider()
             let cityContext = CityContextCoordinator(api: api, session: session, locations: locations)
-            let services = AppServices(api: api, session: session, cityContext: cityContext)
+            let realtime = RealtimeCoordinator(api: api, cursors: RealtimeCursorStore())
+            let services = AppServices(
+                api: api,
+                session: session,
+                cityContext: cityContext,
+                realtime: realtime
+            )
             state = .ready(services)
             await session.bootstrap()
         } catch {

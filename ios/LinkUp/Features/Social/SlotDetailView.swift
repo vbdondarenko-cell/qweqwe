@@ -4,7 +4,7 @@ import SwiftUI
 struct SlotDetailView: View {
     @Environment(\.dismiss) private var dismiss
 
-    let coordinator: SocialCoordinator
+    @ObservedObject var coordinator: SocialCoordinator
     let api: LinkUpAPI
     let session: SessionCoordinator
 
@@ -13,9 +13,10 @@ struct SlotDetailView: View {
     @State private var showingChat = false
     @State private var showingEdit = false
     @State private var showingHostManagement = false
+    @State private var lastRealtimeRevision: UInt64 = 0
 
     init(slot: SlotModel, coordinator: SocialCoordinator, api: LinkUpAPI, session: SessionCoordinator) {
-        self.coordinator = coordinator
+        _coordinator = ObservedObject(wrappedValue: coordinator)
         self.api = api
         self.session = session
         _slot = State(initialValue: slot)
@@ -44,9 +45,17 @@ struct SlotDetailView: View {
                     Button("Done") { dismiss() }.foregroundStyle(LinkUpPalette.red)
                 }
             }
-            .task { await refresh() }
+            .task {
+                coordinator.registerActiveSlot(slot)
+                await refresh()
+                lastRealtimeRevision = coordinator.realtimeRevision
+            }
+            .onChange(of: coordinator.realtimeRevision) { _, revision in
+                handleRealtimeRevision(revision)
+            }
+            .onDisappear { coordinator.unregisterActiveSlot(slot.id) }
             .sheet(isPresented: $showingChat) {
-                ChatView(slot: slot, api: api, session: session)
+                ChatView(slot: slot, api: api, session: session, social: coordinator)
             }
             .sheet(isPresented: $showingEdit) {
                 EditSlotView(slot: $slot, social: coordinator)
@@ -197,6 +206,7 @@ struct SlotDetailView: View {
     private func refresh() async {
         do {
             slot = try await coordinator.loadSlot(slot.id)
+            coordinator.updateActiveSlot(slot)
             loadError = nil
         } catch is CancellationError {
             return
@@ -211,6 +221,7 @@ struct SlotDetailView: View {
             do {
                 if let updated = try await operation(), updated.id == previousID {
                     slot = updated
+                    coordinator.updateActiveSlot(updated)
                     loadError = nil
                     if updated.isTerminal {
                         showingChat = false
@@ -223,6 +234,32 @@ struct SlotDetailView: View {
             } catch {
                 loadError = error.localizedDescription
             }
+        }
+    }
+
+
+    private func handleRealtimeRevision(_ revision: UInt64) {
+        guard revision > lastRealtimeRevision else { return }
+        let previous = lastRealtimeRevision
+        lastRealtimeRevision = revision
+
+        if coordinator.accessLostRealtimeRevision(for: slot.id) > previous {
+            showingChat = false
+            showingEdit = false
+            showingHostManagement = false
+            dismiss()
+            return
+        }
+
+        guard coordinator.slotRealtimeRevision(for: slot.id) > previous,
+              let updated = coordinator.activeSlotSnapshot(for: slot.id) else { return }
+        slot = updated
+        coordinator.updateActiveSlot(updated)
+        loadError = nil
+        if updated.isTerminal {
+            showingChat = false
+            showingEdit = false
+            showingHostManagement = false
         }
     }
 

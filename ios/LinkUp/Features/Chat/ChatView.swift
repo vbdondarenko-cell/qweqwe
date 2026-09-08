@@ -1,15 +1,19 @@
 import SwiftUI
 
+@MainActor
 struct ChatView: View {
     @Environment(\.dismiss) private var dismiss
     @StateObject private var coordinator: ChatCoordinator
+    @ObservedObject private var social: SocialCoordinator
     @State private var draft = ""
+    @State private var lastRealtimeRevision: UInt64 = 0
 
     private let slot: SlotModel
 
-    init(slot: SlotModel, api: LinkUpAPI, session: SessionCoordinator) {
+    init(slot: SlotModel, api: LinkUpAPI, session: SessionCoordinator, social: SocialCoordinator) {
         self.slot = slot
         _coordinator = StateObject(wrappedValue: ChatCoordinator(slotID: slot.id, api: api, session: session))
+        _social = ObservedObject(wrappedValue: social)
     }
 
     var body: some View {
@@ -27,8 +31,18 @@ struct ChatView: View {
                         .foregroundStyle(LinkUpPalette.red)
                 }
             }
-            .task { await foregroundLoop() }
-            .onDisappear { coordinator.dispose() }
+            .task {
+                social.registerActiveChat(slot.id)
+                await coordinator.load()
+                lastRealtimeRevision = social.realtimeRevision
+            }
+            .onChange(of: social.realtimeRevision) { _, revision in
+                applyRealtimeRevision(revision)
+            }
+            .onDisappear {
+                social.unregisterActiveChat(slot.id)
+                coordinator.dispose()
+            }
         }
         .preferredColorScheme(.dark)
     }
@@ -154,15 +168,17 @@ struct ChatView: View {
         }
     }
 
-    private func foregroundLoop() async {
-        await coordinator.load()
-        while !Task.isCancelled {
-            do {
-                try await Task.sleep(for: .seconds(5))
-            } catch {
-                return
-            }
-            await coordinator.load(silent: true)
+    private func applyRealtimeRevision(_ revision: UInt64) {
+        guard revision > lastRealtimeRevision else { return }
+        let previous = lastRealtimeRevision
+        lastRealtimeRevision = revision
+        if social.accessLostRealtimeRevision(for: slot.id) > previous {
+            dismiss()
+            return
+        }
+        if social.chatRealtimeRevision(for: slot.id) > previous,
+           let snapshot = social.realtimeChatSnapshot(for: slot.id) {
+            coordinator.applyRealtimeSnapshot(snapshot)
         }
     }
 

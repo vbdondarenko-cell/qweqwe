@@ -16,6 +16,7 @@ struct HostManagementView: View {
     @State private var confirmAction: ConfirmAction = .remove
     @State private var showConfirmation = false
     @State private var localError: String?
+    @State private var lastRealtimeRevision: UInt64 = 0
 
     init(
         slot: Binding<SlotModel>,
@@ -63,7 +64,13 @@ struct HostManagementView: View {
                     Button("Done") { dismiss() }.foregroundStyle(LinkUpPalette.red)
                 }
             }
-            .task { await roster.load() }
+            .task {
+                await roster.load()
+                lastRealtimeRevision = social.realtimeRevision
+            }
+            .onChange(of: social.realtimeRevision) { _, revision in
+                applyRealtimeRevision(revision)
+            }
             .refreshable { await roster.load() }
             .onDisappear { roster.dispose() }
             .confirmationDialog(
@@ -134,6 +141,27 @@ struct HostManagementView: View {
                     .padding(.bottom, 12)
                 }
             }
+        }
+    }
+
+
+    private func applyRealtimeRevision(_ revision: UInt64) {
+        guard revision > lastRealtimeRevision else { return }
+        let previous = lastRealtimeRevision
+        lastRealtimeRevision = revision
+
+        if social.accessLostRealtimeRevision(for: slot.id) > previous {
+            dismiss()
+            return
+        }
+        if social.slotRealtimeRevision(for: slot.id) > previous,
+           let updated = social.activeSlotSnapshot(for: slot.id) {
+            slot = updated
+        }
+        if social.relationshipRealtimeRevision(for: slot.id) > previous,
+           let snapshot = social.realtimeRelationshipSnapshot(for: slot.id) {
+            roster.applyRealtimeSnapshot(pending: snapshot.pending, accepted: snapshot.accepted)
+            localError = nil
         }
     }
 

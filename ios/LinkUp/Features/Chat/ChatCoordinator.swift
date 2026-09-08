@@ -82,6 +82,13 @@ final class ChatCoordinator: ObservableObject {
         }
     }
 
+    func applyRealtimeSnapshot(_ snapshot: [ChatMessage]) {
+        generation &+= 1
+        messages = Array(snapshot.suffix(100))
+        isLoading = false
+        errorMessage = nil
+    }
+
     func dispose() {
         generation &+= 1
         messages = []

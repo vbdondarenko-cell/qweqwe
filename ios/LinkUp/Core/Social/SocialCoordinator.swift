@@ -12,6 +12,16 @@ final class SocialCoordinator: ObservableObject {
     @Published private(set) var pulsePhase: PulsePhase = .idle
     @Published private(set) var isMutating = false
     @Published private(set) var mutationError: String?
+    @Published private(set) var realtimeRevision: UInt64 = 0
+
+    private var slotRealtimeRevisions: [UUID: UInt64] = [:]
+    private var chatRealtimeRevisions: [UUID: UInt64] = [:]
+    private var relationshipRealtimeRevisions: [UUID: UInt64] = [:]
+    private var accessLostRealtimeRevisions: [UUID: UInt64] = [:]
+    private var stagedRelationshipSnapshots: [UUID: (pending: [PendingSlotRequest], accepted: [SlotOrganizer])] = [:]
+    private var stagedChatSnapshots: [UUID: [ChatMessage]] = [:]
+    private var activeSlot: SlotModel?
+    private var activeChatSlotID: UUID?
 
     private let api: LinkUpAPI
     private let session: SessionCoordinator
@@ -22,24 +32,28 @@ final class SocialCoordinator: ObservableObject {
         self.session = session
     }
 
-    func loadPulse() async {
+    @discardableResult
+    func loadPulse() async -> Bool {
         pulseGeneration &+= 1
         let generation = pulseGeneration
         pulsePhase = pulseItems.isEmpty ? .loading : .refreshing
         do {
             let items = try await api.pulse()
-            guard generation == pulseGeneration else { return }
+            guard generation == pulseGeneration else { return false }
             pulseItems = items
             pulsePhase = items.isEmpty ? .empty : .content
+            return true
         } catch is CancellationError {
-            return
+            return false
         } catch let error as APIError {
-            guard generation == pulseGeneration else { return }
-            if case .unauthorized = error { await session.clearLocalSession(); return }
+            guard generation == pulseGeneration else { return false }
+            if case .unauthorized = error { await session.clearLocalSession(); return false }
             pulsePhase = pulseItems.isEmpty ? .failed(error.localizedDescription) : .content
+            return false
         } catch {
-            guard generation == pulseGeneration else { return }
+            guard generation == pulseGeneration else { return false }
             pulsePhase = pulseItems.isEmpty ? .failed("Unable to load Pulse.") : .content
+            return false
         }
     }
 
@@ -120,8 +134,7 @@ final class SocialCoordinator: ObservableObject {
     func cancel(_ slot: SlotModel) async throws -> SlotModel? {
         try await performMutation {
             let updated = try await api.cancelSlot(slot.id, expectedVersion: slot.version)
-            pulseItems.removeAll { $0.id == slot.id }
-            pulsePhase = pulseItems.isEmpty ? .empty : .content
+            reconcile(updated)
             return updated
         }
     }
@@ -133,11 +146,80 @@ final class SocialCoordinator: ObservableObject {
     func complete(_ slot: SlotModel) async throws -> SlotModel? {
         try await performMutation {
             let updated = try await api.completeSlot(slot.id)
-            pulseItems.removeAll { $0.id == slot.id }
-            pulsePhase = pulseItems.isEmpty ? .empty : .content
+            reconcile(updated)
             return updated
         }
     }
+
+    func registerActiveSlot(_ slot: SlotModel) {
+        activeSlot = slot
+    }
+
+    func updateActiveSlot(_ slot: SlotModel) {
+        guard activeSlot?.id == slot.id else { return }
+        activeSlot = slot
+    }
+
+    func unregisterActiveSlot(_ slotID: UUID) {
+        if activeSlot?.id == slotID { activeSlot = nil }
+        stagedRelationshipSnapshots.removeValue(forKey: slotID)
+    }
+
+    func registerActiveChat(_ slotID: UUID) {
+        activeChatSlotID = slotID
+    }
+
+    func unregisterActiveChat(_ slotID: UUID) {
+        if activeChatSlotID == slotID { activeChatSlotID = nil }
+        stagedChatSnapshots.removeValue(forKey: slotID)
+    }
+
+    func realtimeTargets() -> (slot: SlotModel?, chatSlotID: UUID?) {
+        (activeSlot, activeChatSlotID)
+    }
+
+    func stageRealtimeRelationshipSnapshot(
+        slotID: UUID,
+        pending: [PendingSlotRequest],
+        accepted: [SlotOrganizer]
+    ) {
+        stagedRelationshipSnapshots[slotID] = (pending, accepted)
+    }
+
+    func stageRealtimeChatSnapshot(slotID: UUID, messages: [ChatMessage]) {
+        stagedChatSnapshots[slotID] = messages
+    }
+
+    func applyRealtimeHints(
+        _ hints: RealtimeInvalidationHints,
+        accessLostSlotIDs: Set<UUID> = [],
+        additionalRefreshedSlotIDs: Set<UUID> = []
+    ) {
+        realtimeRevision &+= 1
+        let revision = realtimeRevision
+        let refreshedSlotIDs = hints.slotIDs.union(additionalRefreshedSlotIDs)
+        for id in refreshedSlotIDs { slotRealtimeRevisions[id] = revision }
+        for id in hints.chatSlotIDs { chatRealtimeRevisions[id] = revision }
+        if hints.refreshRelationships {
+            for id in refreshedSlotIDs { relationshipRealtimeRevisions[id] = revision }
+        }
+        for id in accessLostSlotIDs {
+            accessLostRealtimeRevisions[id] = revision
+            stagedRelationshipSnapshots.removeValue(forKey: id)
+            stagedChatSnapshots.removeValue(forKey: id)
+        }
+        pruneRealtimeRevisions()
+    }
+
+    func slotRealtimeRevision(for slotID: UUID) -> UInt64 { slotRealtimeRevisions[slotID] ?? 0 }
+    func chatRealtimeRevision(for slotID: UUID) -> UInt64 { chatRealtimeRevisions[slotID] ?? 0 }
+    func relationshipRealtimeRevision(for slotID: UUID) -> UInt64 { relationshipRealtimeRevisions[slotID] ?? 0 }
+    func accessLostRealtimeRevision(for slotID: UUID) -> UInt64 { accessLostRealtimeRevisions[slotID] ?? 0 }
+    func activeSlotSnapshot(for slotID: UUID) -> SlotModel? { activeSlot?.id == slotID ? activeSlot : nil }
+    func realtimeRelationshipSnapshot(for slotID: UUID) -> (pending: [PendingSlotRequest], accepted: [SlotOrganizer])? {
+        stagedRelationshipSnapshots[slotID]
+    }
+    func realtimeChatSnapshot(for slotID: UUID) -> [ChatMessage]? { stagedChatSnapshots[slotID] }
 
     func clearMutationError() { mutationError = nil }
 
@@ -146,6 +228,15 @@ final class SocialCoordinator: ObservableObject {
         pulseItems = []
         pulsePhase = .idle
         mutationError = nil
+        realtimeRevision = 0
+        slotRealtimeRevisions.removeAll(keepingCapacity: false)
+        chatRealtimeRevisions.removeAll(keepingCapacity: false)
+        relationshipRealtimeRevisions.removeAll(keepingCapacity: false)
+        accessLostRealtimeRevisions.removeAll(keepingCapacity: false)
+        stagedRelationshipSnapshots.removeAll(keepingCapacity: false)
+        stagedChatSnapshots.removeAll(keepingCapacity: false)
+        activeSlot = nil
+        activeChatSlotID = nil
     }
 
     private func performMutation(_ work: () async throws -> SlotModel) async throws -> SlotModel? {
@@ -165,7 +256,23 @@ final class SocialCoordinator: ObservableObject {
         }
     }
 
+    private func pruneRealtimeRevisions() {
+        guard realtimeRevision > 1_024 else { return }
+        let floor = realtimeRevision - 1_024
+        slotRealtimeRevisions = slotRealtimeRevisions.filter { $0.value >= floor }
+        chatRealtimeRevisions = chatRealtimeRevisions.filter { $0.value >= floor }
+        relationshipRealtimeRevisions = relationshipRealtimeRevisions.filter { $0.value >= floor }
+        accessLostRealtimeRevisions = accessLostRealtimeRevisions.filter { $0.value >= floor }
+        stagedRelationshipSnapshots = stagedRelationshipSnapshots.filter {
+            (relationshipRealtimeRevisions[$0.key] ?? 0) >= floor
+        }
+        stagedChatSnapshots = stagedChatSnapshots.filter {
+            (chatRealtimeRevisions[$0.key] ?? 0) >= floor
+        }
+    }
+
     private func reconcile(_ slot: SlotModel) {
+        if activeSlot?.id == slot.id { activeSlot = slot }
         guard !slot.isTerminal else {
             pulseItems.removeAll { $0.id == slot.id }
             pulsePhase = pulseItems.isEmpty ? .empty : .content

@@ -93,6 +93,34 @@ final class SessionCoordinator: ObservableObject {
         state = .signedIn(user)
     }
 
+    func refreshSignedInProfileSnapshot() async -> Bool {
+        guard case .signedIn(let current) = state else { return false }
+        generation &+= 1
+        let requestGeneration = generation
+        do {
+            let updated = try await api.me()
+            guard requestGeneration == generation else { return false }
+            guard updated.id == current.id else {
+                await api.clearLocalSession()
+                state = .signedOut
+                return false
+            }
+            state = .signedIn(updated)
+            return true
+        } catch is CancellationError {
+            return false
+        } catch let error as APIError {
+            guard requestGeneration == generation else { return false }
+            if case .unauthorized = error {
+                await api.clearLocalSession()
+                state = .signedOut
+            }
+            return false
+        } catch {
+            return false
+        }
+    }
+
     func requestPasswordRecovery(email: String) async throws {
         try await api.requestPasswordRecovery(email: email)
     }
