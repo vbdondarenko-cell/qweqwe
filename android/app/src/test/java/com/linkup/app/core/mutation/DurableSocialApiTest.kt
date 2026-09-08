@@ -33,6 +33,7 @@ class DurableSocialApiTest {
                     httpStatus = 201,
                 )
             },
+            nowEpochMillis = { 1_000L },
         )
 
         val slot = api.createSlot(
@@ -52,7 +53,7 @@ class DurableSocialApiTest {
         assertEquals("/v1/slots", command.path)
         assertEquals(DurableResponseKind.SLOT, command.responseKind)
         assertTrue(command.bodyJson!!.contains("\"canonicalPlaceId\":\"$PLACE_ID\""))
-        assertTrue(requireNotNull(command.firstAttemptAtEpochMillis) >= command.createdAtEpochMillis)
+        assertEquals(2_000L, command.firstAttemptAtEpochMillis)
         assertEquals(SLOT_ID, slot.id)
         assertTrue(outbox.items.isEmpty())
     }
@@ -77,19 +78,19 @@ class DurableSocialApiTest {
             currentBearerToken = { TOKEN },
             runner = DurableMutationRunner(outbox) { 2_000L },
             transport = transport,
+            nowEpochMillis = { 1_000L },
         )
 
         assertFailsWith<DurableMutationQueuedException> { firstProcess.requestSlot(SLOT_ID) }
         val persisted = outbox.items.single()
         val originalKey = persisted.idempotencyKey
-        val originalAttemptAt = requireNotNull(persisted.firstAttemptAtEpochMillis)
         assertEquals("/v1/slots/$SLOT_ID/request", persisted.path)
-        assertTrue(originalAttemptAt >= persisted.createdAtEpochMillis)
+        assertEquals(2_000L, persisted.firstAttemptAtEpochMillis)
 
         assertFailsWith<DurableMutationQueuedException> { firstProcess.requestSlot(SLOT_ID) }
         assertEquals(1, outbox.items.size)
         assertEquals(originalKey, outbox.items.single().idempotencyKey)
-        assertEquals(originalAttemptAt, outbox.items.single().firstAttemptAtEpochMillis)
+        assertEquals(2_000L, outbox.items.single().firstAttemptAtEpochMillis)
 
         ambiguous = false
         val afterProcessDeath = DurableSocialApi(
@@ -97,6 +98,7 @@ class DurableSocialApiTest {
             currentBearerToken = { TOKEN },
             runner = DurableMutationRunner(outbox) { 3_000L },
             transport = transport,
+            nowEpochMillis = { 1_000L },
         )
         val report = requireNotNull(afterProcessDeath.replayPending())
 
@@ -129,6 +131,7 @@ class DurableSocialApiTest {
                 transportCalled = true
                 DurableAttemptResult(DurableAttemptDisposition.ACKNOWLEDGED, slotJson(), httpStatus = 200)
             },
+            nowEpochMillis = { 1_000L },
         )
 
         assertFailsWith<DurableMutationSafetyException> { api.startSlot(SLOT_ID) }
