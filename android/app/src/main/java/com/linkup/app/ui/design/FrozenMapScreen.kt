@@ -348,7 +348,7 @@ private fun ServerClusterCanvas(
                 LinkUpEmptyState(stringResource(R.string.map_empty_title), stringResource(R.string.map_empty_body))
             }
             state is LoadState.Failure -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                LinkUpErrorState(state.error.message, onRetry, stringResource(R.string.map_error_title))
+                LinkUpErrorState(state.error.message, onRetry = onRetry, title = stringResource(R.string.map_error_title))
             }
             state is LoadState.Content -> {
                 state.value.forEach { cluster ->
