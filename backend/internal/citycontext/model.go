@@ -16,7 +16,7 @@ const (
 
 var (
 	ErrInvalidObservation = errors.New("invalid city context observation")
-	ErrNoLocality         = errors.New("no locality resolved")
+	ErrNoLocality         = errors.New("no locality contains observation")
 	ErrNotFound           = errors.New("city context not found")
 	ErrResolverUnavailable = errors.New("city context resolver unavailable")
 )
@@ -24,9 +24,9 @@ var (
 type Policy struct {
 	PreciseMaxAge       time.Duration
 	ApproximateMaxAge   time.Duration
-	MaxFutureSkew       time.Duration
 	PreciseMaxAccuracyM int
-	ApproxMaxAccuracyM  int
+	ApproximateMaxAccuracyM int
+	MaxFutureSkew       time.Duration
 	LockTTL             time.Duration
 	SwitchWindow        time.Duration
 	SwitchConfirmations int
@@ -34,21 +34,21 @@ type Policy struct {
 
 func DefaultPolicy() Policy {
 	return Policy{
-		PreciseMaxAge:       2 * time.Minute,
-		ApproximateMaxAge:   10 * time.Minute,
-		MaxFutureSkew:       30 * time.Second,
+		PreciseMaxAge: 2 * time.Minute,
+		ApproximateMaxAge: 10 * time.Minute,
 		PreciseMaxAccuracyM: 500,
-		ApproxMaxAccuracyM:  5_000,
-		LockTTL:             6 * time.Hour,
-		SwitchWindow:        10 * time.Minute,
+		ApproximateMaxAccuracyM: 5000,
+		MaxFutureSkew: 30 * time.Second,
+		LockTTL: 6 * time.Hour,
+		SwitchWindow: 10 * time.Minute,
 		SwitchConfirmations: 2,
 	}
 }
 
 func (p Policy) Valid() bool {
-	return p.PreciseMaxAge > 0 && p.ApproximateMaxAge > 0 && p.MaxFutureSkew >= 0 &&
-		p.PreciseMaxAccuracyM > 0 && p.ApproxMaxAccuracyM >= p.PreciseMaxAccuracyM &&
-		p.LockTTL > 0 && p.SwitchWindow > 0 && p.SwitchConfirmations >= 2 && p.SwitchConfirmations <= 10
+	return p.PreciseMaxAge > 0 && p.ApproximateMaxAge > 0 &&
+		p.PreciseMaxAccuracyM > 0 && p.ApproximateMaxAccuracyM > 0 &&
+		p.MaxFutureSkew >= 0 && p.LockTTL > 0 && p.SwitchWindow > 0 && p.SwitchConfirmations >= 2
 }
 
 type Observation struct {
@@ -57,19 +57,20 @@ type Observation struct {
 	AccuracyM       int
 	PermissionClass PermissionClass
 	CapturedAt      time.Time
-	Mocked           bool
+	Mocked          bool
 }
 
 func (o Observation) Valid(now time.Time, policy Policy) bool {
-	if !policy.Valid() || now.IsZero() || o.Mocked || o.CapturedAt.IsZero() ||
-		o.LatitudeE6 < -90_000_000 || o.LatitudeE6 > 90_000_000 ||
-		o.LongitudeE6 < -180_000_000 || o.LongitudeE6 > 180_000_000 || o.AccuracyM < 1 {
+	if !policy.Valid() || o.Mocked || o.LatitudeE6 < -90000000 || o.LatitudeE6 > 90000000 ||
+		o.LongitudeE6 < -180000000 || o.LongitudeE6 > 180000000 || o.AccuracyM <= 0 || o.CapturedAt.IsZero() {
 		return false
 	}
-	if o.CapturedAt.After(now.Add(policy.MaxFutureSkew)) {
+	captured := o.CapturedAt.UTC()
+	now = now.UTC()
+	if captured.After(now.Add(policy.MaxFutureSkew)) {
 		return false
 	}
-	age := now.Sub(o.CapturedAt)
+	age := now.Sub(captured)
 	if age < -policy.MaxFutureSkew {
 		return false
 	}
@@ -77,34 +78,26 @@ func (o Observation) Valid(now time.Time, policy Policy) bool {
 	case PermissionPrecise:
 		return age <= policy.PreciseMaxAge && o.AccuracyM <= policy.PreciseMaxAccuracyM
 	case PermissionApproximate:
-		return age <= policy.ApproximateMaxAge && o.AccuracyM <= policy.ApproxMaxAccuracyM
+		return age <= policy.ApproximateMaxAge && o.AccuracyM <= policy.ApproximateMaxAccuracyM
 	default:
 		return false
 	}
 }
 
 type Locality struct {
-	ID          string `json:"id"`
-	Name        string `json:"name"`
-	CountryCode string `json:"countryCode"`
-	Timezone    string `json:"timezone"`
+	ID                  string `json:"id"`
+	Name                string `json:"name"`
+	CountryCode         string `json:"countryCode"`
+	Timezone            string `json:"timezone"`
+	CentroidLatitudeE6  int    `json:"centroidLatitudeE6"`
+	CentroidLongitudeE6 int    `json:"centroidLongitudeE6"`
 }
 
 func (l Locality) Valid() bool {
-	return strings.TrimSpace(l.ID) != "" && strings.TrimSpace(l.Name) != "" &&
-		len(l.CountryCode) == 2 && strings.TrimSpace(l.Timezone) != ""
-}
-
-type Lock struct {
-	UserID              string
-	Locality             Locality
-	PermissionClass      PermissionClass
-	AccuracyM            int
-	ObservedAt           time.Time
-	ExpiresAt            time.Time
-	CandidateLocalityID  *string
-	CandidateCount       int
-	CandidateObservedAt  *time.Time
+	return validUUID(l.ID) && strings.TrimSpace(l.Name) != "" && len(l.CountryCode) == 2 &&
+		strings.ToUpper(l.CountryCode) == l.CountryCode && strings.TrimSpace(l.Timezone) != "" &&
+		l.CentroidLatitudeE6 >= -90000000 && l.CentroidLatitudeE6 <= 90000000 &&
+		l.CentroidLongitudeE6 >= -180000000 && l.CentroidLongitudeE6 <= 180000000
 }
 
 type Context struct {
@@ -116,53 +109,27 @@ type Context struct {
 	SwitchPending   bool            `json:"switchPending"`
 }
 
-func (l Lock) Public() Context {
-	return Context{
-		Locality: l.Locality, PermissionClass: l.PermissionClass, AccuracyM: l.AccuracyM,
-		ObservedAt: l.ObservedAt, ExpiresAt: l.ExpiresAt, SwitchPending: l.CandidateLocalityID != nil,
-	}
+type Lock struct {
+	UserID                  string
+	Locality                Locality
+	PermissionClass         PermissionClass
+	AccuracyM               int
+	ObservedAt              time.Time
+	ExpiresAt               time.Time
+	CandidateLocalityID     *string
+	CandidateCount          int
+	CandidateObservedAt     *time.Time
 }
 
-func NextLock(current *Lock, resolved Locality, observation Observation, now time.Time, policy Policy) (Lock, error) {
-	if !resolved.Valid() || !observation.Valid(now, policy) {
-		return Lock{}, ErrInvalidObservation
+func (l Lock) Public() Context {
+	return Context{
+		Locality: l.Locality,
+		PermissionClass: l.PermissionClass,
+		AccuracyM: l.AccuracyM,
+		ObservedAt: l.ObservedAt,
+		ExpiresAt: l.ExpiresAt,
+		SwitchPending: l.CandidateLocalityID != nil && l.CandidateCount > 0,
 	}
-
-	fresh := func() Lock {
-		return Lock{
-			Locality: resolved,
-			PermissionClass: observation.PermissionClass,
-			AccuracyM: observation.AccuracyM,
-			ObservedAt: observation.CapturedAt.UTC(),
-			ExpiresAt: observation.CapturedAt.UTC().Add(policy.LockTTL),
-		}
-	}
-	if current == nil || !now.Before(current.ExpiresAt) {
-		return fresh(), nil
-	}
-	if current.Locality.ID == resolved.ID {
-		next := fresh()
-		next.UserID = current.UserID
-		return next, nil
-	}
-
-	next := *current
-	candidateCount := 1
-	candidateAt := observation.CapturedAt.UTC()
-	if current.CandidateLocalityID != nil && *current.CandidateLocalityID == resolved.ID &&
-		current.CandidateObservedAt != nil && !observation.CapturedAt.Before(*current.CandidateObservedAt) &&
-		observation.CapturedAt.Sub(*current.CandidateObservedAt) <= policy.SwitchWindow {
-		candidateCount = current.CandidateCount + 1
-	}
-	if candidateCount >= policy.SwitchConfirmations {
-		switched := fresh()
-		switched.UserID = current.UserID
-		return switched, nil
-	}
-	next.CandidateLocalityID = &resolved.ID
-	next.CandidateCount = candidateCount
-	next.CandidateObservedAt = &candidateAt
-	return next, nil
 }
 
 type Store interface {
@@ -178,22 +145,89 @@ type Service struct {
 
 func NewService(store Store, policy Policy) (*Service, error) {
 	if store == nil || !policy.Valid() {
-		return nil, ErrInvalidObservation
+		return nil, ErrResolverUnavailable
 	}
-	return &Service{store: store, policy: policy, now: func() time.Time { return time.Now().UTC() }}, nil
+	return &Service{store: store, policy: policy, now: time.Now}, nil
 }
 
 func (s *Service) Resolve(ctx context.Context, userID string, observation Observation) (Context, error) {
-	now := s.now()
-	if strings.TrimSpace(userID) == "" || !observation.Valid(now, s.policy) {
+	userID = strings.TrimSpace(userID)
+	now := s.now().UTC()
+	if userID == "" || !observation.Valid(now, s.policy) {
 		return Context{}, ErrInvalidObservation
 	}
 	return s.store.Apply(ctx, userID, observation, s.policy, now)
 }
 
 func (s *Service) Current(ctx context.Context, userID string) (Context, error) {
-	if strings.TrimSpace(userID) == "" {
-		return Context{}, ErrInvalidObservation
+	userID = strings.TrimSpace(userID)
+	if userID == "" {
+		return Context{}, ErrNotFound
 	}
-	return s.store.Current(ctx, userID, s.now())
+	return s.store.Current(ctx, userID, s.now().UTC())
+}
+
+func NextLock(current *Lock, resolved Locality, observation Observation, now time.Time, policy Policy) (Lock, error) {
+	if !resolved.Valid() || !observation.Valid(now, policy) {
+		return Lock{}, ErrInvalidObservation
+	}
+	now = now.UTC()
+	freshExpiry := now.Add(policy.LockTTL)
+	if current == nil || current.ExpiresAt.Before(now) || current.ExpiresAt.Equal(now) {
+		return Lock{
+			Locality: resolved, PermissionClass: observation.PermissionClass, AccuracyM: observation.AccuracyM,
+			ObservedAt: observation.CapturedAt.UTC(), ExpiresAt: freshExpiry,
+		}, nil
+	}
+	if current.Locality.ID == resolved.ID {
+		next := *current
+		next.Locality = resolved
+		next.PermissionClass = observation.PermissionClass
+		next.AccuracyM = observation.AccuracyM
+		next.ObservedAt = observation.CapturedAt.UTC()
+		next.ExpiresAt = freshExpiry
+		next.CandidateLocalityID = nil
+		next.CandidateCount = 0
+		next.CandidateObservedAt = nil
+		return next, nil
+	}
+
+	next := *current
+	candidateStillFresh := current.CandidateLocalityID != nil && *current.CandidateLocalityID == resolved.ID &&
+		current.CandidateObservedAt != nil && now.Sub(current.CandidateObservedAt.UTC()) <= policy.SwitchWindow
+	if candidateStillFresh {
+		next.CandidateCount++
+	} else {
+		id := resolved.ID
+		next.CandidateLocalityID = &id
+		next.CandidateCount = 1
+	}
+	observed := observation.CapturedAt.UTC()
+	next.CandidateObservedAt = &observed
+	if next.CandidateCount >= policy.SwitchConfirmations {
+		next.Locality = resolved
+		next.PermissionClass = observation.PermissionClass
+		next.AccuracyM = observation.AccuracyM
+		next.ObservedAt = observed
+		next.ExpiresAt = freshExpiry
+		next.CandidateLocalityID = nil
+		next.CandidateCount = 0
+		next.CandidateObservedAt = nil
+	}
+	return next, nil
+}
+
+func validUUID(value string) bool {
+	if len(value) != 36 || value[8] != '-' || value[13] != '-' || value[18] != '-' || value[23] != '-' {
+		return false
+	}
+	for i, c := range []byte(value) {
+		if i == 8 || i == 13 || i == 18 || i == 23 {
+			continue
+		}
+		if !((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')) {
+			return false
+		}
+	}
+	return true
 }
