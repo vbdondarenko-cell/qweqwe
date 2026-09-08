@@ -12,6 +12,11 @@ FILES = {
     "en": APP / "en.lproj" / "Localizable.strings",
     "uk": APP / "uk.lproj" / "Localizable.strings",
 }
+INFO_FILES = {
+    "en": APP / "en.lproj" / "InfoPlist.strings",
+    "uk": APP / "uk.lproj" / "InfoPlist.strings",
+}
+REQUIRED_INFO_KEYS = {"NSLocationWhenInUseUsageDescription"}
 
 LINE = re.compile(r'^\s*("(?:\\.|[^"\\])*")\s*=\s*("(?:\\.|[^"\\])*")\s*;\s*$')
 UI_PATTERNS = [
@@ -51,6 +56,12 @@ def main() -> int:
         print(error, file=sys.stderr)
         return 1
 
+    try:
+        info_tables = {language: parse(path) for language, path in INFO_FILES.items()}
+    except (OSError, ValueError, json.JSONDecodeError) as error:
+        print(error, file=sys.stderr)
+        return 1
+
     en_keys = set(tables["en"])
     uk_keys = set(tables["uk"])
     missing_uk = sorted(en_keys - uk_keys)
@@ -58,6 +69,14 @@ def main() -> int:
     if missing_uk or missing_en:
         print(f"missing uk keys: {missing_uk}", file=sys.stderr)
         print(f"missing en keys: {missing_en}", file=sys.stderr)
+        return 1
+
+    info_en_keys = set(info_tables["en"])
+    info_uk_keys = set(info_tables["uk"])
+    if info_en_keys != info_uk_keys or not REQUIRED_INFO_KEYS.issubset(info_en_keys):
+        print(f"InfoPlist en keys: {sorted(info_en_keys)}", file=sys.stderr)
+        print(f"InfoPlist uk keys: {sorted(info_uk_keys)}", file=sys.stderr)
+        print(f"required InfoPlist keys: {sorted(REQUIRED_INFO_KEYS)}", file=sys.stderr)
         return 1
 
     missing_literals: list[str] = []
@@ -78,7 +97,10 @@ def main() -> int:
         print("\n".join(missing_literals), file=sys.stderr)
         return 1
 
-    print(f"localization OK: {len(en_keys)} keys; en/uk parity; active v1.0 static UI covered")
+    print(
+        f"localization OK: {len(en_keys)} UI keys + {len(info_en_keys)} InfoPlist keys; "
+        "en/uk parity; active v1.0 static UI and permission copy covered"
+    )
     return 0
 
 
