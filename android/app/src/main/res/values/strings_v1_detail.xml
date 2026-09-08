@@ -11,6 +11,7 @@
     <string name="slot_no_pending_requests">No pending requests</string>
     <string name="slot_decline">Decline</string>
     <string name="slot_accept">Accept</string>
+    <string name="slot_publish_draft">Publish LINK</string>
     <string name="slot_delete_cancel">Delete / Cancel LINK</string>
     <string name="slot_state_draft">DRAFT</string>
     <string name="slot_state_published">PUBLISHED</string>
