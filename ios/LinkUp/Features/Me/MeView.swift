@@ -4,8 +4,8 @@ import SwiftUI
 struct MeView: View {
     let user: UserProfile
     let api: LinkUpAPI
-    let social: SocialCoordinator
 
+    @ObservedObject var social: SocialCoordinator
     @ObservedObject var session: SessionCoordinator
     @ObservedObject var cityContext: CityContextCoordinator
     @StateObject private var coordinator: MeCoordinator
@@ -24,7 +24,7 @@ struct MeView: View {
     ) {
         self.user = user
         self.api = api
-        self.social = social
+        _social = ObservedObject(wrappedValue: social)
         _session = ObservedObject(wrappedValue: session)
         _cityContext = ObservedObject(wrappedValue: cityContext)
         _coordinator = StateObject(wrappedValue: MeCoordinator(api: api, session: session))
@@ -52,6 +52,9 @@ struct MeView: View {
             if coordinator.phase == .idle || coordinator.monetizationPhase == .idle {
                 await refreshAll()
             }
+        }
+        .onChange(of: social.discoveryRevision) { _, _ in
+            Task { await coordinator.load() }
         }
         .onDisappear { coordinator.dispose() }
         .sheet(isPresented: $showingMyLinks, onDismiss: {
@@ -360,7 +363,7 @@ struct MeView: View {
                                 Text("@\(blocked.username)").font(LinkUpTypography.body(10)).foregroundStyle(LinkUpPalette.textMuted)
                             }
                             Spacer()
-                            Button("Unblock") { Task { await coordinator.unblock(blocked) } }
+                            Button("Unblock") { unblock(blocked) }
                                 .font(LinkUpTypography.body(11, weight: .semibold))
                                 .foregroundStyle(LinkUpPalette.red)
                                 .disabled(coordinator.isMutating)
@@ -375,6 +378,13 @@ struct MeView: View {
                 .clipShape(RoundedRectangle(cornerRadius: LinkUpRadius.card))
                 .overlay { RoundedRectangle(cornerRadius: LinkUpRadius.card).stroke(LinkUpPalette.border) }
             }
+        }
+    }
+
+    private func unblock(_ user: BlockedUser) {
+        Task {
+            guard await coordinator.unblock(user) else { return }
+            _ = await social.refreshDiscoveryAfterRelationshipChange()
         }
     }
 

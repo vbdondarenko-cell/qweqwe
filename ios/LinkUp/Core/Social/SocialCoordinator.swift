@@ -133,8 +133,16 @@ final class SocialCoordinator: ObservableObject {
             try await api.blockUser(userID)
             let updated = try await api.slot(slot.id)
             reconcile(updated)
+            discoveryRevision &+= 1
             return updated
         }
+    }
+
+    @discardableResult
+    func refreshDiscoveryAfterRelationshipChange() async -> Bool {
+        let pulseLoaded = await loadPulse()
+        discoveryRevision &+= 1
+        return pulseLoaded
     }
 
     func blockOrganizerAndRevoke(_ slot: SlotModel) async throws -> Bool? {

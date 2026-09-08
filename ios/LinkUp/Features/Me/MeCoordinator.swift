@@ -119,22 +119,27 @@ final class MeCoordinator: ObservableObject {
         }
     }
 
-    func unblock(_ user: BlockedUser) async {
-        guard !isMutating else { return }
+    func unblock(_ user: BlockedUser) async -> Bool {
+        guard !isMutating else { return false }
         isMutating = true
         mutationError = nil
         defer { isMutating = false }
         do {
             try await api.unblockUser(user.id)
             blockedUsers.removeAll { $0.id == user.id }
+            return true
+        } catch is CancellationError {
+            return false
         } catch let error as APIError {
             if case .unauthorized = error {
                 await session.clearLocalSession()
             } else {
                 mutationError = error.localizedDescription
             }
+            return false
         } catch {
             mutationError = "Unable to unblock this account."
+            return false
         }
     }
 
