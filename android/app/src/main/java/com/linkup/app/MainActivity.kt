@@ -23,6 +23,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.repeatOnLifecycle
+import com.linkup.app.core.mutation.DurableMutationHttpTransport
+import com.linkup.app.core.mutation.DurableMutationRunner
+import com.linkup.app.core.mutation.DurableSocialApi
+import com.linkup.app.core.mutation.SecureMutationOutbox
 import com.linkup.app.core.network.LinkUpApiClient
 import com.linkup.app.core.network.PushApiClient
 import com.linkup.app.core.network.RealtimeApiClient
@@ -90,7 +94,15 @@ class MainActivity : ComponentActivity() {
         val sessionStore = SecureSessionStore(applicationContext)
         val api = LinkUpApiClient(apiBaseUrl, sessionStore)
         val sessionCoordinator = SessionCoordinator(api, sessionStore)
-        val socialCoordinator = SocialCoordinator(api)
+        val mutationOutbox = SecureMutationOutbox(applicationContext)
+        val durableSocialApi = DurableSocialApi(
+            delegate = api,
+            sessions = sessionStore,
+            runner = DurableMutationRunner(mutationOutbox),
+            transport = DurableMutationHttpTransport(apiBaseUrl, sessionStore),
+            onUnauthorized = { sessionCoordinator.clearLocalSession() },
+        )
+        val socialCoordinator = SocialCoordinator(durableSocialApi)
         val realtimeCoordinator = RealtimeCoordinator(
             RealtimeApiClient(apiBaseUrl, sessionStore),
             SharedPreferencesRealtimeCursorStore(applicationContext),
@@ -119,13 +131,25 @@ class MainActivity : ComponentActivity() {
         }
 
         activityScope.launch {
+            sessionCoordinator.state.collectLatest { state ->
+                if (state is SessionState.SignedOut) mutationOutbox.clearAll()
+            }
+        }
+
+        activityScope.launch {
             lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
                 sessionCoordinator.state
                     .map { (it as? SessionState.SignedIn)?.user?.id }
                     .distinctUntilChanged()
                     .collectLatest { userId ->
                         if (userId != null) {
-                            runRealtimeLoop(userId, realtimeCoordinator, sessionCoordinator, socialCoordinator)
+                            runRealtimeLoop(
+                                userId = userId,
+                                realtime = realtimeCoordinator,
+                                sessions = sessionCoordinator,
+                                social = socialCoordinator,
+                                durableSocial = durableSocialApi,
+                            )
                         }
                     }
             }
@@ -150,9 +174,18 @@ class MainActivity : ComponentActivity() {
         realtime: RealtimeCoordinator,
         sessions: SessionCoordinator,
         social: SocialCoordinator,
+        durableSocial: DurableSocialApi,
     ) {
         while (currentCoroutineContext().isActive) {
             val nextDelay = try {
+                val replay = durableSocial.replayPending()
+                if (replay != null && (replay.acknowledgedKeys.isNotEmpty() || replay.definitiveFailureKey != null)) {
+                    if (!reconcileAfterDurableReplay(social)) {
+                        delay(REALTIME_RETRY_MS)
+                        continue
+                    }
+                }
+
                 val pull = realtime.pull(userId, REALTIME_BATCH_SIZE)
                 if (pull.nextCursor > pull.fromCursor) {
                     val reconciled = reconcileRealtime(pull, sessions, social)
@@ -174,6 +207,36 @@ class MainActivity : ComponentActivity() {
             }
             delay(nextDelay)
         }
+    }
+
+    private suspend fun reconcileAfterDurableReplay(social: SocialCoordinator): Boolean {
+        social.refreshPulse()
+        if (!social.pulse.value.refreshSucceeded()) return false
+
+        val before = (social.selectedSlot.value as? LoadState.Content)?.value ?: return true
+        social.openSlot(before.id)
+        val selectedState = social.selectedSlot.value
+        if (selectedState is LoadState.Failure && selectedState.error.isDefinitiveAccessLoss()) {
+            social.clearSelected()
+            return true
+        }
+        if (!selectedState.refreshSucceeded()) return false
+
+        val selected = (social.selectedSlot.value as? LoadState.Content)?.value ?: return true
+        if (selected.viewerState == SlotViewerState.HOST) {
+            social.refreshPending(selected.id)
+            if (!social.pending.value.refreshSucceeded()) return false
+            social.refreshAccepted(selected.id)
+            if (!social.accepted.value.refreshSucceeded()) return false
+        }
+        if (social.chat.value !is LoadState.Idle) {
+            when (social.refreshChat(selected.id)) {
+                ChatRefreshResult.SUCCESS -> Unit
+                ChatRefreshResult.RETRY -> return false
+                ChatRefreshResult.STOP -> social.clearChat()
+            }
+        }
+        return true
     }
 
     private suspend fun reconcileRealtime(
