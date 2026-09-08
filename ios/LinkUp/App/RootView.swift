@@ -144,6 +144,26 @@ private struct MainShellView: View {
     }
 
 
+    private enum DraftWorkflowRecovery: Equatable {
+        case idle
+        case progressed
+        case queued
+    }
+
+    private func recoverDraftPublishWorkflow() async throws -> DraftWorkflowRecovery {
+        do {
+            guard let slot = try await services.api.resumeDraftPublishWorkflow() else { return .idle }
+            social.applyDraftPublishResult(slot)
+            return .progressed
+        } catch let error as APIError {
+            if case .mutationQueued(let key) = error {
+                social.registerQueuedMutation(key)
+                return .queued
+            }
+            throw error
+        }
+    }
+
     private func runRealtimeLoop() async {
         var needsAuthoritativeSnapshot = true
         while !Task.isCancelled {
@@ -176,40 +196,51 @@ private struct MainShellView: View {
                             }
                         }
                         social.applyDurableReplayReport(replay)
-                        needsAuthoritativeSnapshot = false
-                        delay = .milliseconds(250)
+                        let draftRecovery = try await recoverDraftPublishWorkflow()
+                        if draftRecovery == .queued {
+                            delay = .seconds(5)
+                        } else {
+                            needsAuthoritativeSnapshot = false
+                            delay = .milliseconds(250)
+                        }
                     }
                 } else {
                     let replay = try await services.api.replayPendingMutations()
                     if replay.needsSafetyIntervention || replay.ambiguousFailureKey != nil {
                         social.applyDurableReplayReport(replay)
                         delay = .seconds(5)
-                    } else if replay.madeProgress {
-                        guard await reconcileAfterDurableReplay() else {
-                            delay = .seconds(5)
-                            try await Task.sleep(for: delay)
-                            continue
+                    } else {
+                        if replay.madeProgress {
+                            guard await reconcileAfterDurableReplay() else {
+                                delay = .seconds(5)
+                                try await Task.sleep(for: delay)
+                                continue
+                            }
                         }
                         social.applyDurableReplayReport(replay)
-                        delay = .milliseconds(250)
-                    } else {
-                        social.applyDurableReplayReport(replay)
-                        let pull = try await services.realtime.pull(userID: user.id, limit: 100)
-                        if pull.nextCursor > pull.fromCursor {
-                            let reconciliation = await reconcileRealtime(pull)
-                            if reconciliation.success {
-                                try await services.realtime.acknowledge(userID: user.id, cursor: pull.nextCursor)
-                                social.applyRealtimeHints(
-                                    pull.hints,
-                                    accessLostSlotIDs: reconciliation.accessLostSlotIDs,
-                                    additionalRefreshedSlotIDs: reconciliation.refreshedSlotIDs
-                                )
-                                delay = pull.events.count >= 100 ? .milliseconds(250) : .seconds(4)
-                            } else {
-                                delay = .seconds(5)
-                            }
+                        let draftRecovery = try await recoverDraftPublishWorkflow()
+                        if draftRecovery == .queued {
+                            delay = .seconds(5)
+                        } else if replay.madeProgress || draftRecovery == .progressed {
+                            delay = .milliseconds(250)
                         } else {
-                            delay = .seconds(4)
+                            let pull = try await services.realtime.pull(userID: user.id, limit: 100)
+                            if pull.nextCursor > pull.fromCursor {
+                                let reconciliation = await reconcileRealtime(pull)
+                                if reconciliation.success {
+                                    try await services.realtime.acknowledge(userID: user.id, cursor: pull.nextCursor)
+                                    social.applyRealtimeHints(
+                                        pull.hints,
+                                        accessLostSlotIDs: reconciliation.accessLostSlotIDs,
+                                        additionalRefreshedSlotIDs: reconciliation.refreshedSlotIDs
+                                    )
+                                    delay = pull.events.count >= 100 ? .milliseconds(250) : .seconds(4)
+                                } else {
+                                    delay = .seconds(5)
+                                }
+                            } else {
+                                delay = .seconds(4)
+                            }
                         }
                     }
                 }

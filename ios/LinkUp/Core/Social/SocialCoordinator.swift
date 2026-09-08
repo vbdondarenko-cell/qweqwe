@@ -264,6 +264,12 @@ final class SocialCoordinator: ObservableObject {
     }
     func realtimeChatSnapshot(for slotID: UUID) -> [ChatMessage]? { stagedChatSnapshots[slotID] }
 
+    func applyDraftPublishResult(_ slot: SlotModel) {
+        pulseGeneration &+= 1
+        reconcile(slot)
+        discoveryRevision &+= 1
+    }
+
     func registerQueuedMutation(_ key: UUID) {
         durableMutationBlocked = true
         queuedMutationKey = key
