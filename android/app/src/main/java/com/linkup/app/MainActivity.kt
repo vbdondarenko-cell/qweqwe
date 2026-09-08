@@ -21,13 +21,22 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.repeatOnLifecycle
 import com.linkup.app.core.network.LinkUpApiClient
 import com.linkup.app.core.network.PushApiClient
+import com.linkup.app.core.network.RealtimeApiClient
+import com.linkup.app.core.network.SlotViewerState
 import com.linkup.app.core.network.passwordResetToken
 import com.linkup.app.core.push.PushCoordinator
+import com.linkup.app.core.realtime.RealtimeCoordinator
+import com.linkup.app.core.realtime.RealtimePull
+import com.linkup.app.core.realtime.SharedPreferencesRealtimeCursorStore
 import com.linkup.app.core.session.SecureSessionStore
 import com.linkup.app.core.session.SessionCoordinator
 import com.linkup.app.core.session.SessionState
+import com.linkup.app.core.social.ChatRefreshResult
+import com.linkup.app.core.social.LoadState
 import com.linkup.app.core.social.SocialCoordinator
 import com.linkup.app.ui.LinkUpApp
 import com.linkup.app.ui.theme.LinkUpRed
@@ -39,7 +48,12 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
-import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.collectLatest
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
@@ -77,6 +91,10 @@ class MainActivity : ComponentActivity() {
         val api = LinkUpApiClient(apiBaseUrl, sessionStore)
         val sessionCoordinator = SessionCoordinator(api, sessionStore)
         val socialCoordinator = SocialCoordinator(api)
+        val realtimeCoordinator = RealtimeCoordinator(
+            RealtimeApiClient(apiBaseUrl, sessionStore),
+            SharedPreferencesRealtimeCursorStore(applicationContext),
+        )
         val pushCoordinator = PushCoordinator(applicationContext, PushApiClient(apiBaseUrl, sessionStore))
         val pushConfigured = pushCoordinator.configure()
 
@@ -100,6 +118,19 @@ class MainActivity : ComponentActivity() {
             }
         }
 
+        activityScope.launch {
+            lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+                sessionCoordinator.state
+                    .map { (it as? SessionState.SignedIn)?.user?.id }
+                    .distinctUntilChanged()
+                    .collectLatest { userId ->
+                        if (userId != null) {
+                            runRealtimeLoop(userId, realtimeCoordinator, sessionCoordinator, socialCoordinator)
+                        }
+                    }
+            }
+        }
+
         setContent {
             LinkUpTheme {
                 LinkUpApp(
@@ -112,6 +143,81 @@ class MainActivity : ComponentActivity() {
                 )
             }
         }
+    }
+
+    private suspend fun runRealtimeLoop(
+        userId: String,
+        realtime: RealtimeCoordinator,
+        sessions: SessionCoordinator,
+        social: SocialCoordinator,
+    ) {
+        while (currentCoroutineContext().isActive) {
+            val nextDelay = try {
+                val pull = realtime.pull(userId, REALTIME_BATCH_SIZE)
+                if (pull.nextCursor > pull.fromCursor) {
+                    val reconciled = reconcileRealtime(pull, sessions, social)
+                    if (reconciled) {
+                        realtime.acknowledge(userId, pull.nextCursor)
+                    }
+                    when {
+                        !reconciled -> REALTIME_RETRY_MS
+                        pull.events.size >= REALTIME_BATCH_SIZE -> REALTIME_DRAIN_MS
+                        else -> REALTIME_POLL_MS
+                    }
+                } else {
+                    REALTIME_POLL_MS
+                }
+            } catch (error: CancellationException) {
+                throw error
+            } catch (_: Exception) {
+                REALTIME_RETRY_MS
+            }
+            delay(nextDelay)
+        }
+    }
+
+    private suspend fun reconcileRealtime(
+        pull: RealtimePull,
+        sessions: SessionCoordinator,
+        social: SocialCoordinator,
+    ): Boolean {
+        val hints = pull.hints
+
+        if (hints.refreshProfile && !sessions.refreshSignedInProfile()) return false
+
+        if (hints.refreshPulse) {
+            social.refreshPulse()
+            if (!social.pulse.value.refreshSucceeded()) return false
+        }
+
+        val before = (social.selectedSlot.value as? LoadState.Content)?.value
+        if (before != null && before.id in hints.slotIds) {
+            social.openSlot(before.id)
+            val selectedState = social.selectedSlot.value
+            if (selectedState is LoadState.Failure && selectedState.error.isDefinitiveAccessLoss()) {
+                social.clearSelected()
+            } else if (!selectedState.refreshSucceeded()) {
+                return false
+            }
+        }
+
+        val selected = (social.selectedSlot.value as? LoadState.Content)?.value
+        if (selected != null && hints.refreshRelationships && selected.id in hints.slotIds && selected.viewerState == SlotViewerState.HOST) {
+            social.refreshPending(selected.id)
+            if (!social.pending.value.refreshSucceeded()) return false
+            social.refreshAccepted(selected.id)
+            if (!social.accepted.value.refreshSucceeded()) return false
+        }
+
+        if (selected != null && selected.id in hints.chatSlotIds && social.chat.value !is LoadState.Idle) {
+            when (social.refreshChat(selected.id)) {
+                ChatRefreshResult.SUCCESS -> Unit
+                ChatRefreshResult.RETRY -> return false
+                ChatRefreshResult.STOP -> social.clearChat()
+            }
+        }
+
+        return true
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -133,7 +239,21 @@ class MainActivity : ComponentActivity() {
         intent.data = null
     }
 
+    private fun LoadState<*>.refreshSucceeded(): Boolean = when (this) {
+        is LoadState.Failure -> false
+        is LoadState.Loading -> false
+        is LoadState.Content<*> -> refreshError == null
+        LoadState.Idle, LoadState.Empty -> true
+    }
+
+    private fun com.linkup.app.core.social.SocialError.isDefinitiveAccessLoss(): Boolean =
+        code in setOf("unauthorized", "forbidden", "not_found")
+
     private companion object {
         const val REQUEST_NOTIFICATIONS = 1001
+        const val REALTIME_BATCH_SIZE = 100
+        const val REALTIME_DRAIN_MS = 250L
+        const val REALTIME_POLL_MS = 4_000L
+        const val REALTIME_RETRY_MS = 5_000L
     }
 }
