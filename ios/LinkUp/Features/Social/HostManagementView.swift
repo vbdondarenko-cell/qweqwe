@@ -241,12 +241,31 @@ struct HostManagementView: View {
         }
     }
 
+    private func block(_ user: SlotOrganizer) {
+        guard !social.mutationControlsDisabled else { return }
+        localError = nil
+        Task {
+            do {
+                if let outcome = try await social.block(slot, userID: user.id),
+                   let refreshed = outcome.refreshedSlot,
+                   refreshed.id == slot.id {
+                    slot = refreshed
+                }
+                await roster.load()
+            } catch is CancellationError {
+                return
+            } catch {
+                localError = error.localizedDescription
+            }
+        }
+    }
+
     private func runConfirmedAction(_ user: SlotOrganizer) {
         switch confirmAction {
         case .remove:
             mutate { try await social.removeParticipant(slot, userID: user.id) }
         case .block:
-            mutate { try await social.block(slot, userID: user.id) }
+            block(user)
         }
     }
 

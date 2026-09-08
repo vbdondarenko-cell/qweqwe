@@ -8,6 +8,10 @@ final class SocialCoordinator: ObservableObject {
         case failed(String)
     }
 
+    struct BlockRelationshipOutcome: Sendable {
+        let refreshedSlot: SlotModel?
+    }
+
     @Published private(set) var pulseItems: [SlotModel] = []
     @Published private(set) var pulsePhase: PulsePhase = .idle
     @Published private(set) var isMutating = false
@@ -128,13 +132,23 @@ final class SocialCoordinator: ObservableObject {
         }
     }
 
-    func block(_ slot: SlotModel, userID: UUID) async throws -> SlotModel? {
+    func block(_ slot: SlotModel, userID: UUID) async throws -> BlockRelationshipOutcome? {
         try await performMutation {
             try await api.blockUser(userID)
-            let updated = try await api.slot(slot.id)
-            reconcile(updated)
             discoveryRevision &+= 1
-            return updated
+
+            do {
+                let updated = try await api.slot(slot.id)
+                reconcile(updated)
+                return BlockRelationshipOutcome(refreshedSlot: updated)
+            } catch let error as APIError {
+                if case .unauthorized = error { throw error }
+                return BlockRelationshipOutcome(refreshedSlot: nil)
+            } catch is CancellationError {
+                return BlockRelationshipOutcome(refreshedSlot: nil)
+            } catch {
+                return BlockRelationshipOutcome(refreshedSlot: nil)
+            }
         }
     }
 
