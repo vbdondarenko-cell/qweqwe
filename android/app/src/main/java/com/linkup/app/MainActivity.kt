@@ -23,6 +23,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.repeatOnLifecycle
+import com.linkup.app.core.hosting.V11HostingCoordinator
 import com.linkup.app.core.mutation.DurableMutationHttpTransport
 import com.linkup.app.core.mutation.DurableMutationRunner
 import com.linkup.app.core.mutation.DurableSocialApi
@@ -102,6 +103,7 @@ class MainActivity : ComponentActivity() {
             transport = DurableMutationHttpTransport(apiBaseUrl, sessionStore),
             onUnauthorized = { sessionCoordinator.clearLocalSession() },
         )
+        val hostingCoordinator = V11HostingCoordinator(durableSocialApi)
         val socialCoordinator = SocialCoordinator(durableSocialApi)
         val realtimeCoordinator = RealtimeCoordinator(
             RealtimeApiClient(apiBaseUrl, sessionStore),
@@ -132,7 +134,10 @@ class MainActivity : ComponentActivity() {
 
         activityScope.launch {
             sessionCoordinator.state.collectLatest { state ->
-                if (state is SessionState.SignedOut) mutationOutbox.clearAll()
+                if (state is SessionState.SignedOut) {
+                    mutationOutbox.clearAll()
+                    hostingCoordinator.clear()
+                }
             }
         }
 
@@ -162,6 +167,7 @@ class MainActivity : ComponentActivity() {
                     api = api,
                     sessions = sessionCoordinator,
                     social = socialCoordinator,
+                    hosting = hostingCoordinator,
                     resetToken = pendingResetToken,
                     onResetTokenConsumed = { pendingResetToken = null },
                 )
