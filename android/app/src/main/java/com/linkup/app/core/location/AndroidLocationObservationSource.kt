@@ -18,6 +18,7 @@ import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 import kotlin.math.roundToInt
 import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withTimeout
 
 class LocationPermissionRequiredException : IllegalStateException("Location permission is required")
 class LocationUnavailableException : IllegalStateException("No enabled location provider is available")
@@ -52,7 +53,7 @@ class AndroidLocationObservationSource(context: Context) : LocationObservationSo
         var lastError: Exception? = null
         for (provider in providers) {
             try {
-                return requestOne(provider).toObservation(permission)
+                return withTimeout(PROVIDER_TIMEOUT_MS) { requestOne(provider) }.toObservation(permission)
             } catch (error: SecurityException) {
                 throw LocationPermissionRequiredException()
             } catch (error: Exception) {
@@ -139,5 +140,6 @@ class AndroidLocationObservationSource(context: Context) : LocationObservationSo
     private companion object {
         const val MAX_LAST_KNOWN_AGE_MS = 2L * 60L * 1000L
         const val MAX_FUTURE_LOCATION_MS = 30L * 1000L
+        const val PROVIDER_TIMEOUT_MS = 12_000L
     }
 }
