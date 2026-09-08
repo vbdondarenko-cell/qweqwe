@@ -13,6 +13,7 @@ import (
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/account"
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/blocklist"
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/chat"
+	"github.com/vbdondarenko-cell/qweqwe/backend/internal/citycontext"
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/citymap"
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/config"
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/httpserver"
@@ -69,6 +70,10 @@ func main() {
 
 	chatService, err := chat.NewService(postgres.NewChatStore(pool))
 	if err != nil { slog.Error("chat service init failed", "error", err); os.Exit(1) }
+	cityContextStore, err := postgres.NewCityContextStore(pool)
+	if err != nil { slog.Error("city context store init failed", "error", err); os.Exit(1) }
+	cityContextService, err := citycontext.NewService(cityContextStore, citycontext.DefaultPolicy())
+	if err != nil { slog.Error("city context service init failed", "error", err); os.Exit(1) }
 	mapStore, err := postgres.NewCityMapStore(pool)
 	if err != nil { slog.Error("map store init failed", "error", err); os.Exit(1) }
 	mapService, err := citymap.NewService(mapStore)
@@ -105,6 +110,7 @@ func main() {
 		Blocks: blockService,
 		Slots: slotService,
 		Chats: chatService,
+		CityContext: cityContextService,
 		Map: mapService,
 		Places: placeService,
 		Realtime: realtimeService,
