@@ -37,6 +37,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
 import com.linkup.app.R
 import com.linkup.app.core.city.CityNetworkCoordinator
+import com.linkup.app.core.hosting.V11HostingCoordinator
 import com.linkup.app.core.city.mapViewportAround
 import com.linkup.app.core.network.ApiException
 import com.linkup.app.core.network.BlockedUser
@@ -92,6 +93,7 @@ fun LinkUpApp(
     api: LinkUpApiClient,
     sessions: SessionCoordinator,
     social: SocialCoordinator,
+    hosting: V11HostingCoordinator,
     resetToken: String? = null,
     onResetTokenConsumed: () -> Unit,
 ) {
@@ -202,7 +204,7 @@ fun LinkUpApp(
                 },
             )
             is SessionState.SignedIn -> key(state.user.id) {
-                SignedInRoot(state.user, api, sessions, social, lifecycle)
+                SignedInRoot(state.user, api, sessions, social, hosting, lifecycle)
             }
             is SessionState.OfflineSession -> OfflineSessionSurface(
                 expiresAt = state.expiresAtEpochMillis,
@@ -225,6 +227,7 @@ private fun SignedInRoot(
     api: LinkUpApiClient,
     sessions: SessionCoordinator,
     social: SocialCoordinator,
+    hosting: V11HostingCoordinator,
     lifecycle: Lifecycle,
 ) {
     val scope = rememberCoroutineScope()
@@ -236,10 +239,21 @@ private fun SignedInRoot(
     val accepted by social.accepted.collectAsState()
     val chat by social.chat.collectAsState()
     val mutation by social.mutation.collectAsState()
+    val hostingDraft by hosting.draft.collectAsState()
     val placeSearch by city.places.collectAsState()
     val mapClusters by city.map.collectAsState()
     val mapPlaceSlots by city.mapSlots.collectAsState()
     val genericError = stringResource(R.string.common_request_failed)
+    val hostingBusy = when (val state = hostingDraft) {
+        is LoadState.Loading -> true
+        is LoadState.Content -> state.refreshing
+        else -> false
+    }
+    val hostingError = when (val state = hostingDraft) {
+        is LoadState.Failure -> state.error.message
+        is LoadState.Content -> state.refreshError?.message
+        else -> null
+    }
 
     var tab by remember { mutableStateOf(MainTab.PULSE) }
     var detailOpen by remember { mutableStateOf(false) }
@@ -352,6 +366,7 @@ private fun SignedInRoot(
     DisposableEffect(user.id) {
         onDispose {
             social.clearAll()
+            hosting.clear()
             city.clearAll()
         }
     }
@@ -407,6 +422,17 @@ private fun SignedInRoot(
                 onRefreshAccepted = { id -> scope.launch { social.refreshAccepted(id) } },
                 onRemoveParticipant = { id, userId, version -> scope.launch { social.removeParticipant(id, userId, version) } },
                 mutation = mutation,
+                hostingBusy = hostingBusy,
+                hostingError = hostingError,
+                onPublishDraft = { draft ->
+                    scope.launch {
+                        val published = hosting.publishDraft(draft)
+                        if (published != null) {
+                            social.openSlot(published.id)
+                            social.refreshPulse()
+                        }
+                    }
+                },
                 onBack = { detailOpen = false; social.clearSelected() },
                 onRefresh = { id -> scope.launch { social.openSlot(id) } },
                 onRequest = { id -> scope.launch { social.requestSlot(id) } },
@@ -440,8 +466,8 @@ private fun SignedInRoot(
                                 onPrimaryAction = ::handleDesignedPrimaryAction,
                             )
                             MainTab.LINK -> CreateLinkScreen(
-                                submitting = mutation is MutationState.Running,
-                                errorMessage = (mutation as? MutationState.Failed)?.error?.message,
+                                submitting = hostingBusy,
+                                errorMessage = hostingError,
                                 placeSearch = placeSearch,
                                 onPlaceSearch = { query -> scope.launch { city.searchPlaces(query) } },
                                 onClearPlaceSearch = city::clearPlaces,
@@ -449,12 +475,16 @@ private fun SignedInRoot(
                                     city.clearPlaces()
                                     tab = MainTab.PULSE
                                 },
-                                onPublish = { input ->
+                                onSaveDraft = { input ->
                                     scope.launch {
-                                        if (social.createSlot(input)) {
-                                            city.clearPlaces()
-                                            tab = MainTab.PULSE
-                                            detailOpen = true
+                                        if (hosting.createDraft(input)) {
+                                            val draft = (hosting.draft.value as? LoadState.Content<SlotModel>)?.value
+                                            if (draft != null) {
+                                                city.clearPlaces()
+                                                tab = MainTab.PULSE
+                                                detailOpen = true
+                                                social.openSlot(draft.id)
+                                            }
                                         }
                                     }
                                 },
