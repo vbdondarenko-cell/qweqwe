@@ -157,6 +157,7 @@ func (s *Server) requireAuth(next http.Handler) http.Handler {
 				writeProblem(w, r, http.StatusTooManyRequests, "rate_limited", "too many authenticated requests")
 				return
 			}
+		}
 		ctx := context.WithValue(r.Context(), authKey, authContext{User: u, SessionID: sid, RawToken: raw})
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
