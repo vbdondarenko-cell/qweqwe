@@ -382,6 +382,9 @@ private struct MapPlaceSlotsView: View {
                 case .content:
                     ScrollView {
                         LazyVStack(spacing: 12) {
+                            if let mutationError = social.mutationError {
+                                LinkUpInlineError(message: mutationError) { social.clearMutationError() }
+                            }
                             ForEach(mapCoordinator.placeSlots) { slot in
                                 SlotCardView(
                                     slot: slot,
@@ -439,6 +442,7 @@ private struct MapPlaceSlotsView: View {
                 } catch is CancellationError {
                     return
                 } catch {
+                    // SocialCoordinator owns the canonical mutation error surface.
                     return
                 }
             }

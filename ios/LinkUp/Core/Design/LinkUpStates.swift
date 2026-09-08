@@ -52,3 +52,33 @@ struct LinkUpErrorState: View {
         .padding(.vertical, 32)
     }
 }
+
+struct LinkUpInlineError: View {
+    let message: String
+    var dismiss: (() -> Void)? = nil
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundStyle(LinkUpPalette.critical)
+            Text(message)
+                .font(LinkUpTypography.body(12))
+                .foregroundStyle(LinkUpPalette.textDimmed)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            if let dismiss {
+                Button(action: dismiss) {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 11, weight: .bold))
+                        .frame(width: 24, height: 24)
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(LinkUpPalette.textMuted)
+                .accessibilityLabel("Dismiss error")
+            }
+        }
+        .padding(12)
+        .background(LinkUpPalette.critical.opacity(0.09))
+        .clipShape(RoundedRectangle(cornerRadius: LinkUpRadius.control))
+        .overlay { RoundedRectangle(cornerRadius: LinkUpRadius.control).stroke(LinkUpPalette.critical.opacity(0.18)) }
+    }
+}

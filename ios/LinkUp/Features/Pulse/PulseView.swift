@@ -152,6 +152,15 @@ struct PulseView: View {
     }
 
     @ViewBuilder private var content: some View {
+        VStack(spacing: 12) {
+            if let mutationError = coordinator.mutationError {
+                LinkUpInlineError(message: mutationError) { coordinator.clearMutationError() }
+            }
+            pulseContent
+        }
+    }
+
+    @ViewBuilder private var pulseContent: some View {
         switch coordinator.pulsePhase {
         case .idle, .loading:
             loadingCards
@@ -251,7 +260,11 @@ struct PulseView: View {
 
     private func primaryAction(_ slot: SlotModel) {
         if slot.canRequestToJoin {
-            Task { _ = try? await coordinator.request(slot) }
+            Task {
+                do { _ = try await coordinator.request(slot) }
+                catch is CancellationError { return }
+                catch { return }
+            }
         } else {
             selectedSlot = slot
         }
