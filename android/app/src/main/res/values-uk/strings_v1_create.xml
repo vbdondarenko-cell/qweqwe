@@ -26,6 +26,8 @@
     <string name="create_public_subtitle">Видимий людям, яким це дозволяють server privacy rules</string>
     <string name="create_review_subtitle">Перевірте все перед публікацією.</string>
     <string name="create_preview_capacity_format">0/%1$d приєдналися · потрібне схвалення · публічний</string>
-    <string name="create_server_backed_notice">Публікація створює реальний LinkUp, збережений на сервері.</string>
+    <string name="create_server_backed_notice">Збереження створює реальну серверну чернетку. Опублікувати LINK можна після перевірки.</string>
     <string name="create_publishing">Публікація…</string>
+    <string name="create_save_draft">Зберегти чернетку</string>
+    <string name="create_saving_draft">Збереження…</string>
 </resources>
