@@ -31,6 +31,7 @@ type Dependencies struct {
 	Chats        *chat.Service
 	Map          *citymap.Service
 	Places       *places.Service
+	Realtime     RealtimeFeed
 	Monetization *monetization.Service
 	Push         *push.Service
 	Ready        func(context.Context) error
@@ -85,6 +86,7 @@ func New(deps Dependencies) *Server {
 	mux.Handle("PUT /v1/me/push/android", s.requireAuth(http.HandlerFunc(s.registerAndroidPush)))
 	mux.Handle("DELETE /v1/me/push/android/{installationID}", s.requireAuth(http.HandlerFunc(s.revokeAndroidPush)))
 
+	mux.Handle("GET /v1/realtime/events", s.requireAuth(http.HandlerFunc(s.realtimeEvents)))
 	mux.Handle("GET /v1/places/search", s.requireAuth(http.HandlerFunc(s.searchPlaces)))
 	mux.Handle("GET /v1/map", s.requireAuth(http.HandlerFunc(s.mapViewport)))
 	mux.Handle("GET /v1/map/places/{placeID}/slots", s.requireAuth(http.HandlerFunc(s.mapPlaceSlots)))
@@ -155,7 +157,6 @@ func (s *Server) requireAuth(next http.Handler) http.Handler {
 				writeProblem(w, r, http.StatusTooManyRequests, "rate_limited", "too many authenticated requests")
 				return
 			}
-		}
 		ctx := context.WithValue(r.Context(), authKey, authContext{User: u, SessionID: sid, RawToken: raw})
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
