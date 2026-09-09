@@ -122,7 +122,6 @@ func TestTeenModeRejectsRomanticPreference(t *testing.T) {
 	}
 	service.now = func() time.Time { return time.Date(2026, 9, 9, 12, 0, 0, 0, time.UTC) }
 	in := validStartInput()
-	in.Goals = nil
 	in.Preferences.Goals = []string{"romantic"}
 	if _, err := service.Start(context.Background(), in); err != ErrInvalidInput {
 		t.Fatalf("expected ErrInvalidInput, got %v", err)
