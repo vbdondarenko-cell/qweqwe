@@ -70,7 +70,7 @@ type Status struct {
 type Store interface {
 	Create(ctx context.Context, pending PendingRegistration) error
 	BindTelegram(ctx context.Context, tokenHash []byte, telegramUserID int64, now time.Time) error
-	VerifyTelegramContact(ctx context.Context, telegramUserID int64, phoneE164 string, now time.Time) error
+	VerifyTelegramContact(ctx context.Context, telegramUserID int64, phoneE164 string, now time.Time) (string, error)
 	Status(ctx context.Context, tokenHash []byte, now time.Time) (Status, error)
 	Finalize(ctx context.Context, tokenHash []byte, userID string, session account.Session, now time.Time) (account.User, error)
 }
