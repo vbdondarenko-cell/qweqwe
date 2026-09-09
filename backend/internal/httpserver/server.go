@@ -14,6 +14,7 @@ import (
 
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/account"
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/blocklist"
+	"github.com/vbdondarenko-cell/qweqwe/backend/internal/capability"
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/chat"
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/citycontext"
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/citymap"
@@ -31,6 +32,7 @@ type Dependencies struct {
 	Slots        *slot.Service
 	Chats        *chat.Service
 	CityContext  *citycontext.Service
+	Capabilities *capability.Service
 	Map          *citymap.Service
 	Places       *places.Service
 	Realtime     RealtimeFeed
@@ -79,21 +81,22 @@ func New(deps Dependencies) *Server {
 	mux.Handle("POST /v1/auth/recovery/reset", s.authRateLimit(http.HandlerFunc(s.resetPassword)))
 	mux.Handle("POST /v1/auth/logout", s.requireAuth(http.HandlerFunc(s.logout)))
 	mux.Handle("GET /v1/me", s.requireAuth(http.HandlerFunc(s.getMe)))
+	mux.Handle("GET /v1/capabilities", s.requireAuth(http.HandlerFunc(s.capabilities)))
 	mux.Handle("PATCH /v1/me", s.requireAuth(http.HandlerFunc(s.patchMe)))
 	mux.Handle("GET /v1/me/blocks", s.requireAuth(http.HandlerFunc(s.listBlocks)))
 	mux.Handle("PUT /v1/me/blocks/{userID}", s.requireAuth(http.HandlerFunc(s.blockUser)))
 	mux.Handle("DELETE /v1/me/blocks/{userID}", s.requireAuth(http.HandlerFunc(s.unblockUser)))
 	mux.Handle("GET /v1/me/monetization", s.requireAuth(http.HandlerFunc(s.getMonetization)))
 	mux.Handle("PUT /v1/me/referral", s.requireAuth(http.HandlerFunc(s.bindReferral)))
-	mux.Handle("PUT /v1/me/push/android", s.requireAuth(http.HandlerFunc(s.registerAndroidPush)))
-	mux.Handle("DELETE /v1/me/push/android/{installationID}", s.requireAuth(http.HandlerFunc(s.revokeAndroidPush)))
+	mux.Handle("PUT /v1/me/push/android", s.requireAuth(s.requireCapability(capability.Notifications, http.HandlerFunc(s.registerAndroidPush))))
+	mux.Handle("DELETE /v1/me/push/android/{installationID}", s.requireAuth(s.requireCapability(capability.Notifications, http.HandlerFunc(s.revokeAndroidPush))))
 
-	mux.Handle("GET /v1/realtime/events", s.requireAuth(http.HandlerFunc(s.realtimeEvents)))
-	mux.Handle("GET /v1/city-context", s.requireAuth(http.HandlerFunc(s.getCityContext)))
-	mux.Handle("POST /v1/city-context/resolve", s.requireAuth(http.HandlerFunc(s.resolveCityContext)))
+	mux.Handle("GET /v1/realtime/events", s.requireAuth(s.requireCapability(capability.Realtime, http.HandlerFunc(s.realtimeEvents))))
+	mux.Handle("GET /v1/city-context", s.requireAuth(s.requireCapability(capability.CityContext, http.HandlerFunc(s.getCityContext))))
+	mux.Handle("POST /v1/city-context/resolve", s.requireAuth(s.requireCapability(capability.CityContext, http.HandlerFunc(s.resolveCityContext))))
 	mux.Handle("GET /v1/places/search", s.requireAuth(http.HandlerFunc(s.searchPlaces)))
-	mux.Handle("GET /v1/map", s.requireAuth(http.HandlerFunc(s.mapViewport)))
-	mux.Handle("GET /v1/map/places/{placeID}/slots", s.requireAuth(http.HandlerFunc(s.mapPlaceSlots)))
+	mux.Handle("GET /v1/map", s.requireAuth(s.requireCapability(capability.Map, http.HandlerFunc(s.mapViewport))))
+	mux.Handle("GET /v1/map/places/{placeID}/slots", s.requireAuth(s.requireCapability(capability.Map, http.HandlerFunc(s.mapPlaceSlots))))
 	mux.Handle("POST /v1/slots/drafts", s.requireAuth(http.HandlerFunc(s.createDraftSlot)))
 	mux.Handle("POST /v1/slots/{slotID}/publish", s.requireAuth(http.HandlerFunc(s.publishDraftSlot)))
 	mux.Handle("POST /v1/slots", s.requireAuth(http.HandlerFunc(s.createSlot)))

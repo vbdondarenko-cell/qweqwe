@@ -595,7 +595,7 @@ Current executed state superseding older audit assumptions:
 - Ubuntu API/Caddy/HTTPS/App Links are healthy and the API systemd sandbox reports an `OK` exposure score.
 - Firebase project/config identity is consistent across service account, backend and Android build configuration; physical FCM delivery remains unverified because no device token is registered.
 
-Remaining production gates are concrete rather than source-completeness claims: physical two-user Android regression/instrumentation, a registered FCM device and delivered push, production SMTP password recovery, Privacy/Terms HTTPS endpoints, signed release AAB verification, and remediation/acceptance of the remaining Supabase PostGIS public-surface advisories.
+Remaining production gates are concrete rather than source-completeness claims: physical two-user Android regression/instrumentation, production SMTP password recovery, Privacy/Terms HTTPS endpoints, signed release AAB verification, and remediation/acceptance of the remaining Supabase PostGIS public-surface advisories. FCM device-token registration and delivered push are early v1.1 §6.8 foundation, not a v1.0 release gate; bounded/manual refresh is sufficient for v1.0.
 
 
 ## 28. 2026-09-07 — production database boundary closed for v1.0 clients
@@ -608,7 +608,7 @@ Current verified state after production remediation:
 - `linkup_api` retains `public` schema usage and application-table authority; live API health remains green;
 - Go unit/integration, vet and race gates are green; Android debug unit/lint/assemble is green.
 
-Still not production-complete: SMTP password recovery is unconfigured, no real Android FCM token is registered, physical two-user/device runtime evidence is absent, and release legal URLs are intentionally deferred. The signed release APK/AAB must remain blocked until those release inputs/gates are closed.
+Still not production-complete: SMTP password recovery is unconfigured, physical two-user/device runtime evidence is absent, and release legal URLs are intentionally deferred. The signed release APK/AAB must remain blocked until those v1.0 release inputs/gates are closed. Real FCM token registration and delivered push remain unverified v1.1 §6.8 evidence only and do not block v1.0.
 
 
 ## 29. 2026-09-08 — iOS explicitly activated / native SwiftUI foundation
@@ -703,3 +703,30 @@ The iOS localization baseline follows the same release semantics as Android: dev
 Still external/unverified: macOS/Xcode compilation and XCTest, generated Xcode project inspection, simulator/physical-device language switching, VoiceOver/Dynamic Type/Reduce Motion QA, Universal Link delivery through the final production domain/AASA/Apple CDN, signing/archive/App Store validation, and physical multi-account iOS smoke.
 
 Push remains a backend dependency rather than an iOS source claim. Current canonical Go push endpoints/store/sender are Android/FCM-only (`/v1/me/push/android`, `platform='ANDROID'`, Firebase sender). No APNs client registration path is added until Go/PostgreSQL expose an authoritative iOS/APNs contract.
+
+## 32. 2026-09-09 — v1.1 server-authoritative Capability Registry foundation
+
+This section supersedes the stale §12 implication that every v1.1 foundation is absent. The active v1.1 rollout architecture now starts with a fail-closed, server-authoritative capability registry while v1.0 remains the mandatory regression baseline.
+
+Implemented in the current work block:
+
+- forward-only migration `000018_v11_capability_registry.sql` with canonical keys `realtime`, `city_context`, `map`, `waitlist`, `chat_v2`, `notifications`, `bump`, `city_bpm`, `swarms`, `fly_now`, `fly_travel`, `fly_motion`;
+- every seeded capability is `enabled=false` by default;
+- registry rows have a globally monotonic revision, optional effective time, and `ALL` / `USER_ALLOWLIST` rollout scope;
+- `anon`, `authenticated` and PUBLIC have no registry write authority; the Go API role has read authority only;
+- authenticated `GET /v1/capabilities` returns the server-evaluated snapshot; missing rows, unknown keys, unavailable registry state and client parse failures resolve to disabled;
+- the Go server independently gates v1.1 realtime, City Context, Map and Android push-registration endpoints and returns `403 capability_disabled` when the server capability is off, so a modified client UI flag cannot authorize the operation;
+- v1.0 account/Slot/request/approval/basic-chat routes are intentionally not dependent on the registry, so a registry outage cannot disable the v1.0 social loop;
+- Android starts from an all-disabled snapshot and only starts realtime, push token synchronization/notification permission flow, or Map network behavior after the corresponding server capability evaluates enabled;
+- the frozen canonical Map implementation was not edited; an additive wrapper renders an inactive state when `map=false`.
+
+Executed evidence for this work block:
+
+- pre-change baseline: Go `go test ./...`, `go vet ./...`, `go test -race ./...` green; Android `testDebugUnitTest + lintDebug + assembleDebug` green with 64 unit tests;
+- targeted Go capability/http/postgres tests green, including disabled/error fail-closed behavior and server-side allowlist enforcement;
+- Android targeted/unit suite green with 68 tests after adding capability parser/coordinator coverage;
+- post-change full regression is green: Go `go test -count=1 ./...`, `go vet ./...`, `go test -race -count=1 ./...`; Android `:app:testDebugUnitTest :app:lintDebug :app:assembleDebug` completed `BUILD SUCCESSFUL`;
+- fresh disposable PostgreSQL applied canonical migrations `000001..000018`; both the full v1.0 social integration test and the new capability-registry integration test passed; the disposable database was dropped afterward;
+- PostgreSQL integration proves default-off state, allowlist isolation and revision advancement on both enable and disable transitions.
+
+No v1.1 capability is enabled by this foundation. Enabling any individual capability remains a later explicit gate after that feature's own implementation and real verification. FCM/push remains v1.1 §6.8 foundation and is not part of the v1.0 Definition of Done.

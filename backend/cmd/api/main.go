@@ -12,6 +12,7 @@ import (
 
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/account"
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/blocklist"
+	"github.com/vbdondarenko-cell/qweqwe/backend/internal/capability"
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/chat"
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/citycontext"
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/citymap"
@@ -84,6 +85,10 @@ func main() {
 	if err != nil { slog.Error("realtime store init failed", "error", err); os.Exit(1) }
 	realtimeService, err := realtime.NewFeedService(realtimeStore)
 	if err != nil { slog.Error("realtime service init failed", "error", err); os.Exit(1) }
+	capabilityStore, err := postgres.NewCapabilityStore(pool)
+	if err != nil { slog.Error("capability store init failed", "error", err); os.Exit(1) }
+	capabilityService, err := capability.NewService(capabilityStore)
+	if err != nil { slog.Error("capability service init failed", "error", err); os.Exit(1) }
 
 	monetizationService := monetization.NewService(postgres.NewMonetizationStore(pool))
 
@@ -114,6 +119,7 @@ func main() {
 		Map: mapService,
 		Places: placeService,
 		Realtime: realtimeService,
+		Capabilities: capabilityService,
 		Monetization: monetizationService,
 		Push: pushService,
 		Ready: pool.Ping,

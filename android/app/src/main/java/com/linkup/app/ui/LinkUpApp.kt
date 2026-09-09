@@ -36,11 +36,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
 import com.linkup.app.R
+import com.linkup.app.core.capability.CapabilityCoordinator
 import com.linkup.app.core.city.CityNetworkCoordinator
 import com.linkup.app.core.hosting.V11HostingCoordinator
 import com.linkup.app.core.city.mapViewportAround
 import com.linkup.app.core.network.ApiException
 import com.linkup.app.core.network.BlockedUser
+import com.linkup.app.core.network.CapabilityKey
 import com.linkup.app.core.network.CanonicalPlace
 import com.linkup.app.core.network.LinkUpApiClient
 import com.linkup.app.core.network.MapCluster
@@ -59,7 +61,7 @@ import com.linkup.app.ui.auth.AuthScreen
 import com.linkup.app.ui.design.FrozenBottomNav
 import com.linkup.app.ui.design.FrozenFlyScreen
 import com.linkup.app.ui.design.FrozenMainTab
-import com.linkup.app.ui.design.FrozenMapScreen
+import com.linkup.app.ui.design.CapabilityMapScreen
 import com.linkup.app.ui.design.FrozenMeScreen
 import com.linkup.app.ui.design.FrozenPulseScreen
 import com.linkup.app.ui.design.canJoin
@@ -94,6 +96,7 @@ fun LinkUpApp(
     sessions: SessionCoordinator,
     social: SocialCoordinator,
     hosting: V11HostingCoordinator,
+    capabilities: CapabilityCoordinator,
     resetToken: String? = null,
     onResetTokenConsumed: () -> Unit,
 ) {
@@ -204,7 +207,7 @@ fun LinkUpApp(
                 },
             )
             is SessionState.SignedIn -> key(state.user.id) {
-                SignedInRoot(state.user, api, sessions, social, hosting, lifecycle)
+                SignedInRoot(state.user, api, sessions, social, hosting, capabilities, lifecycle)
             }
             is SessionState.OfflineSession -> OfflineSessionSurface(
                 expiresAt = state.expiresAtEpochMillis,
@@ -228,10 +231,13 @@ private fun SignedInRoot(
     sessions: SessionCoordinator,
     social: SocialCoordinator,
     hosting: V11HostingCoordinator,
+    capabilities: CapabilityCoordinator,
     lifecycle: Lifecycle,
 ) {
     val scope = rememberCoroutineScope()
     val city = remember(api) { CityNetworkCoordinator(api) }
+    val capabilitySnapshot by capabilities.snapshot.collectAsState()
+    val mapEnabled = capabilitySnapshot.enabled(CapabilityKey.MAP)
     val pulse by social.pulse.collectAsState()
     val mySlots by social.mySlots.collectAsState()
     val selected by social.selectedSlot.collectAsState()
@@ -290,6 +296,7 @@ private fun SignedInRoot(
     }
 
     fun selectMapCenter(place: CanonicalPlace) {
+        if (!mapEnabled) return
         val now = System.currentTimeMillis()
         val query = mapViewportAround(
             center = place,
@@ -306,12 +313,14 @@ private fun SignedInRoot(
     }
 
     fun refreshCurrentMap() {
+        if (!mapEnabled) return
         val query = mapViewport ?: return
         selectedMapCluster = null
         scope.launch { city.refreshMap(query) }
     }
 
     fun changeMapZoom(delta: Int) {
+        if (!mapEnabled) return
         val center = mapCenter ?: return
         val current = mapViewport ?: return
         val nextZoom = (current.zoom + delta).coerceIn(1, 20)
@@ -329,6 +338,7 @@ private fun SignedInRoot(
     }
 
     fun openMapCluster(cluster: MapCluster) {
+        if (!mapEnabled) return
         val placeId = cluster.placeId ?: return
         val query = mapViewport ?: return
         selectedMapCluster = cluster
@@ -507,14 +517,15 @@ private fun SignedInRoot(
                                     }
                                 },
                             )
-                            MainTab.MAP -> FrozenMapScreen(
+                            MainTab.MAP -> CapabilityMapScreen(
+                                enabled = mapEnabled,
                                 placeSearch = placeSearch,
                                 center = mapCenter,
                                 viewport = mapViewport,
                                 clusters = mapClusters,
                                 selectedCluster = selectedMapCluster,
                                 placeSlots = mapPlaceSlots,
-                                onSearchPlaces = { query -> scope.launch { city.searchPlaces(query) } },
+                                onSearchPlaces = { query -> if (mapEnabled) scope.launch { city.searchPlaces(query) } },
                                 onSelectCenter = ::selectMapCenter,
                                 onRefreshMap = ::refreshCurrentMap,
                                 onZoomIn = { changeMapZoom(1) },

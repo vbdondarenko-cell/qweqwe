@@ -23,11 +23,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.repeatOnLifecycle
+import com.linkup.app.core.capability.CapabilityCoordinator
 import com.linkup.app.core.hosting.V11HostingCoordinator
 import com.linkup.app.core.mutation.DurableMutationHttpTransport
 import com.linkup.app.core.mutation.DurableMutationRunner
 import com.linkup.app.core.mutation.DurableSocialApi
 import com.linkup.app.core.mutation.SecureMutationOutbox
+import com.linkup.app.core.network.CapabilityKey
 import com.linkup.app.core.network.LinkUpApiClient
 import com.linkup.app.core.network.PushApiClient
 import com.linkup.app.core.network.RealtimeApiClient
@@ -55,6 +57,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
@@ -64,6 +67,7 @@ import kotlinx.coroutines.launch
 class MainActivity : ComponentActivity() {
     // Password reset credentials are intentionally process-memory only.
     private var pendingResetToken by mutableStateOf<String?>(null)
+    private var notificationPermissionRequested = false
     private val activityScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -105,6 +109,7 @@ class MainActivity : ComponentActivity() {
         )
         val hostingCoordinator = V11HostingCoordinator(durableSocialApi)
         val socialCoordinator = SocialCoordinator(durableSocialApi)
+        val capabilityCoordinator = CapabilityCoordinator(api)
         val realtimeCoordinator = RealtimeCoordinator(
             RealtimeApiClient(apiBaseUrl, sessionStore),
             SharedPreferencesRealtimeCursorStore(applicationContext),
@@ -112,23 +117,42 @@ class MainActivity : ComponentActivity() {
         val pushCoordinator = PushCoordinator(applicationContext, PushApiClient(apiBaseUrl, sessionStore))
         val pushConfigured = pushCoordinator.configure()
 
-        if (pushConfigured && Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
-            requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), REQUEST_NOTIFICATIONS)
-        }
-        if (pushConfigured) {
-            activityScope.launch {
+        activityScope.launch {
+            lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
                 sessionCoordinator.state.collectLatest { state ->
                     if (state is SessionState.SignedIn) {
+                        capabilityCoordinator.refresh()
+                    } else {
+                        capabilityCoordinator.reset()
+                    }
+                }
+            }
+        }
+
+        if (pushConfigured) {
+            activityScope.launch {
+                combine(
+                    sessionCoordinator.state.map { it is SessionState.SignedIn },
+                    capabilityCoordinator.snapshot.map { it.enabled(CapabilityKey.NOTIFICATIONS) },
+                ) { signedIn, notificationsEnabled -> signedIn && notificationsEnabled }
+                    .distinctUntilChanged()
+                    .collectLatest { enabled ->
+                        if (!enabled) return@collectLatest
+                        if (Build.VERSION.SDK_INT >= 33 &&
+                            !notificationPermissionRequested &&
+                            checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+                        ) {
+                            notificationPermissionRequested = true
+                            requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), REQUEST_NOTIFICATIONS)
+                        }
                         try {
                             pushCoordinator.sync()
                         } catch (error: CancellationException) {
                             throw error
                         } catch (_: Exception) {
-                            // Push registration is non-critical for auth/navigation.
-                            // A later signed-in app start will retry the current FCM token.
+                            // Non-critical. The next signed-in foreground refresh re-evaluates the server gate and retries.
                         }
                     }
-                }
             }
         }
 
@@ -137,14 +161,17 @@ class MainActivity : ComponentActivity() {
                 if (state is SessionState.SignedOut) {
                     mutationOutbox.clearAll()
                     hostingCoordinator.clear()
+                    capabilityCoordinator.reset()
                 }
             }
         }
 
         activityScope.launch {
             lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
-                sessionCoordinator.state
-                    .map { (it as? SessionState.SignedIn)?.user?.id }
+                combine(
+                    sessionCoordinator.state.map { (it as? SessionState.SignedIn)?.user?.id },
+                    capabilityCoordinator.snapshot.map { it.enabled(CapabilityKey.REALTIME) },
+                ) { userId, realtimeEnabled -> if (realtimeEnabled) userId else null }
                     .distinctUntilChanged()
                     .collectLatest { userId ->
                         if (userId != null) {
@@ -168,6 +195,7 @@ class MainActivity : ComponentActivity() {
                     sessions = sessionCoordinator,
                     social = socialCoordinator,
                     hosting = hostingCoordinator,
+                    capabilities = capabilityCoordinator,
                     resetToken = pendingResetToken,
                     onResetTokenConsumed = { pendingResetToken = null },
                 )

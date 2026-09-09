@@ -50,7 +50,7 @@ internal fun shouldRetryGet(method: String, error: Exception): Boolean {
 class LinkUpApiClient(
     baseUrl: String,
     private val sessions: SecureSessionStore,
-) : SocialApi, CityNetworkApi {
+) : SocialApi, CityNetworkApi, CapabilityApi {
     private val root = validatedApiRoot(baseUrl)
 
     @Volatile
@@ -107,6 +107,8 @@ class LinkUpApiClient(
     }
 
     suspend fun me(): UserProfile = parseUser(request("GET", "/v1/me", null, true)!!)
+    override suspend fun capabilities(): CapabilitySnapshot =
+        parseCapabilitySnapshot(request("GET", "/v1/capabilities", null, true)!!)
 
     suspend fun updateMe(
         displayName: String? = null,
