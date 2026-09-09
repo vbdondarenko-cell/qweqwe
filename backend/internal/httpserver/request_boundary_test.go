@@ -36,6 +36,7 @@ func TestDecodeJSONConsumesWholeBoundedBody(t *testing.T) {
 
 type boundaryOnboardingStore struct { created bool }
 
+func (*boundaryOnboardingStore) IdentityAvailable(context.Context, string, string) (bool, error) { return true, nil }
 func (s *boundaryOnboardingStore) Create(_ context.Context, _ onboarding.PendingRegistration) error { s.created = true; return nil }
 func (*boundaryOnboardingStore) BindTelegram(context.Context, []byte, int64, time.Time) error { return onboarding.ErrNotFound }
 func (*boundaryOnboardingStore) VerifyTelegramContact(context.Context, int64, string, time.Time) (string, error) { return "", onboarding.ErrNotFound }

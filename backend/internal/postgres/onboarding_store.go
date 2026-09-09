@@ -17,6 +17,16 @@ type OnboardingStore struct{ pool *pgxpool.Pool }
 
 func NewOnboardingStore(pool *pgxpool.Pool) *OnboardingStore { return &OnboardingStore{pool: pool} }
 
+func (s *OnboardingStore) IdentityAvailable(ctx context.Context, email, username string) (bool, error) {
+	var available bool
+	err := s.pool.QueryRow(ctx, `
+		SELECT NOT EXISTS (
+			SELECT 1 FROM app_users
+			WHERE lower(trim(email))=lower(trim($1)) OR lower(username)=lower($2)
+		)`, email, username).Scan(&available)
+	return available, err
+}
+
 func (s *OnboardingStore) Create(ctx context.Context, p onboarding.PendingRegistration) error {
 	preferences, err := json.Marshal(p.Preferences)
 	if err != nil {

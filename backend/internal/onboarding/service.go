@@ -39,6 +39,13 @@ func (s *Service) Start(ctx context.Context, in StartInput) (StartResult, error)
 	if err != nil {
 		return StartResult{}, err
 	}
+	available, err := s.store.IdentityAvailable(ctx, in.Email, in.Username)
+	if err != nil {
+		return StartResult{}, err
+	}
+	if !available {
+		return StartResult{}, ErrConflict
+	}
 	passwordHash, err := password.Hash(in.Password, s.password)
 	if err != nil {
 		return StartResult{}, ErrInvalidInput
@@ -62,8 +69,8 @@ func (s *Service) Start(ctx context.Context, in StartInput) (StartResult, error)
 	}
 	return StartResult{
 		VerificationToken: raw,
-		TelegramDeepLink: fmt.Sprintf("https://t.me/%s?start=%s", s.botUsername, raw),
-		ExpiresAt: pending.ExpiresAt,
+		TelegramDeepLink:  fmt.Sprintf("https://t.me/%s?start=%s", s.botUsername, raw),
+		ExpiresAt:         pending.ExpiresAt,
 	}, nil
 }
 

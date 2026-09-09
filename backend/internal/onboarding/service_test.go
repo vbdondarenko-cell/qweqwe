@@ -12,12 +12,17 @@ import (
 )
 
 type onboardingTestStore struct {
-	pending         PendingRegistration
-	boundTelegramID int64
-	verifiedPhone   string
-	verifiedLang    string
-	status          Status
-	finalized       bool
+	identityConflict bool
+	pending          PendingRegistration
+	boundTelegramID  int64
+	verifiedPhone    string
+	verifiedLang     string
+	status           Status
+	finalized        bool
+}
+
+func (s *onboardingTestStore) IdentityAvailable(_ context.Context, _, _ string) (bool, error) {
+	return !s.identityConflict, nil
 }
 
 func (s *onboardingTestStore) Create(_ context.Context, pending PendingRegistration) error {
@@ -109,6 +114,21 @@ func TestStartDerivesTeenModeAndPersistsOnlyTokenHash(t *testing.T) {
 	}
 	if !bytes.Equal(store.pending.TokenHash, digest[:]) {
 		t.Fatal("stored verification token is not the expected digest")
+	}
+}
+
+func TestStartRejectsExistingIdentityBeforePendingCreation(t *testing.T) {
+	store := &onboardingTestStore{identityConflict: true}
+	service, err := NewService(store, password.OWASPMinimum(), 20*time.Minute, time.Hour, "LinkUpBot")
+	if err != nil {
+		t.Fatal(err)
+	}
+	service.now = func() time.Time { return time.Date(2026, 9, 9, 12, 0, 0, 0, time.UTC) }
+	if _, err := service.Start(context.Background(), validStartInput()); err != ErrConflict {
+		t.Fatalf("expected ErrConflict, got %v", err)
+	}
+	if store.pending.ID != "" {
+		t.Fatal("conflicting identity must not create pending registration")
 	}
 }
 

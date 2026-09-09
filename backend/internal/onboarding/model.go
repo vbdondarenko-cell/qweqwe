@@ -67,6 +67,7 @@ type Status struct {
 }
 
 type Store interface {
+	IdentityAvailable(ctx context.Context, email, username string) (bool, error)
 	Create(ctx context.Context, pending PendingRegistration) error
 	BindTelegram(ctx context.Context, tokenHash []byte, telegramUserID int64, now time.Time) error
 	VerifyTelegramContact(ctx context.Context, telegramUserID int64, phoneE164 string, now time.Time) (string, error)
