@@ -3,7 +3,6 @@ package httpserver
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -92,27 +91,20 @@ func (s *authTestStore) ResetPassword(_ context.Context, digest []byte, hash str
 	return nil
 }
 
-func TestRegisterMeLogoutFlow(t *testing.T) {
+func TestExistingAccountMeLogoutFlow(t *testing.T) {
 	store := &authTestStore{}
 	accounts, err := account.NewService(store, password.OWASPMinimum(), time.Hour)
 	if err != nil {
 		t.Fatal(err)
 	}
-	server := New(Dependencies{Accounts: accounts, Ready: func(context.Context) error { return nil }})
-
-	body := []byte(`{"email":"a@example.com","username":"alice","displayName":"Alice","password":"correct horse battery staple","language":"uk"}`)
-	reg := httptest.NewRecorder()
-	server.Handler().ServeHTTP(reg, httptest.NewRequest(http.MethodPost, "/v1/auth/register", bytes.NewReader(body)))
-	if reg.Code != http.StatusCreated {
-		t.Fatalf("register status=%d body=%s", reg.Code, reg.Body.String())
-	}
-	var auth account.AuthResult
-	if err := json.NewDecoder(reg.Body).Decode(&auth); err != nil {
+	auth, err := accounts.Register(context.Background(), account.Registration{
+		Email: "a@example.com", Username: "alice", DisplayName: "Alice",
+		Password: "correct horse battery staple", Language: "uk",
+	})
+	if err != nil {
 		t.Fatal(err)
 	}
-	if auth.Token == "" {
-		t.Fatal("missing bearer token")
-	}
+	server := New(Dependencies{Accounts: accounts, Ready: func(context.Context) error { return nil }})
 
 	meReq := httptest.NewRequest(http.MethodGet, "/v1/me", nil)
 	meReq.Header.Set("Authorization", "Bearer "+auth.Token)
@@ -136,6 +128,16 @@ func TestRegisterMeLogoutFlow(t *testing.T) {
 	server.Handler().ServeHTTP(after, afterReq)
 	if after.Code != http.StatusUnauthorized {
 		t.Fatalf("revoked token status=%d", after.Code)
+	}
+}
+
+func TestRegistrationFailsClosedWithoutTelegramOnboarding(t *testing.T) {
+	server := New(Dependencies{})
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/v1/auth/register", bytes.NewBufferString(`{"email":"a@example.com"}`))
+	server.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
 	}
 }
 
