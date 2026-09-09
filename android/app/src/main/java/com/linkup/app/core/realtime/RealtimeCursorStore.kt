@@ -22,11 +22,11 @@ class SharedPreferencesRealtimeCursorStore(context: Context) : RealtimeCursorSto
         val key = userKey(userId)
         val current = preferences.getLong(key, 0L).coerceAtLeast(0L)
         if (cursor <= current) return
-        preferences.edit().putLong(key, cursor).apply()
+        check(preferences.edit().putLong(key, cursor).commit()) { "failed to persist realtime cursor" }
     }
 
     override fun clear(userId: String) {
-        preferences.edit().remove(userKey(userId)).apply()
+        check(preferences.edit().remove(userKey(userId)).commit()) { "failed to clear realtime cursor" }
     }
 
     private fun userKey(userId: String): String = "cursor_${UUID.fromString(userId.trim())}"
