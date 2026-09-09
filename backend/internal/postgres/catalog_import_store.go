@@ -35,6 +35,9 @@ func (s *CatalogImportStore) Import(ctx context.Context, doc catalog.Document) (
 
 	result := CatalogImportResult{}
 	for _, locality := range doc.Localities {
+		if err := validateLocalityGeometry(ctx, tx, locality); err != nil {
+			return CatalogImportResult{}, err
+		}
 		if err := upsertLocality(ctx, tx, locality); err != nil {
 			return CatalogImportResult{}, err
 		}
@@ -50,6 +53,35 @@ func (s *CatalogImportStore) Import(ctx context.Context, doc catalog.Document) (
 		return CatalogImportResult{}, err
 	}
 	return result, nil
+}
+
+func validateLocalityGeometry(ctx context.Context, tx pgx.Tx, r catalog.LocalityRecord) error {
+	var available bool
+	if err := tx.QueryRow(ctx, `
+		SELECT to_regtype('public.geometry') IS NOT NULL
+		   AND to_regprocedure('public.st_geomfromtext(text,integer)') IS NOT NULL
+		   AND to_regprocedure('public.st_isvalid(public.geometry)') IS NOT NULL
+		   AND to_regprocedure('public.st_isempty(public.geometry)') IS NOT NULL
+		   AND to_regprocedure('public.st_covers(public.geometry,public.geometry)') IS NOT NULL
+		   AND to_regprocedure('public.st_makepoint(double precision,double precision)') IS NOT NULL
+		   AND to_regprocedure('public.st_setsrid(public.geometry,integer)') IS NOT NULL`).Scan(&available); err != nil {
+		return err
+	}
+	if !available {
+		return nil
+	}
+	var valid bool
+	err := tx.QueryRow(ctx, `
+		WITH g AS (SELECT public.st_geomfromtext($1,4326) AS boundary),
+		     c AS (SELECT public.st_setsrid(public.st_makepoint($3::double precision/1000000.0,$2::double precision/1000000.0),4326) AS centroid)
+		SELECT public.st_isvalid(g.boundary)
+		   AND NOT public.st_isempty(g.boundary)
+		   AND public.st_covers(g.boundary,c.centroid)
+		FROM g,c`, r.BoundaryWKT, r.CentroidLatitudeE6, r.CentroidLongitudeE6).Scan(&valid)
+	if err != nil || !valid {
+		return catalog.ErrInvalidCatalog
+	}
+	return nil
 }
 
 func upsertLocality(ctx context.Context, tx pgx.Tx, r catalog.LocalityRecord) error {
