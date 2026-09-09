@@ -142,10 +142,10 @@ func resolveLocalityTx(ctx context.Context, tx pgx.Tx, latitudeE6, longitudeE6 i
 }
 
 func currentCityLockTx(ctx context.Context, tx pgx.Tx, userID string, onlyFresh bool, now time.Time) (*citycontext.Lock, error) {
-	query := currentCityLockSQL
+	query := currentCityLockSQL + ` AND l.active`
 	args := []any{userID}
 	if onlyFresh {
-		query += ` AND c.expires_at > $2 AND l.active`
+		query += ` AND c.expires_at > $2`
 		args = append(args, now.UTC())
 	}
 	query += ` FOR UPDATE OF c`

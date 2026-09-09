@@ -48,7 +48,7 @@ class AndroidLocationObservationSource(context: Context) : LocationObservationSo
         val providers = candidateProviders(permission)
         if (providers.isEmpty()) throw LocationUnavailableException()
 
-        newestUsableLastKnown(providers)?.let { return it.toObservation(permission) }
+        newestUsableLastKnown(providers, permission)?.let { return it.toObservation(permission) }
 
         var lastError: Exception? = null
         for (provider in providers) {
@@ -64,11 +64,21 @@ class AndroidLocationObservationSource(context: Context) : LocationObservationSo
     }
 
     @SuppressLint("MissingPermission")
-    private fun newestUsableLastKnown(providers: List<String>): Location? {
+    private fun newestUsableLastKnown(providers: List<String>, permission: CityPermissionClass): Location? {
         val now = System.currentTimeMillis()
         return providers
             .mapNotNull { provider -> runCatching { locationManager.getLastKnownLocation(provider) }.getOrNull() }
-            .filter { it.time > 0L && it.time <= now + MAX_FUTURE_LOCATION_MS && now - it.time <= MAX_LAST_KNOWN_AGE_MS }
+            .filter { location ->
+                location.time > 0L &&
+                    now - location.time <= MAX_LAST_KNOWN_AGE_MS &&
+                    deviceObservationMetadataIsUsable(
+                        permission = permission,
+                        capturedAtEpochMillis = location.time,
+                        nowEpochMillis = now,
+                        accuracyM = if (location.hasAccuracy()) location.accuracy.roundToInt().coerceAtLeast(1) else null,
+                        mocked = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) location.isMock else location.isFromMockProvider,
+                    )
+            }
             .maxByOrNull { it.time }
     }
 
@@ -125,15 +135,19 @@ class AndroidLocationObservationSource(context: Context) : LocationObservationSo
     private fun Location.toObservation(permission: CityPermissionClass): CityLocationObservation {
         require(latitude in -90.0..90.0 && longitude in -180.0..180.0)
         val accuracyMeters = if (hasAccuracy()) accuracy.roundToInt().coerceAtLeast(1) else Int.MAX_VALUE
-        require(accuracyMeters <= 10_000) { "location accuracy is outside city-context policy bounds" }
-        val capturedAt = time.takeIf { it > 0L } ?: System.currentTimeMillis()
+        val now = System.currentTimeMillis()
+        val capturedAt = time.takeIf { it > 0L } ?: now
+        val mocked = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) isMock else isFromMockProvider
+        require(deviceObservationMetadataIsUsable(permission, capturedAt, now, accuracyMeters, mocked)) {
+            "location observation is outside city-context policy bounds"
+        }
         return CityLocationObservation(
             latitudeE6 = (latitude * 1_000_000.0).roundToInt(),
             longitudeE6 = (longitude * 1_000_000.0).roundToInt(),
             accuracyM = accuracyMeters,
             permissionClass = permission,
             capturedAtEpochMillis = capturedAt,
-            mocked = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) isMock else isFromMockProvider,
+            mocked = false,
         )
     }
 
@@ -142,4 +156,26 @@ class AndroidLocationObservationSource(context: Context) : LocationObservationSo
         const val MAX_FUTURE_LOCATION_MS = 30L * 1000L
         const val PROVIDER_TIMEOUT_MS = 12_000L
     }
+}
+
+internal fun deviceObservationMetadataIsUsable(
+    permission: CityPermissionClass,
+    capturedAtEpochMillis: Long,
+    nowEpochMillis: Long,
+    accuracyM: Int?,
+    mocked: Boolean,
+): Boolean {
+    if (mocked || capturedAtEpochMillis <= 0L || nowEpochMillis <= 0L || accuracyM == null || accuracyM <= 0) return false
+    if (capturedAtEpochMillis > nowEpochMillis + 30_000L) return false
+    val age = nowEpochMillis - capturedAtEpochMillis
+    if (age < -30_000L) return false
+    val maxAge = when (permission) {
+        CityPermissionClass.PRECISE -> 2L * 60L * 1000L
+        CityPermissionClass.APPROXIMATE -> 10L * 60L * 1000L
+    }
+    val maxAccuracy = when (permission) {
+        CityPermissionClass.PRECISE -> 500
+        CityPermissionClass.APPROXIMATE -> 5_000
+    }
+    return age <= maxAge && accuracyM <= maxAccuracy
 }
