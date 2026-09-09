@@ -199,4 +199,13 @@
     <string name="telegram_check_status">I shared my phone — check</string>
     <string name="telegram_cancel_registration">Cancel registration</string>
 
+    <string name="onboarding_invalid_email">Enter a valid email address.</string>
+    <string name="onboarding_invalid_username">Username must be 3–32 characters using only a–z, 0–9, _ or .</string>
+    <string name="onboarding_invalid_display_name">Display name must be 1–80 characters.</string>
+    <string name="onboarding_invalid_password">Password must be at least 8 characters.</string>
+    <string name="onboarding_invalid_city">Enter a valid city name.</string>
+    <string name="onboarding_select_time_preference">Choose at least one activity preference.</string>
+    <string name="onboarding_select_people_preference">Choose at least one people preference.</string>
+    <string name="onboarding_select_goal_preference">Choose at least one LinkUp goal.</string>
+    <string name="onboarding_teen_romantic_error">Romantic preferences are unavailable in Teen Mode.</string>
 </resources>

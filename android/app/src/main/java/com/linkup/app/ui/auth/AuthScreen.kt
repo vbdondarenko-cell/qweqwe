@@ -42,8 +42,10 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.linkup.app.R
+import com.linkup.app.core.network.OnboardingDraftIssue
 import com.linkup.app.core.network.OnboardingPreferences
 import com.linkup.app.core.network.OnboardingRegistrationDraft
+import com.linkup.app.core.network.validateOnboardingDraft
 import com.linkup.app.core.network.passwordResetToken
 import com.linkup.app.ui.theme.LinkUpBorder
 import com.linkup.app.ui.theme.LinkUpElevated
@@ -255,6 +257,7 @@ private fun RegistrationForm(
     var timePrefs by remember { mutableStateOf(setOf<String>()) }
     var peoplePrefs by remember { mutableStateOf(setOf<String>()) }
     var goalPrefs by remember { mutableStateOf(setOf<String>()) }
+    var validationAttempted by remember { mutableStateOf(false) }
     val context = LocalContext.current
     val today = LocalDate.now()
     val age = birthDate?.let { Period.between(it, today).years }
@@ -348,23 +351,43 @@ private fun RegistrationForm(
     }
 
     Spacer(Modifier.height(14.dp))
-    val valid = email.isNotBlank() && username.isNotBlank() && displayName.isNotBlank() &&
-        password.isNotBlank() && ageAllowed && cityName.isNotBlank() &&
-        timePrefs.isNotEmpty() && peoplePrefs.isNotEmpty() && goalPrefs.isNotEmpty()
-    SubmitButton(stringResource(R.string.auth_create_account), busy, valid) {
-        val date = birthDate ?: return@SubmitButton
-        onRegister(
-            OnboardingRegistrationDraft(
-                email = email.trim(),
-                username = username.trim(),
-                displayName = displayName.trim(),
-                password = password,
-                birthDate = date.toString(),
-                cityName = cityName.trim(),
-                preferences = OnboardingPreferences(timePrefs, peoplePrefs, goalPrefs),
-            ),
+    val candidateDraft = birthDate?.let { date ->
+        OnboardingRegistrationDraft(
+            email = email.trim(),
+            username = username.trim(),
+            displayName = displayName.trim(),
+            password = password,
+            birthDate = date.toString(),
+            cityName = cityName.trim(),
+            preferences = OnboardingPreferences(timePrefs, peoplePrefs, goalPrefs),
         )
     }
+    val validationIssue = if (candidateDraft == null) OnboardingDraftIssue.BIRTH_DATE else validateOnboardingDraft(candidateDraft)
+    if (validationAttempted && validationIssue != null) {
+        Text(onboardingIssueMessage(validationIssue), color = LinkUpWarning, fontSize = 12.sp)
+        Spacer(Modifier.height(8.dp))
+    }
+    val basicReady = email.isNotBlank() && username.isNotBlank() && displayName.isNotBlank() &&
+        password.isNotBlank() && birthDate != null && cityName.isNotBlank() &&
+        timePrefs.isNotEmpty() && peoplePrefs.isNotEmpty() && goalPrefs.isNotEmpty()
+    SubmitButton(stringResource(R.string.auth_create_account), busy, basicReady) {
+        validationAttempted = true
+        if (candidateDraft != null && validationIssue == null) onRegister(candidateDraft)
+    }
+}
+
+@Composable
+private fun onboardingIssueMessage(issue: OnboardingDraftIssue): String = when (issue) {
+    OnboardingDraftIssue.EMAIL -> stringResource(R.string.onboarding_invalid_email)
+    OnboardingDraftIssue.USERNAME -> stringResource(R.string.onboarding_invalid_username)
+    OnboardingDraftIssue.DISPLAY_NAME -> stringResource(R.string.onboarding_invalid_display_name)
+    OnboardingDraftIssue.PASSWORD -> stringResource(R.string.onboarding_invalid_password)
+    OnboardingDraftIssue.BIRTH_DATE -> stringResource(R.string.onboarding_age_error)
+    OnboardingDraftIssue.CITY -> stringResource(R.string.onboarding_invalid_city)
+    OnboardingDraftIssue.TIME_PREFERENCES -> stringResource(R.string.onboarding_select_time_preference)
+    OnboardingDraftIssue.PEOPLE_PREFERENCES -> stringResource(R.string.onboarding_select_people_preference)
+    OnboardingDraftIssue.GOAL_PREFERENCES -> stringResource(R.string.onboarding_select_goal_preference)
+    OnboardingDraftIssue.TEEN_ROMANTIC -> stringResource(R.string.onboarding_teen_romantic_error)
 }
 
 @OptIn(ExperimentalLayoutApi::class)

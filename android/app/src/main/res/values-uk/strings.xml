@@ -199,4 +199,13 @@
     <string name="telegram_check_status">Я поділився номером — перевірити</string>
     <string name="telegram_cancel_registration">Скасувати реєстрацію</string>
 
+    <string name="onboarding_invalid_email">Введи коректну email-адресу.</string>
+    <string name="onboarding_invalid_username">Username: 3–32 символи, лише a–z, 0–9, _ або .</string>
+    <string name="onboarding_invalid_display_name">Ім’я профілю має містити 1–80 символів.</string>
+    <string name="onboarding_invalid_password">Пароль має містити щонайменше 8 символів.</string>
+    <string name="onboarding_invalid_city">Введи коректну назву міста.</string>
+    <string name="onboarding_select_time_preference">Обери хоча б один варіант активностей.</string>
+    <string name="onboarding_select_people_preference">Обери хоча б один варіант знайомств.</string>
+    <string name="onboarding_select_goal_preference">Обери хоча б одну мету LinkUp.</string>
+    <string name="onboarding_teen_romantic_error">Романтичні знайомства недоступні у Teen Mode.</string>
 </resources>
