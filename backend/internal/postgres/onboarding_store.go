@@ -67,12 +67,10 @@ func (s *OnboardingStore) VerifyTelegramContact(ctx context.Context, telegramUse
 
 func (s *OnboardingStore) Status(ctx context.Context, tokenHash []byte, now time.Time) (onboarding.Status, error) {
 	var out onboarding.Status
-	var phone *string
-	var verifiedAt *time.Time
 	err := s.pool.QueryRow(ctx, `
-		SELECT teen_mode, phone_e164, phone_verified_at, expires_at, completed_at
+		SELECT teen_mode, (phone_verified_at IS NOT NULL), expires_at, completed_at
 		FROM registration_onboarding WHERE verification_token_hash=$1 LIMIT 1`, tokenHash,
-	).Scan(&out.TeenMode, &phone, &verifiedAt, &out.ExpiresAt, &out.CompletedAt)
+	).Scan(&out.TeenMode, &out.PhoneVerified, &out.ExpiresAt, &out.CompletedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return out, onboarding.ErrNotFound
 	}
@@ -82,8 +80,6 @@ func (s *OnboardingStore) Status(ctx context.Context, tokenHash []byte, now time
 	if !out.ExpiresAt.After(now) && out.CompletedAt == nil {
 		return out, onboarding.ErrExpired
 	}
-	out.Phone = phone
-	out.PhoneVerified = verifiedAt != nil
 	return out, nil
 }
 
