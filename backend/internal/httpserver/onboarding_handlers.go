@@ -2,7 +2,9 @@ package httpserver
 
 import (
 	"crypto/subtle"
+	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"strings"
 
@@ -122,7 +124,7 @@ func (s *Server) telegramOnboardingWebhook(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	var update telegramUpdate
-	if err := decodeJSON(w, r, &update); err != nil {
+	if err := decodeTelegramUpdate(w, r, &update); err != nil {
 		writeProblem(w, r, http.StatusBadRequest, "invalid_request", "invalid Telegram update")
 		return
 	}
@@ -179,6 +181,22 @@ func (s *Server) telegramOnboardingWebhook(w http.ResponseWriter, r *http.Reques
 		}
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+func decodeTelegramUpdate(w http.ResponseWriter, r *http.Request, dst *telegramUpdate) error {
+	r.Body = http.MaxBytesReader(w, r.Body, 64<<10)
+	dec := json.NewDecoder(r.Body)
+	if err := dec.Decode(dst); err != nil {
+		return err
+	}
+	var extra any
+	if err := dec.Decode(&extra); !errors.Is(err, io.EOF) {
+		if err == nil {
+			return errors.New("multiple JSON values")
+		}
+		return err
+	}
+	return nil
 }
 
 func telegramStartToken(text string) (string, bool) {
