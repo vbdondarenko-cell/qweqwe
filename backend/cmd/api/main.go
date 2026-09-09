@@ -19,6 +19,7 @@ import (
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/config"
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/httpserver"
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/monetization"
+	"github.com/vbdondarenko-cell/qweqwe/backend/internal/onboarding"
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/password"
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/places"
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/postgres"
@@ -42,11 +43,8 @@ func main() {
 	if err != nil { slog.Error("database unavailable", "error", err); os.Exit(1) }
 	defer pool.Close()
 
-	accountService, err := account.NewService(
-		postgres.NewAccountStore(pool),
-		password.Params{MemoryKiB: cfg.ArgonMemoryKiB, Iterations: cfg.ArgonIterations, Parallel: cfg.ArgonParallel, SaltBytes: 16, KeyBytes: 32},
-		cfg.SessionTTL,
-	)
+	passwordParams := password.Params{MemoryKiB: cfg.ArgonMemoryKiB, Iterations: cfg.ArgonIterations, Parallel: cfg.ArgonParallel, SaltBytes: 16, KeyBytes: 32}
+	accountService, err := account.NewService(postgres.NewAccountStore(pool), passwordParams, cfg.SessionTTL)
 	if err != nil { slog.Error("account service init failed", "error", err); os.Exit(1) }
 	if cfg.RecoverySMTPAddress != "" {
 		notifier, err := recovery.NewSMTP(recovery.SMTPConfig{
@@ -57,6 +55,16 @@ func main() {
 		if err != nil { slog.Error("password recovery init failed", "error", err); os.Exit(1) }
 		if err := accountService.ConfigureRecovery(notifier, cfg.PasswordResetTTL); err != nil { slog.Error("password recovery service init failed", "error", err); os.Exit(1) }
 		slog.Info("password recovery enabled", "smtp_host", cfg.RecoverySMTPHost)
+	}
+
+	var onboardingService *onboarding.Service
+	var telegramBot onboarding.ContactPrompter
+	if cfg.TelegramBotToken != "" {
+		onboardingService, err = onboarding.NewService(postgres.NewOnboardingStore(pool), passwordParams, cfg.RegistrationTTL, cfg.SessionTTL, cfg.TelegramBotUsername)
+		if err != nil { slog.Error("onboarding service init failed", "error", err); os.Exit(1) }
+		telegramBot, err = onboarding.NewTelegramBot(cfg.TelegramBotToken)
+		if err != nil { slog.Error("telegram onboarding init failed", "error", err); os.Exit(1) }
+		slog.Info("telegram-only v1.0 registration enabled", "bot_username", cfg.TelegramBotUsername)
 	}
 
 	blockService, err := blocklist.NewService(postgres.NewBlockStore(pool))
@@ -122,6 +130,9 @@ func main() {
 		Capabilities: capabilityService,
 		Monetization: monetizationService,
 		Push: pushService,
+		Onboarding: onboardingService,
+		Telegram: telegramBot,
+		TelegramWebhookSecret: cfg.TelegramWebhookSecret,
 		Ready: pool.Ping,
 		AuthLimiter: authLimiter,
 		UserLimiter: userLimiter,
