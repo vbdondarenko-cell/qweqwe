@@ -67,7 +67,7 @@ class SecureMutationOutbox(context: Context) : MutationOutbox {
 
     @Synchronized
     override fun clearAll() {
-        prefs.edit().clear().apply()
+        check(prefs.edit().clear().commit()) { "failed to clear mutation outbox" }
     }
 
     private fun readCommands(): List<DurableMutationCommand> {
@@ -83,14 +83,14 @@ class SecureMutationOutbox(context: Context) : MutationOutbox {
             val raw = cipher.doFinal(Base64.decode(ciphertext, Base64.NO_WRAP))
             decodeCommands(String(raw, Charsets.UTF_8))
         }.getOrElse {
-            prefs.edit().clear().apply()
+            check(prefs.edit().clear().commit()) { "failed to clear corrupt mutation outbox" }
             emptyList()
         }
     }
 
     private fun writeCommands(commands: List<DurableMutationCommand>) {
         if (commands.isEmpty()) {
-            prefs.edit().clear().apply()
+            check(prefs.edit().clear().commit()) { "failed to persist empty mutation outbox" }
             return
         }
         require(commands.size <= DURABLE_MUTATION_MAX_COMMANDS)
@@ -98,10 +98,11 @@ class SecureMutationOutbox(context: Context) : MutationOutbox {
         val cipher = Cipher.getInstance(TRANSFORMATION)
         cipher.init(Cipher.ENCRYPT_MODE, key())
         val encrypted = cipher.doFinal(plaintext)
-        prefs.edit()
+        val persisted = prefs.edit()
             .putString(KEY_CIPHERTEXT, Base64.encodeToString(encrypted, Base64.NO_WRAP))
             .putString(KEY_IV, Base64.encodeToString(cipher.iv, Base64.NO_WRAP))
-            .apply()
+            .commit()
+        check(persisted) { "failed to persist mutation outbox" }
     }
 
     private fun encodeCommands(commands: List<DurableMutationCommand>): String {
