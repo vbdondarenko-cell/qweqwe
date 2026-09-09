@@ -78,13 +78,13 @@ func (s *Service) BindTelegram(ctx context.Context, verificationToken string, te
 	return s.store.BindTelegram(ctx, digest[:], telegramUserID, s.now().UTC())
 }
 
-func (s *Service) VerifyTelegramContact(ctx context.Context, telegramUserID int64, phone string) error {
+func (s *Service) VerifyTelegramContact(ctx context.Context, telegramUserID int64, phone string) (string, error) {
 	if telegramUserID <= 0 {
-		return ErrInvalidInput
+		return "", ErrInvalidInput
 	}
 	phoneE164, ok := normalizePhone(phone)
 	if !ok {
-		return ErrInvalidInput
+		return "", ErrInvalidInput
 	}
 	return s.store.VerifyTelegramContact(ctx, telegramUserID, phoneE164, s.now().UTC())
 }
@@ -136,7 +136,7 @@ func validateAndNormalize(in *StartInput, now time.Time) (time.Time, bool, error
 	if !validEmail(in.Email) || !validUsername(in.Username) || len([]rune(in.DisplayName)) < 1 || len([]rune(in.DisplayName)) > 80 {
 		return time.Time{}, false, ErrInvalidInput
 	}
-	if in.Language != "uk" && in.Language != "en" || len(in.CityID) > 128 || len([]rune(in.CityName)) < 1 || len([]rune(in.CityName)) > 160 {
+	if (in.Language != "uk" && in.Language != "en") || len(in.CityID) > 128 || len([]rune(in.CityName)) < 1 || len([]rune(in.CityName)) > 160 {
 		return time.Time{}, false, ErrInvalidInput
 	}
 	birthDate, err := time.Parse("2006-01-02", strings.TrimSpace(in.BirthDate))
