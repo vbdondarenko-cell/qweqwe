@@ -33,17 +33,50 @@ func (s *OnboardingStore) Create(ctx context.Context, p onboarding.PendingRegist
 }
 
 func (s *OnboardingStore) BindTelegram(ctx context.Context, tokenHash []byte, telegramUserID int64, now time.Time) error {
-	tag, err := s.pool.Exec(ctx, `
+	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.Serializable})
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	var targetID string
+	err = tx.QueryRow(ctx, `
+		SELECT id
+		FROM registration_onboarding
+		WHERE verification_token_hash=$1 AND completed_at IS NULL AND expires_at>$2 AND phone_verified_at IS NULL
+		FOR UPDATE`, tokenHash, now,
+	).Scan(&targetID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return onboarding.ErrNotFound
+	}
+	if err != nil {
+		return mapOnboardingError(err)
+	}
+
+	_, err = tx.Exec(ctx, `
 		UPDATE registration_onboarding
-		SET telegram_user_id=$2
-		WHERE verification_token_hash=$1 AND completed_at IS NULL AND expires_at>$3 AND phone_verified_at IS NULL`,
-		tokenHash, telegramUserID, now,
+		SET telegram_user_id=NULL, phone_e164=NULL, phone_verified_at=NULL
+		WHERE telegram_user_id=$1 AND completed_at IS NULL AND expires_at<=$2`,
+		telegramUserID, now,
 	)
 	if err != nil {
 		return mapOnboardingError(err)
 	}
-	if tag.RowsAffected() == 0 {
+
+	tag, err := tx.Exec(ctx, `
+		UPDATE registration_onboarding
+		SET telegram_user_id=$2
+		WHERE id=$1 AND completed_at IS NULL AND expires_at>$3 AND phone_verified_at IS NULL`,
+		targetID, telegramUserID, now,
+	)
+	if err != nil {
+		return mapOnboardingError(err)
+	}
+	if tag.RowsAffected() != 1 {
 		return onboarding.ErrNotFound
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return mapOnboardingError(err)
 	}
 	return nil
 }
