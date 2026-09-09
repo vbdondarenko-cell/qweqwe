@@ -62,7 +62,6 @@ type StartResult struct {
 type Status struct {
 	PhoneVerified bool       `json:"phoneVerified"`
 	TeenMode      bool       `json:"teenMode"`
-	Phone         *string    `json:"phone,omitempty"`
 	ExpiresAt     time.Time  `json:"expiresAt"`
 	CompletedAt   *time.Time `json:"completedAt,omitempty"`
 }
