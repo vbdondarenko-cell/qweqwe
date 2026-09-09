@@ -58,6 +58,7 @@ import com.linkup.app.core.social.MutationState
 import com.linkup.app.core.social.SocialCoordinator
 import com.linkup.app.core.social.SocialError
 import com.linkup.app.ui.auth.AuthScreen
+import com.linkup.app.ui.auth.TelegramVerificationScreen
 import com.linkup.app.ui.design.FrozenBottomNav
 import com.linkup.app.ui.design.FrozenFlyScreen
 import com.linkup.app.ui.design.FrozenMainTab
@@ -126,10 +127,10 @@ fun LinkUpApp(
                         finally { authBusy = false }
                     }
                 },
-                onRegister = { email, username, displayName, password ->
+                onRegister = { draft ->
                     scope.launch {
                         authBusy = true; authError = null; authInfo = null
-                        try { sessions.register(email, username, displayName, password, defaultProfileLanguage(), deviceLabel()) }
+                        try { sessions.startRegistration(draft, defaultProfileLanguage(), deviceLabel()) }
                         catch (error: Exception) { authError = error.userMessage(genericError) }
                         finally { authBusy = false }
                     }
@@ -162,6 +163,23 @@ fun LinkUpApp(
             )
         } else when (val state = sessionState) {
             SessionState.Checking -> CenterLoading(stringResource(R.string.session_checking))
+            is SessionState.TelegramVerification -> TelegramVerificationScreen(
+                state = state,
+                busy = authBusy,
+                onRefresh = {
+                    if (!authBusy) scope.launch {
+                        authBusy = true; authError = null; authInfo = null
+                        try { sessions.refreshRegistration() }
+                        catch (error: Exception) { authError = error.userMessage(genericError) }
+                        finally { authBusy = false }
+                    }
+                },
+                onCancel = {
+                    sessions.cancelRegistration()
+                    authError = null
+                    authInfo = null
+                },
+            )
             SessionState.SignedOut -> AuthScreen(
                 busy = authBusy,
                 errorMessage = authError,
@@ -174,10 +192,10 @@ fun LinkUpApp(
                         finally { authBusy = false }
                     }
                 },
-                onRegister = { email, username, displayName, password ->
+                onRegister = { draft ->
                     scope.launch {
                         authBusy = true; authError = null; authInfo = null
-                        try { sessions.register(email, username, displayName, password, defaultProfileLanguage(), deviceLabel()) }
+                        try { sessions.startRegistration(draft, defaultProfileLanguage(), deviceLabel()) }
                         catch (error: Exception) { authError = error.userMessage(genericError) }
                         finally { authBusy = false }
                     }

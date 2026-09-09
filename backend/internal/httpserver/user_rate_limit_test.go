@@ -1,8 +1,6 @@
 package httpserver
 
 import (
-	"bytes"
-	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -25,23 +23,11 @@ func TestAuthenticatedUserRateLimitReturns429AndRetryAfter(t *testing.T) {
 	}
 	server := New(Dependencies{Accounts: accounts, UserLimiter: limiter})
 
-	registration := httptest.NewRecorder()
-	server.Handler().ServeHTTP(registration, httptest.NewRequest(
-		http.MethodPost,
-		"/v1/auth/register",
-		bytes.NewBufferString(`{"email":"limited@example.com","username":"limited","displayName":"Limited","password":"correct horse battery staple","language":"en"}`),
-	))
-	if registration.Code != http.StatusCreated {
-		t.Fatalf("register status=%d body=%s", registration.Code, registration.Body.String())
-	}
-	var auth account.AuthResult
-	if err := json.NewDecoder(registration.Body).Decode(&auth); err != nil {
-		t.Fatal(err)
-	}
+	token := registerHTTPUser(t, server)
 
 	first := httptest.NewRecorder()
 	firstRequest := httptest.NewRequest(http.MethodGet, "/v1/me", nil)
-	firstRequest.Header.Set("Authorization", "Bearer "+auth.Token)
+	firstRequest.Header.Set("Authorization", "Bearer "+token)
 	server.Handler().ServeHTTP(first, firstRequest)
 	if first.Code != http.StatusOK {
 		t.Fatalf("first authenticated request status=%d body=%s", first.Code, first.Body.String())
@@ -49,7 +35,7 @@ func TestAuthenticatedUserRateLimitReturns429AndRetryAfter(t *testing.T) {
 
 	second := httptest.NewRecorder()
 	secondRequest := httptest.NewRequest(http.MethodGet, "/v1/me", nil)
-	secondRequest.Header.Set("Authorization", "Bearer "+auth.Token)
+	secondRequest.Header.Set("Authorization", "Bearer "+token)
 	server.Handler().ServeHTTP(second, secondRequest)
 	if second.Code != http.StatusTooManyRequests {
 		t.Fatalf("second authenticated request status=%d body=%s", second.Code, second.Body.String())

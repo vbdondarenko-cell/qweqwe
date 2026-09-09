@@ -202,11 +202,12 @@ func TestApprovalRoutesRequireAuthentication(t *testing.T) {
 
 func registerHTTPUser(t *testing.T, server *Server) string {
 	t.Helper()
-	req := httptest.NewRequest(http.MethodPost, "/v1/auth/register", bytes.NewBufferString(`{"email":"alice@example.com","username":"alice","displayName":"Alice","password":"correct horse battery staple","language":"uk"}`))
-	rec := httptest.NewRecorder(); server.Handler().ServeHTTP(rec, req)
-	if rec.Code != http.StatusCreated { t.Fatalf("register status=%d body=%s", rec.Code, rec.Body.String()) }
-	var auth account.AuthResult
-	if err := json.NewDecoder(rec.Body).Decode(&auth); err != nil { t.Fatal(err) }
+	if server.deps.Accounts == nil { t.Fatal("account service is unavailable") }
+	auth, err := server.deps.Accounts.Register(context.Background(), account.Registration{
+		Email: "alice@example.com", Username: "alice", DisplayName: "Alice",
+		Password: "correct horse battery staple", Language: "uk",
+	})
+	if err != nil { t.Fatal(err) }
 	return auth.Token
 }
 

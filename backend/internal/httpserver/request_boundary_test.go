@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/account"
+	"github.com/vbdondarenko-cell/qweqwe/backend/internal/onboarding"
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/password"
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/session"
 )
@@ -32,6 +33,14 @@ func TestDecodeJSONConsumesWholeBoundedBody(t *testing.T) {
 		})
 	}
 }
+
+type boundaryOnboardingStore struct { created bool }
+
+func (s *boundaryOnboardingStore) Create(_ context.Context, _ onboarding.PendingRegistration) error { s.created = true; return nil }
+func (*boundaryOnboardingStore) BindTelegram(context.Context, []byte, int64, time.Time) error { return onboarding.ErrNotFound }
+func (*boundaryOnboardingStore) VerifyTelegramContact(context.Context, int64, string, time.Time) (string, error) { return "", onboarding.ErrNotFound }
+func (*boundaryOnboardingStore) Status(context.Context, []byte, time.Time) (onboarding.Status, error) { return onboarding.Status{}, onboarding.ErrNotFound }
+func (*boundaryOnboardingStore) Finalize(context.Context, []byte, string, account.Session, time.Time) (account.User, error) { return account.User{}, onboarding.ErrNotFound }
 
 type unavailableAuthStore struct { authTestStore }
 
@@ -64,11 +73,11 @@ func TestAuthOutageDoesNotRevokeClientSession(t *testing.T) {
 }
 
 func TestRegisterRejectsTrailingCommandBeforeWriting(t *testing.T) {
-	store := &authTestStore{}
-	accounts, err := account.NewService(store, password.OWASPMinimum(), time.Hour)
+	store := &boundaryOnboardingStore{}
+	service, err := onboarding.NewService(store, password.OWASPMinimum(), 20*time.Minute, time.Hour, "LinkUpBot")
 	if err != nil { t.Fatal(err) }
-	body := `{"email":"alice@example.com","username":"alice","displayName":"Alice","password":"some password"}{}`
+	body := `{"email":"alice@example.com","username":"alice","displayName":"Alice","password":"some password","language":"uk","deviceLabel":"test","birthDate":"2000-01-02","cityId":"kyiv","cityName":"Kyiv","preferences":{"time":["walks"],"people":["friends"],"goals":["new_friends"]}}{}`
 	response := httptest.NewRecorder()
-	New(Dependencies{Accounts: accounts}).Handler().ServeHTTP(response, httptest.NewRequest(http.MethodPost, "/v1/auth/register", strings.NewReader(body)))
-	if response.Code != http.StatusBadRequest || store.user.ID != "" { t.Fatalf("status=%d user=%q", response.Code, store.user.ID) }
+	New(Dependencies{Onboarding: service}).Handler().ServeHTTP(response, httptest.NewRequest(http.MethodPost, "/v1/auth/register", strings.NewReader(body)))
+	if response.Code != http.StatusBadRequest || store.created { t.Fatalf("status=%d created=%v", response.Code, store.created) }
 }

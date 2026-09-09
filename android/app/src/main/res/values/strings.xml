@@ -167,4 +167,36 @@
     <string name="block_confirm_body">Blocking immediately removes current request or participation relationships between you where applicable and prevents further LinkUp interaction.</string>
 
     <string name="capability_not_active">This capability is not active in v1.0.</string>
+
+    <string name="onboarding_birth_date">Date of birth</string>
+    <string name="onboarding_select_birth_date">Select date</string>
+    <string name="onboarding_age_error">Registration is available from age 14.</string>
+    <string name="onboarding_city">City</string>
+    <string name="onboarding_pref_time">How do you like to spend time?</string>
+    <string name="onboarding_pref_people">Who do you want to meet?</string>
+    <string name="onboarding_pref_goals">What do you want from LinkUp?</string>
+    <string name="onboarding_teen_mode">Teen Mode will be enabled for this account.</string>
+    <string name="pref_walks">Walks</string>
+    <string name="pref_cafes">Cafes</string>
+    <string name="pref_sports">Sports</string>
+    <string name="pref_games">Games</string>
+    <string name="pref_arts">Arts &amp; culture</string>
+    <string name="pref_nightlife">Nightlife</string>
+    <string name="pref_travel">Travel</string>
+    <string name="pref_networking">Networking</string>
+    <string name="pref_unsure">Not sure</string>
+    <string name="pref_new_people">New people</string>
+    <string name="pref_friends">Friends</string>
+    <string name="pref_romantic">Romantic</string>
+    <string name="pref_groups">Groups</string>
+    <string name="pref_anyone">Anyone</string>
+    <string name="pref_new_friends">New friends</string>
+    <string name="pref_activities">Activities &amp; events</string>
+    <string name="pref_browsing">Just browsing</string>
+    <string name="telegram_verify_title">Confirm your phone in Telegram</string>
+    <string name="telegram_verify_body">Open the LinkUp bot and tap “Share phone”. No SMS or WhatsApp is used.</string>
+    <string name="telegram_open_bot">Open Telegram bot</string>
+    <string name="telegram_check_status">I shared my phone — check</string>
+    <string name="telegram_cancel_registration">Cancel registration</string>
+
 </resources>

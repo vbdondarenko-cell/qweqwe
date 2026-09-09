@@ -39,6 +39,7 @@ import com.linkup.app.core.push.PushCoordinator
 import com.linkup.app.core.realtime.RealtimeCoordinator
 import com.linkup.app.core.realtime.RealtimePull
 import com.linkup.app.core.realtime.SharedPreferencesRealtimeCursorStore
+import com.linkup.app.core.session.SecureOnboardingStore
 import com.linkup.app.core.session.SecureSessionStore
 import com.linkup.app.core.session.SessionCoordinator
 import com.linkup.app.core.session.SessionState
@@ -97,8 +98,9 @@ class MainActivity : ComponentActivity() {
         }
 
         val sessionStore = SecureSessionStore(applicationContext)
+        val onboardingStore = SecureOnboardingStore(applicationContext)
         val api = LinkUpApiClient(apiBaseUrl, sessionStore)
-        val sessionCoordinator = SessionCoordinator(api, sessionStore)
+        val sessionCoordinator = SessionCoordinator(api, sessionStore, onboardingStore)
         val mutationOutbox = SecureMutationOutbox(applicationContext)
         val durableSocialApi = DurableSocialApi(
             delegate = api,

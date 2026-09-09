@@ -65,23 +65,44 @@ class LinkUpApiClient(
         unauthorizedHandler = handler
     }
 
-    suspend fun register(
-        email: String,
-        username: String,
-        displayName: String,
-        password: String,
+    suspend fun startOnboarding(
+        draft: OnboardingRegistrationDraft,
         language: String,
         deviceLabel: String,
-    ): AuthSession {
+    ): OnboardingStart {
         val body = JSONObject()
-            .put("email", email)
-            .put("username", username)
-            .put("displayName", displayName)
-            .put("password", password)
+            .put("email", draft.email)
+            .put("username", draft.username)
+            .put("displayName", draft.displayName)
+            .put("password", draft.password)
             .put("language", language)
             .put("deviceLabel", deviceLabel)
-        return persistAuth(request("POST", "/v1/auth/register", body, false)!!)
+            .put("birthDate", draft.birthDate)
+            .put("cityId", draft.cityId)
+            .put("cityName", draft.cityName)
+            .put("preferences", onboardingPreferencesJson(draft.preferences))
+        return parseOnboardingStart(request("POST", "/v1/auth/register", body, false)!!)
     }
+
+    suspend fun onboardingStatus(verificationToken: String): OnboardingStatus =
+        parseOnboardingStatus(
+            request(
+                "POST",
+                "/v1/auth/register/status",
+                JSONObject().put("verificationToken", verificationToken),
+                false,
+            )!!,
+        )
+
+    suspend fun completeOnboarding(verificationToken: String): AuthSession =
+        persistAuth(
+            request(
+                "POST",
+                "/v1/auth/register/complete",
+                JSONObject().put("verificationToken", verificationToken),
+                false,
+            )!!,
+        )
 
     suspend fun login(identifier: String, password: String, deviceLabel: String): AuthSession {
         val body = JSONObject()

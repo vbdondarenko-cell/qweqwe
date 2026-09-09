@@ -1,11 +1,14 @@
 package com.linkup.app.ui.auth
 
+import android.app.DatePickerDialog
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -19,6 +22,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -31,12 +35,15 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.linkup.app.R
+import com.linkup.app.core.network.OnboardingPreferences
+import com.linkup.app.core.network.OnboardingRegistrationDraft
 import com.linkup.app.core.network.passwordResetToken
 import com.linkup.app.ui.theme.LinkUpBorder
 import com.linkup.app.ui.theme.LinkUpElevated
@@ -45,6 +52,9 @@ import com.linkup.app.ui.theme.LinkUpTextDimmed
 import com.linkup.app.ui.theme.LinkUpTextMuted
 import com.linkup.app.ui.theme.LinkUpTextPrimary
 import com.linkup.app.ui.theme.LinkUpWarning
+import java.time.LocalDate
+import java.time.Period
+import java.time.format.DateTimeFormatter
 import kotlinx.coroutines.launch
 
 enum class AuthMode { LOGIN, REGISTER, RECOVERY, RESET }
@@ -56,7 +66,7 @@ fun AuthScreen(
     infoMessage: String?,
     initialResetToken: String? = null,
     onLogin: (String, String) -> Unit,
-    onRegister: (String, String, String, String) -> Unit,
+    onRegister: (OnboardingRegistrationDraft) -> Unit,
     onRecovery: (String) -> Unit,
     onResetPassword: suspend (String, String) -> Boolean,
 ) {
@@ -113,23 +123,7 @@ fun AuthScreen(
                     Text(stringResource(R.string.auth_forgot_password), color = LinkUpTextDimmed, fontSize = 12.sp)
                 }
             }
-            AuthMode.REGISTER -> {
-                AuthField(stringResource(R.string.auth_email), email) { email = it.take(320) }
-                Spacer(Modifier.height(10.dp))
-                AuthField(stringResource(R.string.auth_username), username) { username = it.take(32) }
-                Spacer(Modifier.height(10.dp))
-                AuthField(stringResource(R.string.auth_display_name), displayName) { displayName = it.take(80) }
-                Spacer(Modifier.height(10.dp))
-                AuthPasswordField(password) { password = it.take(256) }
-                Spacer(Modifier.height(14.dp))
-                SubmitButton(
-                    stringResource(R.string.auth_create_account),
-                    busy,
-                    email.isNotBlank() && username.isNotBlank() && displayName.isNotBlank() && password.isNotBlank(),
-                ) {
-                    onRegister(email.trim(), username.trim(), displayName.trim(), password)
-                }
-            }
+            AuthMode.REGISTER -> RegistrationForm(busy = busy, onRegister = onRegister)
             AuthMode.RECOVERY -> {
                 Text(stringResource(R.string.auth_password_recovery), color = LinkUpTextPrimary, fontSize = 20.sp, fontWeight = FontWeight.Bold)
                 Text(stringResource(R.string.auth_recovery_description), color = LinkUpTextDimmed, fontSize = 13.sp)
@@ -245,3 +239,149 @@ private fun SubmitButton(label: String, busy: Boolean, valid: Boolean, onClick: 
         Text(label, fontWeight = FontWeight.Bold)
     }
 }
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun RegistrationForm(
+    busy: Boolean,
+    onRegister: (OnboardingRegistrationDraft) -> Unit,
+) {
+    var email by remember { mutableStateOf("") }
+    var username by remember { mutableStateOf("") }
+    var displayName by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
+    var birthDate by remember { mutableStateOf<LocalDate?>(null) }
+    var cityName by remember { mutableStateOf("") }
+    var timePrefs by remember { mutableStateOf(setOf<String>()) }
+    var peoplePrefs by remember { mutableStateOf(setOf<String>()) }
+    var goalPrefs by remember { mutableStateOf(setOf<String>()) }
+    val context = LocalContext.current
+    val today = LocalDate.now()
+    val age = birthDate?.let { Period.between(it, today).years }
+    val teen = age != null && age in 14..17
+    val ageAllowed = age != null && age in 14..120
+
+    AuthField(stringResource(R.string.auth_email), email) { email = it.take(320) }
+    Spacer(Modifier.height(10.dp))
+    AuthField(stringResource(R.string.auth_username), username) { username = it.lowercase().take(32) }
+    Spacer(Modifier.height(10.dp))
+    AuthField(stringResource(R.string.auth_display_name), displayName) { displayName = it.take(80) }
+    Spacer(Modifier.height(10.dp))
+    AuthPasswordField(password) { password = it.take(256) }
+    Spacer(Modifier.height(10.dp))
+
+    Text(stringResource(R.string.onboarding_birth_date), color = LinkUpTextDimmed, fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
+    TextButton(onClick = {
+        val initial = birthDate ?: today.minusYears(18)
+        DatePickerDialog(
+            context,
+            { _, year, month, day ->
+                val selected = LocalDate.of(year, month + 1, day)
+                birthDate = selected
+                if (Period.between(selected, LocalDate.now()).years < 18) {
+                    peoplePrefs = peoplePrefs - "romantic"
+                    goalPrefs = goalPrefs - "romantic"
+                }
+            },
+            initial.year,
+            initial.monthValue - 1,
+            initial.dayOfMonth,
+        ).show()
+    }) {
+        Text(
+            birthDate?.format(DateTimeFormatter.ofPattern("dd.MM.yyyy"))
+                ?: stringResource(R.string.onboarding_select_birth_date),
+            color = LinkUpRed,
+        )
+    }
+    if (birthDate != null && !ageAllowed) {
+        Text(stringResource(R.string.onboarding_age_error), color = LinkUpWarning, fontSize = 12.sp)
+    }
+
+    AuthField(stringResource(R.string.onboarding_city), cityName) { cityName = it.take(160) }
+    Spacer(Modifier.height(12.dp))
+
+    PreferenceGroup(
+        title = stringResource(R.string.onboarding_pref_time),
+        options = listOf(
+            "walks" to stringResource(R.string.pref_walks),
+            "cafes" to stringResource(R.string.pref_cafes),
+            "sports" to stringResource(R.string.pref_sports),
+            "games" to stringResource(R.string.pref_games),
+            "arts_culture" to stringResource(R.string.pref_arts),
+            "nightlife" to stringResource(R.string.pref_nightlife),
+            "travel" to stringResource(R.string.pref_travel),
+            "networking" to stringResource(R.string.pref_networking),
+            "unsure" to stringResource(R.string.pref_unsure),
+        ),
+        selected = timePrefs,
+        onToggle = { key -> timePrefs = timePrefs.toggle(key) },
+    )
+    PreferenceGroup(
+        title = stringResource(R.string.onboarding_pref_people),
+        options = buildList {
+            add("new_people" to stringResource(R.string.pref_new_people))
+            add("friends" to stringResource(R.string.pref_friends))
+            if (!teen) add("romantic" to stringResource(R.string.pref_romantic))
+            add("groups" to stringResource(R.string.pref_groups))
+            add("anyone" to stringResource(R.string.pref_anyone))
+            add("unsure" to stringResource(R.string.pref_unsure))
+        },
+        selected = peoplePrefs,
+        onToggle = { key -> peoplePrefs = peoplePrefs.toggle(key) },
+    )
+    PreferenceGroup(
+        title = stringResource(R.string.onboarding_pref_goals),
+        options = buildList {
+            add("new_friends" to stringResource(R.string.pref_new_friends))
+            if (!teen) add("romantic" to stringResource(R.string.pref_romantic))
+            add("activities_events" to stringResource(R.string.pref_activities))
+            add("networking" to stringResource(R.string.pref_networking))
+            add("browsing" to stringResource(R.string.pref_browsing))
+            add("unsure" to stringResource(R.string.pref_unsure))
+        },
+        selected = goalPrefs,
+        onToggle = { key -> goalPrefs = goalPrefs.toggle(key) },
+    )
+    if (teen) {
+        Text(stringResource(R.string.onboarding_teen_mode), color = LinkUpTextDimmed, fontSize = 12.sp)
+    }
+
+    Spacer(Modifier.height(14.dp))
+    val valid = email.isNotBlank() && username.isNotBlank() && displayName.isNotBlank() &&
+        password.isNotBlank() && ageAllowed && cityName.isNotBlank() &&
+        timePrefs.isNotEmpty() && peoplePrefs.isNotEmpty() && goalPrefs.isNotEmpty()
+    SubmitButton(stringResource(R.string.auth_create_account), busy, valid) {
+        val date = birthDate ?: return@SubmitButton
+        onRegister(
+            OnboardingRegistrationDraft(
+                email = email.trim(),
+                username = username.trim(),
+                displayName = displayName.trim(),
+                password = password,
+                birthDate = date.toString(),
+                cityName = cityName.trim(),
+                preferences = OnboardingPreferences(timePrefs, peoplePrefs, goalPrefs),
+            ),
+        )
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun PreferenceGroup(
+    title: String,
+    options: List<Pair<String, String>>,
+    selected: Set<String>,
+    onToggle: (String) -> Unit,
+) {
+    Text(title, color = LinkUpTextDimmed, fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        options.forEach { (key, label) ->
+            FilterChip(selected = key in selected, onClick = { onToggle(key) }, label = { Text(label) })
+        }
+    }
+    Spacer(Modifier.height(12.dp))
+}
+
+private fun Set<String>.toggle(value: String): Set<String> = if (value in this) this - value else this + value

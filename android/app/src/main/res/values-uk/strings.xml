@@ -167,4 +167,36 @@
     <string name="block_confirm_body">Блокування негайно прибирає поточні запити або участь між вами, де це застосовно, і забороняє подальшу взаємодію в LinkUp.</string>
 
     <string name="capability_not_active">Ця можливість не активна у v1.0.</string>
+
+    <string name="onboarding_birth_date">Дата народження</string>
+    <string name="onboarding_select_birth_date">Вибрати дату</string>
+    <string name="onboarding_age_error">Реєстрація доступна з 14 років.</string>
+    <string name="onboarding_city">Місто</string>
+    <string name="onboarding_pref_time">Як тобі подобається проводити час?</string>
+    <string name="onboarding_pref_people">З ким хочеш знайомитися?</string>
+    <string name="onboarding_pref_goals">Що очікуєш від LinkUp?</string>
+    <string name="onboarding_teen_mode">Для цього акаунта буде ввімкнено Teen Mode.</string>
+    <string name="pref_walks">Прогулянки</string>
+    <string name="pref_cafes">Кав’ярні</string>
+    <string name="pref_sports">Спорт</string>
+    <string name="pref_games">Ігри</string>
+    <string name="pref_arts">Мистецтво й культура</string>
+    <string name="pref_nightlife">Нічне життя</string>
+    <string name="pref_travel">Подорожі</string>
+    <string name="pref_networking">Нетворкінг</string>
+    <string name="pref_unsure">Не впевнений(-а)</string>
+    <string name="pref_new_people">Нові знайомства</string>
+    <string name="pref_friends">Друзі</string>
+    <string name="pref_romantic">Романтичні знайомства</string>
+    <string name="pref_groups">Компанії / групи</string>
+    <string name="pref_anyone">Будь-хто</string>
+    <string name="pref_new_friends">Нові друзі</string>
+    <string name="pref_activities">Активності та події</string>
+    <string name="pref_browsing">Поки просто дивлюсь</string>
+    <string name="telegram_verify_title">Підтверди номер у Telegram</string>
+    <string name="telegram_verify_body">Відкрий офіційного LinkUp-бота та натисни «Поділитися номером». SMS і WhatsApp не використовуються.</string>
+    <string name="telegram_open_bot">Відкрити Telegram-бота</string>
+    <string name="telegram_check_status">Я поділився номером — перевірити</string>
+    <string name="telegram_cancel_registration">Скасувати реєстрацію</string>
+
 </resources>
