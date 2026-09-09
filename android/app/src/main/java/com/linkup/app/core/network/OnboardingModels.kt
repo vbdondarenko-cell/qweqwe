@@ -61,3 +61,10 @@ internal fun validTelegramDeepLink(value: String, token: String): Boolean = runC
         uri.fragment == null && Regex("/[A-Za-z][A-Za-z0-9_]{1,31}").matches(uri.rawPath.orEmpty()) &&
         uri.rawQuery == "start=$token"
 }.getOrDefault(false)
+
+internal fun telegramNativeDeepLink(value: String, token: String): String? {
+    if (!validTelegramDeepLink(value, token)) return null
+    val path = runCatching { URI(value).rawPath }.getOrNull() ?: return null
+    val botUsername = path.removePrefix("/")
+    return "tg://resolve?domain=$botUsername&start=$token"
+}

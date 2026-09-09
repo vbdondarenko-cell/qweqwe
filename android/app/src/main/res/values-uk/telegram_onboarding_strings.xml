@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="telegram_start_hint">У Telegram має з’явитися кнопка START. Спочатку натисни START — після цього бот покаже «Поділитися номером».</string>
+    <string name="telegram_waiting_for_phone">Номер ще не підтверджено. У Telegram натисни START, потім «Поділитися номером» і повернися сюди.</string>
+</resources>

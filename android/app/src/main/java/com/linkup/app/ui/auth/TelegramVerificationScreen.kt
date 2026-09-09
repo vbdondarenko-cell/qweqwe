@@ -23,6 +23,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.linkup.app.R
+import com.linkup.app.core.network.telegramNativeDeepLink
 import com.linkup.app.core.session.SessionState
 import com.linkup.app.ui.theme.LinkUpBackground
 import com.linkup.app.ui.theme.LinkUpRed
@@ -56,13 +57,19 @@ fun TelegramVerificationScreen(
         Text(stringResource(R.string.telegram_verify_title), color = LinkUpTextPrimary, fontSize = 26.sp, fontWeight = FontWeight.Black)
         Spacer(Modifier.height(8.dp))
         Text(stringResource(R.string.telegram_verify_body), color = LinkUpTextDimmed, fontSize = 14.sp)
+        Spacer(Modifier.height(6.dp))
+        Text(stringResource(R.string.telegram_start_hint), color = LinkUpTextDimmed, fontSize = 12.sp)
         if (state.teenMode == true) {
             Spacer(Modifier.height(8.dp))
             Text(stringResource(R.string.onboarding_teen_mode), color = LinkUpTextDimmed, fontSize = 12.sp)
         }
         Spacer(Modifier.height(20.dp))
         Button(
-            onClick = { runCatching { uriHandler.openUri(state.start.telegramDeepLink) } },
+            onClick = {
+                val native = telegramNativeDeepLink(state.start.telegramDeepLink, state.start.verificationToken)
+                val nativeOpened = native?.let { runCatching { uriHandler.openUri(it) }.isSuccess } ?: false
+                if (!nativeOpened) runCatching { uriHandler.openUri(state.start.telegramDeepLink) }
+            },
             enabled = !busy,
             modifier = Modifier.fillMaxWidth().height(50.dp),
             colors = ButtonDefaults.buttonColors(containerColor = LinkUpRed, contentColor = LinkUpTextPrimary),
@@ -80,6 +87,10 @@ fun TelegramVerificationScreen(
         if (busy) {
             Spacer(Modifier.height(12.dp))
             CircularProgressIndicator(color = LinkUpRed, modifier = Modifier.align(Alignment.CenterHorizontally))
+        }
+        if (state.statusChecked && state.message.isNullOrBlank()) {
+            Spacer(Modifier.height(10.dp))
+            Text(stringResource(R.string.telegram_waiting_for_phone), color = LinkUpWarning, fontSize = 12.sp)
         }
         state.message?.takeIf { it.isNotBlank() }?.let {
             Spacer(Modifier.height(10.dp))

@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="telegram_start_hint">Telegram must show a START button. Tap START first; then the bot will show “Share phone”.</string>
+    <string name="telegram_waiting_for_phone">Phone is not verified yet. In Telegram tap START, then “Share phone”, and return here.</string>
+</resources>

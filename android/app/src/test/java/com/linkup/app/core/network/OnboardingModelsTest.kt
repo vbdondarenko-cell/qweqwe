@@ -46,6 +46,15 @@ class OnboardingModelsTest {
     }
 
     @Test
+    fun nativeTelegramDeepLinkPreservesBotAndStartPayload() {
+        assertEquals(
+            "tg://resolve?domain=LinkUpBot&start=$token",
+            telegramNativeDeepLink("https://t.me/LinkUpBot?start=$token", token),
+        )
+        assertEquals(null, telegramNativeDeepLink("https://evil.example/LinkUpBot?start=$token", token))
+    }
+
+    @Test
     fun startRejectsNonCanonicalTokenLength() {
         assertFailsWith<IllegalArgumentException> {
             parseOnboardingStart(JSONObject("""{

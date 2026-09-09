@@ -16,6 +16,7 @@ sealed interface SessionState {
     data class TelegramVerification(
         val start: OnboardingStart,
         val teenMode: Boolean? = null,
+        val statusChecked: Boolean = false,
         val message: String? = null,
     ) : SessionState
     data class SignedIn(val user: UserProfile) : SessionState
@@ -90,7 +91,7 @@ class SessionCoordinator(
         return try {
             val status = api.onboardingStatus(pending.verificationToken)
             if (!status.phoneVerified) {
-                mutableState.value = SessionState.TelegramVerification(pending.toStart(), status.teenMode)
+                mutableState.value = SessionState.TelegramVerification(pending.toStart(), status.teenMode, statusChecked = true)
                 false
             } else {
                 val auth = api.completeOnboarding(pending.verificationToken)
@@ -125,7 +126,7 @@ class SessionCoordinator(
                 onboarding.clear()
                 mutableState.value = SessionState.SignedIn(auth.user)
             } else {
-                mutableState.value = SessionState.TelegramVerification(pending.toStart(), status.teenMode)
+                mutableState.value = SessionState.TelegramVerification(pending.toStart(), status.teenMode, statusChecked = true)
             }
         } catch (error: ApiException) {
             if (error.status == 404 || error.status == 410) {
