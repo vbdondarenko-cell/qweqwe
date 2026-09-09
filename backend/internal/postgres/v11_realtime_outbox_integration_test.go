@@ -35,6 +35,35 @@ func TestV11RealtimeOutboxIntegration(t *testing.T) {
 	}
 	assertMigrationCount(t, ctx, pool, 14)
 
+	t.Run("runtime api role cannot mutate outbox", func(t *testing.T) {
+		var roleExists bool
+		if err := pool.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='linkup_api')`).Scan(&roleExists); err != nil {
+			t.Fatal(err)
+		}
+		if !roleExists {
+			t.Skip("linkup_api role is not present in disposable PostgreSQL")
+		}
+		var canSelect, canInsert, canUpdate, canDelete, canCursorWrite, canReceiptWrite, canSequence, canEnqueue, canTrigger bool
+		err := pool.QueryRow(ctx, `SELECT
+			has_table_privilege('linkup_api','public.domain_outbox_events','SELECT'),
+			has_table_privilege('linkup_api','public.domain_outbox_events','INSERT'),
+			has_table_privilege('linkup_api','public.domain_outbox_events','UPDATE'),
+			has_table_privilege('linkup_api','public.domain_outbox_events','DELETE'),
+			has_table_privilege('linkup_api','public.connector_cursors','INSERT') OR has_table_privilege('linkup_api','public.connector_cursors','UPDATE') OR has_table_privilege('linkup_api','public.connector_cursors','DELETE'),
+			has_table_privilege('linkup_api','public.connector_delivery_receipts','INSERT') OR has_table_privilege('linkup_api','public.connector_delivery_receipts','UPDATE') OR has_table_privilege('linkup_api','public.connector_delivery_receipts','DELETE'),
+			has_sequence_privilege('linkup_api','public.domain_outbox_events_sequence_seq','USAGE'),
+			has_function_privilege('linkup_api','public.linkup_enqueue_outbox(text,text,uuid,uuid,uuid,jsonb)','EXECUTE'),
+			has_function_privilege('linkup_api','public.linkup_emit_canonical_outbox()','EXECUTE')`).
+			Scan(&canSelect, &canInsert, &canUpdate, &canDelete, &canCursorWrite, &canReceiptWrite, &canSequence, &canEnqueue, &canTrigger)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !canSelect || canInsert || canUpdate || canDelete || canCursorWrite || canReceiptWrite || canSequence || canEnqueue || canTrigger {
+			t.Fatalf("unexpected linkup_api realtime privileges select=%v insert=%v update=%v delete=%v cursorWrite=%v receiptWrite=%v sequence=%v enqueue=%v trigger=%v",
+				canSelect, canInsert, canUpdate, canDelete, canCursorWrite, canReceiptWrite, canSequence, canEnqueue, canTrigger)
+		}
+	})
+
 	accounts, err := account.NewService(NewAccountStore(pool), password.OWASPMinimum(), time.Hour)
 	if err != nil {
 		t.Fatal(err)
@@ -87,10 +116,10 @@ func TestV11RealtimeOutboxIntegration(t *testing.T) {
 		t.Fatal(err)
 	}
 	wantTypes := map[string]bool{
-		"slot.created": false,
-		"slot.request_created": false,
-		"slot.request_removed": false,
-		"slot.membership_added": false,
+		"slot.created":              false,
+		"slot.request_created":      false,
+		"slot.request_removed":      false,
+		"slot.membership_added":     false,
 		"slot.chat_message_created": false,
 	}
 	for _, event := range events {
