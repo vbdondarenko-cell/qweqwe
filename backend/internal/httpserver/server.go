@@ -20,6 +20,7 @@ import (
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/citymap"
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/identifier"
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/monetization"
+	"github.com/vbdondarenko-cell/qweqwe/backend/internal/onboarding"
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/places"
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/push"
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/ratelimit"
@@ -27,20 +28,23 @@ import (
 )
 
 type Dependencies struct {
-	Accounts     *account.Service
-	Blocks       *blocklist.Service
-	Slots        *slot.Service
-	Chats        *chat.Service
-	CityContext  *citycontext.Service
-	Capabilities *capability.Service
-	Map          *citymap.Service
-	Places       *places.Service
-	Realtime     RealtimeFeed
-	Monetization *monetization.Service
-	Push         *push.Service
-	Ready        func(context.Context) error
-	AuthLimiter  *ratelimit.Limiter
-	UserLimiter  *ratelimit.Limiter
+	Accounts              *account.Service
+	Blocks                *blocklist.Service
+	Slots                 *slot.Service
+	Chats                 *chat.Service
+	CityContext           *citycontext.Service
+	Capabilities          *capability.Service
+	Map                   *citymap.Service
+	Places                *places.Service
+	Realtime              RealtimeFeed
+	Monetization          *monetization.Service
+	Push                  *push.Service
+	Onboarding            *onboarding.Service
+	Telegram              onboarding.ContactPrompter
+	TelegramWebhookSecret string
+	Ready                 func(context.Context) error
+	AuthLimiter           *ratelimit.Limiter
+	UserLimiter           *ratelimit.Limiter
 }
 
 type Server struct {
@@ -75,7 +79,10 @@ func New(deps Dependencies) *Server {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /livez", s.livez)
 	mux.HandleFunc("GET /healthz", s.healthz)
-	mux.Handle("POST /v1/auth/register", s.authRateLimit(http.HandlerFunc(s.register)))
+	mux.Handle("POST /v1/auth/register", s.authRateLimit(http.HandlerFunc(s.startOnboarding)))
+	mux.Handle("POST /v1/auth/register/status", s.authRateLimit(http.HandlerFunc(s.onboardingStatus)))
+	mux.Handle("POST /v1/auth/register/complete", s.authRateLimit(http.HandlerFunc(s.completeOnboarding)))
+	mux.HandleFunc("POST /v1/integrations/telegram/onboarding", s.telegramOnboardingWebhook)
 	mux.Handle("POST /v1/auth/login", s.authRateLimit(http.HandlerFunc(s.login)))
 	mux.Handle("POST /v1/auth/recovery/request", s.authRateLimit(http.HandlerFunc(s.requestPasswordRecovery)))
 	mux.Handle("POST /v1/auth/recovery/reset", s.authRateLimit(http.HandlerFunc(s.resetPassword)))
