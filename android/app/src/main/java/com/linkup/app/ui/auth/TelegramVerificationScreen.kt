@@ -24,6 +24,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.linkup.app.R
 import com.linkup.app.core.network.telegramNativeDeepLink
+import com.linkup.app.core.network.telegramVerificationCommandDeepLink
 import com.linkup.app.core.session.SessionState
 import com.linkup.app.ui.theme.LinkUpBackground
 import com.linkup.app.ui.theme.LinkUpRed
@@ -76,6 +77,22 @@ fun TelegramVerificationScreen(
         ) {
             Text(stringResource(R.string.telegram_open_bot), fontWeight = FontWeight.Bold)
         }
+        Spacer(Modifier.height(10.dp))
+        Button(
+            onClick = {
+                val commandLink = telegramVerificationCommandDeepLink(
+                    state.start.telegramDeepLink,
+                    state.start.verificationToken,
+                )
+                if (commandLink != null) runCatching { uriHandler.openUri(commandLink) }
+            },
+            enabled = !busy,
+            modifier = Modifier.fillMaxWidth().height(50.dp),
+        ) {
+            Text(stringResource(R.string.telegram_open_with_command), fontWeight = FontWeight.Bold)
+        }
+        Spacer(Modifier.height(6.dp))
+        Text(stringResource(R.string.telegram_command_hint), color = LinkUpTextDimmed, fontSize = 12.sp)
         Spacer(Modifier.height(10.dp))
         Button(
             onClick = onRefresh,

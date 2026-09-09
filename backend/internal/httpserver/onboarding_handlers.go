@@ -145,15 +145,31 @@ func (s *Server) telegramOnboardingWebhook(w http.ResponseWriter, r *http.Reques
 		w.WriteHeader(http.StatusNoContent)
 		return
 	}
+	if telegramPlainStart(message.Text) {
+		if err := s.deps.Telegram.ExplainVerificationStart(r.Context(), message.Chat.ID); err != nil {
+			writeProblem(w, r, http.StatusBadGateway, "telegram_delivery_failed", "failed to explain Telegram verification")
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
 	if message.Contact != nil {
 		// request_contact must represent the sender's own Telegram account. A
 		// manually shared third-party contact never verifies phone ownership.
 		if message.Contact.UserID <= 0 || message.Contact.UserID != message.From.ID {
+			if err := s.deps.Telegram.ExplainUnboundContact(r.Context(), message.Chat.ID); err != nil {
+				writeProblem(w, r, http.StatusBadGateway, "telegram_delivery_failed", "failed to explain Telegram contact verification")
+				return
+			}
 			w.WriteHeader(http.StatusNoContent)
 			return
 		}
 		language, err := s.deps.Onboarding.VerifyTelegramContact(r.Context(), message.From.ID, message.Contact.PhoneNumber)
 		if err != nil {
+			if err := s.deps.Telegram.ExplainUnboundContact(r.Context(), message.Chat.ID); err != nil {
+				writeProblem(w, r, http.StatusBadGateway, "telegram_delivery_failed", "failed to explain Telegram contact verification")
+				return
+			}
 			w.WriteHeader(http.StatusNoContent)
 			return
 		}
@@ -175,6 +191,14 @@ func telegramStartToken(text string) (string, bool) {
 		return "", false
 	}
 	return parts[1], true
+}
+
+func telegramPlainStart(text string) bool {
+	parts := strings.Fields(strings.TrimSpace(text))
+	if len(parts) != 1 {
+		return false
+	}
+	return strings.SplitN(parts[0], "@", 2)[0] == "/start"
 }
 
 func constantTimeEqual(a, b string) bool {

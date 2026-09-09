@@ -63,8 +63,17 @@ internal fun validTelegramDeepLink(value: String, token: String): Boolean = runC
 }.getOrDefault(false)
 
 internal fun telegramNativeDeepLink(value: String, token: String): String? {
+    val botUsername = telegramBotUsername(value, token) ?: return null
+    return "tg://resolve?domain=$botUsername&start=$token"
+}
+
+internal fun telegramVerificationCommandDeepLink(value: String, token: String): String? {
+    val botUsername = telegramBotUsername(value, token) ?: return null
+    return "tg://resolve?domain=$botUsername&text=%2Fstart%20$token"
+}
+
+private fun telegramBotUsername(value: String, token: String): String? {
     if (!validTelegramDeepLink(value, token)) return null
     val path = runCatching { URI(value).rawPath }.getOrNull() ?: return null
-    val botUsername = path.removePrefix("/")
-    return "tg://resolve?domain=$botUsername&start=$token"
+    return path.removePrefix("/").takeIf { it.isNotBlank() }
 }

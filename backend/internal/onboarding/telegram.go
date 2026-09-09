@@ -15,6 +15,8 @@ import (
 type ContactPrompter interface {
 	RequestContact(ctx context.Context, chatID int64, language string) error
 	ConfirmContact(ctx context.Context, chatID int64, language string) error
+	ExplainVerificationStart(ctx context.Context, chatID int64) error
+	ExplainUnboundContact(ctx context.Context, chatID int64) error
 }
 
 type TelegramBot struct {
@@ -39,11 +41,11 @@ func (b *TelegramBot) RequestContact(ctx context.Context, chatID int64, language
 	}
 	payload := map[string]any{
 		"chat_id": chatID,
-		"text": text,
+		"text":    text,
 		"reply_markup": map[string]any{
-			"keyboard": [][]map[string]any{{{"text": button, "request_contact": true}}},
-			"resize_keyboard": true,
-			"one_time_keyboard": true,
+			"keyboard":                [][]map[string]any{{{"text": button, "request_contact": true}}},
+			"resize_keyboard":         true,
+			"one_time_keyboard":       true,
 			"input_field_placeholder": button,
 		},
 	}
@@ -56,9 +58,25 @@ func (b *TelegramBot) ConfirmContact(ctx context.Context, chatID int64, language
 		text = "Phone verified. Return to LinkUp to finish registration."
 	}
 	payload := map[string]any{
-		"chat_id": chatID,
-		"text": text,
+		"chat_id":      chatID,
+		"text":         text,
 		"reply_markup": map[string]any{"remove_keyboard": true},
+	}
+	return b.call(ctx, "sendMessage", payload)
+}
+
+func (b *TelegramBot) ExplainVerificationStart(ctx context.Context, chatID int64) error {
+	payload := map[string]any{
+		"chat_id": chatID,
+		"text":    "Відкрий LinkUp і натисни кнопку перевірки Telegram. Бот прийме лише одноразову команду, створену додатком.",
+	}
+	return b.call(ctx, "sendMessage", payload)
+}
+
+func (b *TelegramBot) ExplainUnboundContact(ctx context.Context, chatID int64) error {
+	payload := map[string]any{
+		"chat_id": chatID,
+		"text":    "Контакт ще не прив’язаний до реєстрації. Повернися в LinkUp, відкрий команду перевірки, надішли її в цьому чаті, а потім натисни «Поділитися номером».",
 	}
 	return b.call(ctx, "sendMessage", payload)
 }
