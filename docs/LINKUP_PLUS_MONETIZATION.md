@@ -11,7 +11,7 @@
 - вимоги до billing, entitlement і UX;
 - фактичну різницю між target scope та поточною реалізацією.
 
-LinkUp+ належить до **v1.2**. Активний release не можна блокувати незавершеним LinkUp+, а LinkUp+ не можна продавати як готовий продукт, поки оплачувані переваги та store/server verification не працюють end-to-end. `PROJECT_RULES.md` і `README.md` мають вищий пріоритет щодо release ordering, security, server authority та platform boundaries.
+LinkUp+ належить до **v1.1**. Активний release не можна блокувати незавершеним LinkUp+, а LinkUp+ не можна продавати як готовий продукт, поки оплачувані переваги та store/server verification не працюють end-to-end. `PROJECT_RULES.md` і `README.md` мають вищий пріоритет щодо release ordering, security, server authority та platform boundaries.
 
 ## 1. Продуктове позиціонування
 
@@ -59,7 +59,7 @@ LinkUp+ належить до **v1.2**. Активний release не можна
 
 ## 3. Що входить у LinkUp+
 
-Нижче описаний **повний target entitlement v1.2**. У production paywall дозволено обіцяти лише capabilities, які реально ввімкнені сервером і пройшли відповідний release gate.
+Нижче описаний **повний target entitlement v1.1**. У production paywall дозволено обіцяти лише capabilities, які реально ввімкнені сервером і пройшли відповідний release gate.
 
 ### 3.1. Travel Pro
 
@@ -218,20 +218,81 @@ Referral кваліфікується лише після server-verified paid s
 - deadline обчислюється від server `app_users.created_at`;
 - binding сам по собі не дає reward;
 - refund/revocation до qualification не може створити paid referral;
-- leaderboard reward не видається, доки окремо не визначені amount, ranking window, ties і anti-fraud policy.
+- leaderboard reward не видається, доки окремо не визначені amount, ranking window, ties і anti-fraud policy;
+- referral qualification також підпорядковується §8 rate limits, anomaly detection і referral-farm controls.
 
 ## 8. Server authority and anti-fraud
+
+### 8.1. Authority boundary
 
 - mobile client ніколи не надає LinkUp+ локально;
 - billing/rewarded/referral qualification вирішує Go;
 - store/provider price є checkout authority, а Go перевіряє product, purchase state і entitlement;
 - purchase/ad tokens є secrets і не логуються;
-- duplicate provider events idempotent;
 - refund/revoke/chargeback/grace представлені server-side;
 - новий grant ніколи не скорочує вже довший valid grant;
 - direct Supabase `anon`/`authenticated` access до monetization tables заборонений;
 - entitlement не дає обхід block, moderation, safety, capacity, lifecycle або privacy rules;
 - capability flags fail closed.
+
+### 8.2. Entitlement-sensitive rate limits
+
+Endpoints, що можуть створити або вплинути на entitlement, мають окремі server-side abuse budgets незалежно від загального API rate limit:
+
+- referral binding;
+- rewarded-video challenge/claim/verification;
+- purchase verification/restore;
+- provider callback reconciliation where caller-controlled retry can amplify work.
+
+Rate limits повинні враховувати actor/account та coarse network/device-class abuse signals, мати bounded retry semantics і не перетворювати provider/network retry на повторну нагороду.
+
+### 8.3. Anomaly detection and manual review
+
+- масові реєстрації, referral bindings, rewarded claims або purchase-verification attempts з одного IP/coarse device class за короткий проміжок позначаються anomaly flag;
+- anomaly flag запускає bounded/manual review або додаткову verification policy, а не автоматичний permanent ban;
+- shared NAT, сімейні/навчальні мережі та інші легітимні shared-network сценарії не можна трактувати як доказ fraud самі по собі;
+- anti-fraud telemetry має мінімізувати retention і не включати raw GPS/social graph/content payload.
+
+### 8.4. Referral-farm protection
+
+Beyond the existing self-referral prohibition:
+
+- bound referral attempts from the same device class or IP are capped over a defined rolling period;
+- repeated invitee creation/binding patterns may be delayed for review before qualification rewards are issued;
+- one invitee can qualify one inviter only, and one provider-verified purchase cannot qualify multiple invitees/inviters;
+- suspicious clustering can block reward issuance pending review without silently deleting legitimate account access;
+- thresholds are product policy/configuration, not client-controlled constants.
+
+### 8.5. Purchase replay and duplicate protection
+
+Provider purchase events and app-triggered verification are idempotent by provider purchase identity/event identity.
+
+Required edge cases:
+
+- the same purchase submitted simultaneously from two devices resolves to one entitlement transition;
+- network retries of the same verification request do not create duplicate grants;
+- duplicate/out-of-order provider callbacks converge to the provider-authoritative purchase state;
+- restore-after-reinstall and account/device switching cannot clone an entitlement across unrelated accounts;
+- refund/revoke/chargeback arriving after an earlier success remains auditable and updates the canonical state according to policy.
+
+### 8.6. Manual entitlement changes and audit log
+
+Any authorized admin/manual entitlement mutation records an immutable audit event containing at minimum:
+
+- audit/event ID;
+- actor/admin identity;
+- target account;
+- action type;
+- previous and resulting entitlement state/expiry;
+- reason code plus bounded operator note where policy allows;
+- request/correlation ID;
+- server timestamp.
+
+Manual changes use explicit permissions, cannot edit historical provider events, and must be distinguishable from store, rewarded and referral grants. The audit format should align with notification-admin/campaign audit events so one security review can trace privileged changes consistently.
+
+### 8.7. Privacy proportionality
+
+Anti-fraud must be proportional to monetization risk. Invasive or covert device fingerprinting is forbidden. Do not collect hidden hardware identifiers, continuous location, contact lists, unrelated app inventory or behavioral surveillance for entitlement decisions. Prefer account identity, provider receipts, bounded rate limits, coarse network/device-class signals, idempotency and manual review. Collected anti-fraud data follows documented retention/access controls and the README privacy principles.
 
 ## 9. Android and iOS UX contract
 
@@ -254,7 +315,7 @@ Surface показує:
 
 ## 10. Current repository implementation status — 2026-09-08
 
-У `main` уже є early v1.2 foundation:
+У `main` уже є early v1.1 foundation:
 
 ### Database
 
@@ -315,7 +376,7 @@ Direct access для `PUBLIC`, `anon` і `authenticated` revoked.
 
 Перед production activation цього pricing contract потрібно синхронно оновити:
 
-- `README.md` §7.7: `WEEKLY / MONTHLY / THREE_MONTH / ANNUAL`;
+- `README.md` §6.20: `WEEKLY / MONTHLY / THREE_MONTH / ANNUAL`;
 - Go catalog constants, plan model і policy tests;
 - Android parser, UI labels, tests і localization;
 - iOS parser, UI labels, tests і localization;

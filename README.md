@@ -2,7 +2,7 @@
 
 Статус: **canonical product/engineering contract після `PROJECT_RULES.md`**.
 
-Поточний release train: **v1.0 → v1.1 → v1.2**.
+Поточний release train: **v1.0 → v1.1**.
 
 Поточна активна версія для розробки: **LinkUp v1.0**.
 
@@ -16,20 +16,18 @@
 
 # 0. VERSION MODEL
 
-LinkUp Version 1 складається з трьох реальних послідовних product releases:
+LinkUp Version 1 складається з двох реальних послідовних product releases:
 
 | Release | Назва | Головна мета |
 |---|---|---|
 | **v1.0** | Core Social Network | реальна Android соціальна мережа: account → Slot → REQUEST → APPROVE → chat → real meeting lifecycle |
-| **v1.1** | Realtime City Network | realtime/offline, City Context, Map, Waitlist, BUMP/Reliability, City BPM, swarms, Fly, Me 2.0, AR/ranking |
-| **v1.2** | Real-World Ecosystem + LinkUp+ | venue/BLE/safety/media/adaptive systems, advanced discovery/hosting/privacy, billing, rewarded access, ecosystem hardening |
+| **v1.1** | Realtime Real-World City Network + LinkUp+ | realtime/offline, City Context, Map, Waitlist, BUMP/Reliability, City BPM, swarms, Fly, Me 2.0, AR/ranking, venue/BLE/safety/media/adaptive systems, advanced discovery/hosting/privacy, billing, rewarded access, ecosystem hardening |
 
 ## 0.1. Release boundary rule
 
-- **v1.0 не блокується вимогами v1.1 або v1.2.**
+- **v1.0 не блокується вимогами v1.1.**
 - **v1.1 починається тільки поверх стабільного v1.0 foundation.**
-- **v1.2 починається тільки поверх стабільного v1.1 foundation.**
-- Функція, що належить v1.1/v1.2, може мати ранній foundation у коді, але це не переносить її release requirement назад у v1.0.
+- Функція, що належить v1.1, може мати ранній foundation у коді, але це не переносить її release requirement назад у v1.0.
 - Не можна оголошувати feature готовою через scaffold, mock, decorative UI або документацію.
 - Якщо capability вже реально реалізована раніше свого release, її не видаляють: вона просто проходить свій повний DoD у відповідному release gate.
 
@@ -193,7 +191,7 @@ Canonical target:
 - Travel corridor;
 - Private / invite-only.
 
-v1.0 обов’язково має Public. Розширена visibility активується за scope v1.1/v1.2.
+v1.0 обов’язково має Public. Розширена visibility активується за scope v1.1.
 
 ## 4.4. Core invariants
 
@@ -434,11 +432,11 @@ v1.0 is Done only when all below are real and verified on Android + Go + Postgre
 
 ---
 
-# 6. VERSION v1.1 — REALTIME CITY NETWORK
+# 6. VERSION v1.1 — REALTIME REAL-WORLD CITY NETWORK + LINKUP+
 
 ## 6.1. Goal
 
-v1.1 перетворює core social network на **live city network**: realtime convergence, durable offline behavior, location-aware discovery, richer access/coordination, verified real-world signals та advanced discovery surfaces.
+v1.1 перетворює core social network на **live real-world city network**: realtime convergence, durable offline behavior, location-aware discovery, richer access/coordination, verified real-world signals, venue/offline ecosystem capabilities, adaptive experiences та server-authoritative LinkUp+ monetization.
 
 v1.0 capabilities залишаються mandatory regression baseline.
 
@@ -566,21 +564,84 @@ Still zero-trace by product design:
 
 ## 6.8. Notifications
 
-Required:
+Notifications are server-authoritative domain projections, not direct side effects of HTTP handlers.
 
-- Android push adapter;
-- request/approval decisions;
-- cancellation;
-- starting soon;
-- reopened seat / waitlist promotion;
-- safety/moderation notices;
-- coordination notification where policy allows;
-- dedupe key;
-- TTL;
-- deep links;
-- preferences;
-- quiet-hours foundation;
-- delivery/reliability metrics.
+Canonical delivery flow:
+
+```text
+domain transaction
+→ transactional outbox
+→ notification projector/worker
+→ dedupe(idempotency key)
+→ TTL check
+→ quiet-hours check
+→ frequency-cap check
+→ FCM/APNs adapter
+```
+
+Rules:
+
+- push is never called directly from an HTTP handler;
+- the domain mutation and outbox record commit atomically or neither is considered complete;
+- notification delivery may retry independently without replaying the domain mutation;
+- idempotency/dedupe is required per logical notification;
+- expired notifications are dropped before provider delivery;
+- capability registry controls `notifications` and remains fail-closed by default.
+
+Canonical notification types:
+
+- `MESSAGE`;
+- `EVENT`;
+- `EVENT_RECOMMENDATION`;
+- `EVENT_REMINDER`;
+- `FRIEND_REQUEST`;
+- `FRIEND_ACCEPTED`;
+- `SYSTEM`;
+- `SECURITY`;
+- `ACCOUNT`;
+- `PROMO` / `ADVERTISEMENT` for LinkUp+ marketing only where consent/policy allows.
+
+Grouping/collapse:
+
+- multiple `MESSAGE` notifications from the same sender/thread collapse into one grouped surface;
+- repeated event state changes collapse by Slot/event identity when the newest state supersedes the older one;
+- grouping must not merge security/account alerts with marketing or social notifications.
+
+Canonical deep-link routing must open the relevant destination, never generic Home:
+
+- `MESSAGE` → `app://chat/{slotId}`;
+- `EVENT`, `EVENT_REMINDER`, waitlist/reopen lifecycle → `app://slot/{slotId}`;
+- `EVENT_RECOMMENDATION` → `app://pulse?slotId={slotId}`;
+- `FRIEND_REQUEST` → `app://me/requests`;
+- `FRIEND_ACCEPTED` → `app://me/connections`;
+- `SECURITY` → `app://me/security`;
+- `ACCOUNT` → `app://me/account`;
+- `PROMO` / `ADVERTISEMENT` → `app://linkup-plus` or another explicitly campaign-scoped destination.
+
+User controls:
+
+- category toggles exist for social/event/recommendation/promo classes where policy permits disabling;
+- `SECURITY` and critical account-integrity notifications cannot be silently converted into marketing controls;
+- default quiet hours for non-critical notifications are **23:00–08:00 local time**;
+- quiet hours use the user's current configured timezone and must be DST-safe;
+- recommendation and promo classes have explicit frequency caps;
+- `MESSAGE` and `SECURITY` are not frequency-capped by marketing/recommendation limits;
+- preference changes take effect server-side for future projections/delivery decisions.
+
+Admin campaigns:
+
+- authorized admin roles may create segmented campaigns;
+- test push must be available before broad delivery;
+- scheduled delivery uses server time plus recipient-local policy where configured;
+- analytics include `targeted`, `sent`, `delivered`, `opened` and CTR without sensitive social/location payload;
+- campaign create/edit/send/cancel operations require explicit permissions and immutable audit events;
+- campaign tooling cannot bypass user notification preferences, age/region policy, quiet hours or frequency caps except explicitly defined critical-system paths.
+
+Required evidence:
+
+- request/approval decisions, cancellation, starting soon, reopened seat/waitlist promotion, safety/moderation and coordination events project through the outbox path;
+- dedupe, TTL, grouping, deep links, preferences, quiet hours and frequency caps are verified;
+- provider delivery/reliability metrics exist without treating provider acceptance as domain success.
 
 ## 6.9. BUMP + Reliability
 
@@ -627,6 +688,54 @@ Required:
 
 Low cohorts must be suppressed so a small group or person cannot be inferred.
 
+### Recommendation / ranking pipeline
+
+Every recommendation surface (Pulse, Map intelligence, Auto-Swarms, Fly discovery, adaptive discovery and AR/ranking) uses the same ordered eligibility boundary.
+
+**Layer 1 — mandatory deterministic eligibility filters**
+
+Always evaluated first and never bypassed by ranking, ML, monetization, venue status or admin campaign logic:
+
+- block relationships;
+- privacy/visibility rules;
+- safety/moderation eligibility;
+- Slot lifecycle and access mode;
+- age/region/content policy where applicable;
+- capacity/waitlist state;
+- City Context / locality eligibility;
+- physical-presence requirements where the feature requires them.
+
+An item rejected by Layer 1 is not eligible for scoring in later layers.
+
+**Layer 2 — deterministic ranking from explicit user signals**
+
+Eligible candidates may be ordered using only explicit/product-authoritative signals such as:
+
+- interests selected by the user;
+- activity/category match;
+- current City Context/locality;
+- time window / NOW vs Scheduled relevance;
+- explicit language/accessibility/intent filters;
+- deterministic freshness, distance bucket or lifecycle relevance where privacy rules allow.
+
+Layer 2 must remain inspectable and reproducible from canonical inputs.
+
+**Layer 3 — opt-in personalization from participation history**
+
+This layer is disabled unless the user gives separate explicit consent in **Settings → Privacy**.
+
+- history-based personalization may use aggregated/coarse patterns from verified participations or places;
+- raw GPS tracks and continuous routes are forbidden;
+- retained location-derived patterns must stay locality/coarse-bucket level and follow the existing City Context privacy contract;
+- disabling consent immediately stops future use and deletes collected personalization-history data without waiting for the normal retention window;
+- disabling Layer 3 must not degrade access to deterministic Layer 1/Layer 2 discovery;
+- consent state is server-authoritative and auditable without storing sensitive raw location history.
+
+ML/learned ranking, when enabled, operates only inside the candidate set that survived Layer 1 and after deterministic product constraints. It may refine ordering but never restore an ineligible candidate or override privacy, block, safety, capacity or access decisions.
+
+Anti-manipulation invariant: venue identity, Venue Perks, Host status, LinkUp+ payment or any other commercial consideration cannot purchase organic ranking, Hotspot, City BPM or recommendation priority. Sponsored/promotional content, if ever displayed, must be explicitly labeled and handled as a separate policy-controlled surface rather than disguised organic rank.
+
+
 ## 6.11. Auto-Swarms
 
 Required:
@@ -642,6 +751,8 @@ Required:
 - privacy/safety/block filters before grouping.
 
 Auto-Swarm never auto-joins users.
+
+Auto-Swarm candidate generation must consume the same Layer 1 deterministic eligibility boundary from §6.10 before clustering. Confidence/clustering can prioritize only already-eligible candidates and cannot bypass block, privacy, safety, capacity, locality or consent rules.
 
 ## 6.12. Fly
 
@@ -731,39 +842,16 @@ Required:
 - explainability/debug tooling;
 - opt-in personalization.
 
-ML never overrides deterministic eligibility/privacy/block/safety filters.
+Ranking V2 is downstream of the §6.10 recommendation pipeline:
 
-## 6.15. Definition of Done — v1.1
+1. Layer 1 deterministic eligibility/privacy/block/safety/capacity/access filters produce the only legal candidate set;
+2. Layer 2 deterministic explicit-signal ranking establishes an inspectable baseline;
+3. Layer 3 history-based personalization is optional and requires explicit Settings → Privacy consent;
+4. learned/ML scoring may refine order only inside the surviving candidate set.
 
-v1.1 is Done only when:
+ML never overrides deterministic eligibility/privacy/block/safety/capacity/access filters, never converts a filtered candidate back into an eligible one, and must expose enough debug/explainability information to diagnose ranking without exposing another user's sensitive data. A non-personalized deterministic fallback is mandatory when consent is absent, models/providers fail, or feature capability is disabled.
 
-- v1.0 regression remains green;
-- two Android clients converge after stream loss/reconnect/process death/airplane mode;
-- durable commands do not duplicate Slot/membership/chat state;
-- City Context obeys accuracy/privacy boundaries;
-- Pulse/Map share canonical server scope;
-- Waitlist/host-control races are transaction-safe;
-- Chat V2 converges without becoming permanent storage;
-- push deep links/dedupe/TTL/preferences work;
-- BUMP/Reliability cannot be forged by client-only actions;
-- City BPM/Hotspots suppress low cohorts;
-- Swarms never auto-join;
-- Fly respects driver/location/privacy guardrails;
-- Squad/Guardian-style sharing is explicit, revocable and TTL-bound where active;
-- AR/ranking has privacy-safe fallback and deterministic eligibility boundary;
-- Android/Go/PostgreSQL integration, offline/realtime/device tests and security/privacy tests are executed successfully.
-
----
-
-# 7. VERSION v1.2 — REAL-WORLD ECOSYSTEM + LINKUP+
-
-## 7.1. Goal
-
-v1.2 expands LinkUp from a city social network into a broader **real-world ecosystem** with venue integrations, offline proximity proof, richer safety/accessibility/media, adaptive experiences and server-authoritative LinkUp+ monetization.
-
-v1.0 + v1.1 remain mandatory regression baselines.
-
-## 7.2. Cold start + venue ecosystem
+## 6.15. Cold start + venue ecosystem
 
 Required:
 
@@ -784,7 +872,7 @@ Guardrails:
 - venue payment/perk cannot buy organic Hotspot/City BPM/ranking;
 - venue feedback never leaks individual participant identity.
 
-## 7.3. Offline real-world operations
+## 6.16. Offline real-world operations
 
 Required:
 
@@ -802,7 +890,7 @@ Required:
 
 Offline proof is pending until server verification; offline device data alone cannot create trust.
 
-## 7.4. Safety + accessibility expansion
+## 6.17. Safety + accessibility expansion
 
 Required:
 
@@ -821,7 +909,7 @@ Required:
 
 Exact location sharing is always explicit, temporary, revocable and minimized.
 
-## 7.5. Ephemeral media & communication
+## 6.18. Ephemeral media & communication
 
 Required:
 
@@ -842,7 +930,7 @@ Guardrails:
 - no background microphone;
 - Bill Splitter is not a payment processor.
 
-## 7.6. Adaptive experience
+## 6.19. Adaptive experience
 
 Required:
 
@@ -863,27 +951,28 @@ Guardrails:
 - Weather Swarms never auto-join;
 - Asset Match must reject unsafe/regulated asset categories according to product safety policy.
 
-## 7.7. LinkUp+ billing foundation
+## 6.20. LinkUp+ billing foundation
 
-Android release scope:
+`docs/LINKUP_PLUS_MONETIZATION.md` is the detailed authority for LinkUp+ pricing, plan durations, entitlement composition, rewarded access, referral rewards, billing state, purchase verification and monetization anti-fraud. README intentionally keeps only the release-level engineering contract; if the two documents differ on those details, the monetization contract controls unless `PROJECT_RULES.md` or a newer explicit roadmap decision says otherwise.
 
-- MONTHLY / ANNUAL products;
-- Google Play purchase/restore;
-- server purchase validation adapter;
-- Play billing notifications/webhook verification where applicable;
-- entitlement state machine;
-- `ACTIVE / GRACE / BILLING_RETRY / EXPIRED / REVOKED`;
-- account/device switching;
+Required at release level:
+
+- Google Play purchase/restore on active Android scope;
+- server-side purchase validation and provider-event verification;
+- server-authoritative entitlement state machine including active, grace/retry, expiry and revoke semantics defined by the monetization contract;
+- account/device switching and restore behavior;
 - subscription management in Me;
 - refund/revoke/grace handling;
 - billing observability;
-- entitlement cache expiry/offline behavior.
+- bounded entitlement cache/offline behavior;
+- replay-safe/idempotent provider processing;
+- capability-gated rollout and rollback.
 
-Client `isPlus=true` is never authority.
+Client `isPlus=true`, local receipt state or UI purchase success is never authority.
 
-Free core safety/privacy/create/join functionality must not be paywalled.
+Free core safety/privacy/create/join functionality must not be paywalled, and LinkUp+ entitlement cannot bypass block, moderation, lifecycle, capacity, access or privacy rules.
 
-## 7.8. LinkUp+ Travel Pro
+## 6.21. LinkUp+ Travel Pro
 
 Required:
 
@@ -898,7 +987,7 @@ Required:
 - translated transcript presentation;
 - no permanent voice archive.
 
-## 7.9. LinkUp+ Host Power Tools
+## 6.22. LinkUp+ Host Power Tools
 
 Required:
 
@@ -913,7 +1002,7 @@ Required:
 - owner protection;
 - audited grants/revokes.
 
-## 7.10. LinkUp+ Advanced Discovery
+## 6.23. LinkUp+ Advanced Discovery
 
 Required:
 
@@ -930,7 +1019,7 @@ Required:
 - historical privacy-safe aggregate city/map data;
 - no individual route reconstruction.
 
-## 7.11. LinkUp+ Privacy & QoL
+## 6.24. LinkUp+ Privacy & QoL
 
 Required:
 
@@ -945,7 +1034,7 @@ Required:
 - trusted guardian contacts;
 - no automatic LIVE_PRECISE without explicit consent.
 
-## 7.12. Identity, analytics & themes
+## 6.25. Identity, analytics & themes
 
 Required:
 
@@ -961,7 +1050,7 @@ Required:
 - OLED Black / Neon Cyberpunk class themes where included by frozen product design;
 - contrast/font scaling/Reduce Motion QA.
 
-## 7.13. Forgiveness + billing hardening
+## 6.26. Forgiveness + billing hardening
 
 Required:
 
@@ -985,7 +1074,9 @@ Required:
 - feature flag rollback;
 - production smoke.
 
-## 7.14. LinkUp+ Free Day / rewarded access
+## 6.27. LinkUp+ Free Day / rewarded access
+
+The detailed rewarded-access state machine, timing, cooldown, provider-verification and precedence rules are canonical in `docs/LINKUP_PLUS_MONETIZATION.md` §6 and §8. This README section is the release-level summary and must not diverge from that authority.
 
 Required:
 
@@ -1016,7 +1107,7 @@ Guardrails:
 - probable driver state never launches rewarded video;
 - an already valid earned grant is not silently removed by feature kill-switch.
 
-## 7.15. Final ecosystem hardening
+## 6.28. Final ecosystem hardening
 
 Required:
 
@@ -1036,11 +1127,25 @@ Required:
 - billing/store validation;
 - Android production smoke.
 
-## 7.16. Definition of Done — v1.2
+## 6.29. Definition of Done — v1.1
 
-v1.2 is Done only when:
+v1.1 is Done only when:
 
-- v1.0 and v1.1 regression suites remain green;
+- v1.0 regression remains green;
+- two Android clients converge after stream loss/reconnect/process death/airplane mode;
+- durable commands do not duplicate Slot/membership/chat state;
+- City Context obeys accuracy/privacy boundaries;
+- Pulse/Map share canonical server scope;
+- Waitlist/host-control races are transaction-safe;
+- Chat V2 converges without becoming permanent storage;
+- push deep links/dedupe/TTL/preferences work;
+- BUMP/Reliability cannot be forged by client-only actions;
+- City BPM/Hotspots suppress low cohorts;
+- Swarms never auto-join;
+- Fly respects driver/location/privacy guardrails;
+- Squad/Guardian-style sharing is explicit, revocable and TTL-bound where active;
+- AR/ranking has privacy-safe fallback and deterministic eligibility boundary;
+- Android/Go/PostgreSQL integration, offline/realtime/device tests and security/privacy tests are executed successfully.
 - venue/cold-start systems contain no fake social state;
 - BLE/offline proof cannot mint trust before server verification;
 - Guardian/accessibility/location policies pass abuse/privacy tests;
@@ -1261,9 +1366,9 @@ Includes v1.0 regression plus:
 - Squad precise-share expiry/revoke;
 - AR fallback/ranking explainability/privacy filters.
 
-## 13.3. v1.2 mandatory matrix
+### Unified real-world ecosystem + LinkUp+ coverage
 
-Includes v1.0 + v1.1 regression plus:
+Additionally required within the same v1.1 release gate:
 
 - BLE offline proof/reconciliation/replay;
 - Swarm BUMP quorum/concurrency;
@@ -1337,10 +1442,7 @@ v1.1
   → Fly Now/Travel/Motion
   → Me 2.0/Squad
   → AR/ranking
-  → v1.1 release gates
-
-v1.2
-  venue/cold start
+  → venue/cold start
   → offline BLE proof
   → safety/accessibility expansion
   → ephemeral media/translation/audio
@@ -1350,7 +1452,7 @@ v1.2
   → billing hardening
   → rewarded Free Day
   → final ecosystem hardening
-  → v1.2 release gates
+  → unified v1.1 release gates
 ```
 
 Не перескакувати fundamental dependency заради видимого feature, якщо це створює другу authority або майбутню переробку.

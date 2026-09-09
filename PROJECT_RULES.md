@@ -108,9 +108,9 @@
 У кожному підсумковому статусі роботи по LinkUp потрібно вказувати **готовність поточного активного Android + Go release target до production від 0% до 100%**.
 
 - **0%** — фактично немає робочого active release scope.
-- **100%** — весь scope поточного активного release (`v1.0`, а після його завершення `v1.1`, потім `v1.2`) реалізований, перевірений і реально готовий до production-релізу на Android із production Go backend.
+- **100%** — весь scope поточного активного release (`v1.0`, а після його завершення `v1.1`) реалізований, перевірений і реально готовий до production-релізу на Android із production Go backend.
 - Відсоток не можна штучно підвищувати за документацію, scaffolding або декоративний UI; він зростає тільки за реально інтегровані та перевірені production capabilities.
-- **Майбутні release scopes `v1.1`/`v1.2` не знижують readiness активного `v1.0`, доки вони не активовані відповідно до README release train.**
+- **Майбутній release scope `v1.1` не знижує readiness активного `v1.0`, доки він не активований відповідно до README release train.**
 - Після переходу на наступний release readiness оцінюється для його повного active Android/Go scope разом із regression-вимогами попередніх releases.
 - **iOS readiness, parity, build або tests не враховуються в поточний readiness і не знижують його, доки iOS frozen.**
 
@@ -124,23 +124,23 @@
 - Окрему гілку або Pull Request дозволено створити **лише якщо користувач прямо попросив про це в поточному завданні**.
 - Якщо інструмент або workflow за замовчуванням пропонує працювати через окрему гілку, це правило має пріоритет: використовувати `main`, якщо користувач явно не наказав інакше.
 
-## RULE 8 — RELEASE TRAIN v1.0 → v1.1 → v1.2; DELIVER BY DEPENDENCY-SAFE BLOCKS
+## RULE 8 — RELEASE TRAIN v1.0 → v1.1; DELIVER BY DEPENDENCY-SAFE BLOCKS
 
 Поточний активний product release: **LinkUp v1.0**.
 
-Canonical README визначає три послідовні Version 1 releases: **v1.0 → v1.1 → v1.2**.
+Canonical README визначає два послідовні Version 1 releases: **v1.0 → v1.1**.
 
 - Кожний release має власний scope і Definition of Done у `README.md`.
-- **v1.0 не блокується незавершеним scope v1.1 або v1.2.**
-- **v1.1 активується тільки після green v1.0 foundation; v1.2 — тільки після green v1.1 foundation**, якщо користувач прямо не змінить порядок.
+- **v1.0 не блокується незавершеним scope v1.1.**
+- **v1.1 активується тільки після green v1.0 foundation**, якщо користувач прямо не змінить порядок.
 - Capability, реалізована раніше свого release, не видаляється; вона просто проходить повний regression/DoD у своєму release gate.
 - Вже реалізований social baseline не видаляється й залишається фундаментом: account → profile → PUBLIC + APPROVAL Slot → Pulse → REQUEST → APPROVE/REJECT → accepted-only temporary chat → START/COMPLETE або CANCEL → terminal chat purge → safety/privacy.
 - Existing Instant access engine та інші canonical domain foundations не видаляються тільки через те, що їх user-facing surface належить пізнішому release.
 - Release train не дозволяє decorative stubs, fake/mock production flows або передчасне оголошення release готовим.
 - Реалізація виконується dependency-safe capability-блоками у порядку, визначеному `README.md`, тільки для активного Android/Go scope.
 - Кожний завершений блок має бути інтегрований і перевірений на Android та backend у межах заявленої поведінки.
-- **iOS implementation/parity не виконується і не є gate для v1.0/v1.1/v1.2 Android readiness, доки користувач прямо не розблокує iOS.**
-- Новий product release number поза `v1.0/v1.1/v1.2` не додається без прямої команди користувача.
+- **iOS implementation/parity не виконується і не є gate для v1.0/v1.1 Android readiness, доки користувач прямо не розблокує iOS.**
+- Новий product release number поза `v1.0/v1.1` не додається без прямої команди користувача.
 
 ## RULE 9 — PRESERVE EXISTING PRODUCT SCOPE
 

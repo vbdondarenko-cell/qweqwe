@@ -2,6 +2,48 @@
 
 Цей файл документує зміни структури product roadmap. Він **не є implementation status** і не підвищує production readiness. Фактичний стан коду, перевірок і commit history дивитися в `IMPLEMENTATION_STATUS.md`.
 
+## 2026-09-10 — v1.1 + v1.2 unified into one official v1.1
+
+### Причина
+
+Публічний реліз v1.0 перенесено приблизно на шість місяців. Додатковий час використовується не для прискореного розширення v1.0, а для точнішого формування наступного повного release boundary: старі `v1.1 — Realtime City Network` і `v1.2 — Real-World Ecosystem + LinkUp+` структурно об'єднані в один офіційний **v1.1 — Realtime Real-World City Network + LinkUp+**.
+
+### Нове canonical versioning
+
+Після цього рішення LinkUp Version 1 має два послідовні product releases:
+
+- **v1.0 — Core Social Network**;
+- **v1.1 — Realtime Real-World City Network + LinkUp+**.
+
+Canonical release train: **v1.0 → v1.1**.
+
+Старий `v1.2` більше не є окремим release target. Увесь його product scope входить до unified v1.1; capability requirements не видаляються і не послаблюються.
+
+### Structural mapping
+
+- старі README `§6.1–§6.14` залишаються `§6.1–§6.14`;
+- старий `§6.15 Definition of Done — v1.1` зливається у фінальний unified DoD;
+- старий `§7.1 Goal` зливається в `§6.1 Goal`;
+- старі `§7.2–§7.15` стають `§6.15–§6.28`;
+- старий `§7.16 Definition of Done — v1.2` разом зі старим v1.1 DoD стає `§6.29 Definition of Done — v1.1`;
+- старі test matrices `§13.2 v1.1` + `§13.3 v1.2` стають єдиною `§13.2 v1.1 mandatory matrix`;
+- старі dependency chains v1.1 і v1.2 стають одним dependency-safe v1.1 chain.
+
+### Final specification synchronized in the unified v1.1
+
+The structural merge is accompanied by the following canonical content updates:
+
+- recommendation/ranking is formalized as Layer 1 mandatory deterministic eligibility filters → Layer 2 deterministic explicit-signal ranking → Layer 3 explicit-consent history personalization, with ML strictly downstream and venue/payment unable to buy organic rank;
+- Notifications use the canonical `domain transaction → transactional outbox → projector/worker → dedupe → TTL → quiet hours → frequency cap → provider adapter` path, with grouped delivery, typed deep links, preferences and audited admin campaigns;
+- `docs/LINKUP_PLUS_MONETIZATION.md` is the detailed authority for pricing, entitlement composition, referral/rewarded mechanics and monetization anti-fraud, while README keeps the release-level contract and cross-links;
+- LinkUp+ anti-fraud now documents entitlement-sensitive rate limits, anomaly/manual review, referral-farm controls, purchase replay/idempotency edge cases, privileged entitlement audit events and privacy-proportional non-invasive signals.
+
+### Historical traceability
+
+Запис від **2026-09-07** нижче не переписується і не видаляється. Його згадки `v1.2`, `§7.x` та старого release train є історичним audit trail, а не поточним canonical planning contract. Для нової роботи authority мають актуальні `PROJECT_RULES.md`, `README.md` і цей запис від 2026-09-10.
+
+---
+
 ## 2026-09-07 — Full README roadmap rebase
 
 ### Причина
