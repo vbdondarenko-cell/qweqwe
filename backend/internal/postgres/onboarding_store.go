@@ -48,20 +48,21 @@ func (s *OnboardingStore) BindTelegram(ctx context.Context, tokenHash []byte, te
 	return nil
 }
 
-func (s *OnboardingStore) VerifyTelegramContact(ctx context.Context, telegramUserID int64, phoneE164 string, now time.Time) error {
-	tag, err := s.pool.Exec(ctx, `
+func (s *OnboardingStore) VerifyTelegramContact(ctx context.Context, telegramUserID int64, phoneE164 string, now time.Time) (string, error) {
+	var language string
+	err := s.pool.QueryRow(ctx, `
 		UPDATE registration_onboarding
 		SET phone_e164=$2, phone_verified_at=$3
-		WHERE telegram_user_id=$1 AND completed_at IS NULL AND expires_at>$3 AND phone_verified_at IS NULL`,
-		telegramUserID, phoneE164, now,
-	)
+		WHERE telegram_user_id=$1 AND completed_at IS NULL AND expires_at>$3 AND phone_verified_at IS NULL
+		RETURNING language`, telegramUserID, phoneE164, now,
+	).Scan(&language)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", onboarding.ErrNotFound
+	}
 	if err != nil {
-		return mapOnboardingError(err)
+		return "", mapOnboardingError(err)
 	}
-	if tag.RowsAffected() == 0 {
-		return onboarding.ErrNotFound
-	}
-	return nil
+	return language, nil
 }
 
 func (s *OnboardingStore) Status(ctx context.Context, tokenHash []byte, now time.Time) (onboarding.Status, error) {
@@ -98,7 +99,7 @@ func (s *OnboardingStore) Finalize(ctx context.Context, tokenHash []byte, userID
 	var birthDate, expiresAt time.Time
 	var preferences []byte
 	var teenMode bool
-	var telegramUserID int64
+	var telegramUserID *int64
 	var phoneVerifiedAt *time.Time
 	var completedAt *time.Time
 	err = tx.QueryRow(ctx, `
@@ -120,7 +121,7 @@ func (s *OnboardingStore) Finalize(ctx context.Context, tokenHash []byte, userID
 	if !expiresAt.After(now) {
 		return out, onboarding.ErrExpired
 	}
-	if phoneVerifiedAt == nil || phoneE164 == "" || telegramUserID <= 0 {
+	if phoneVerifiedAt == nil || phoneE164 == "" || telegramUserID == nil || *telegramUserID <= 0 {
 		return out, onboarding.ErrNotVerified
 	}
 
@@ -148,7 +149,7 @@ func (s *OnboardingStore) Finalize(ctx context.Context, tokenHash []byte, userID
 		INSERT INTO user_onboarding_profiles
 		(user_id,birth_date,city_id,city_name,preferences,teen_mode,phone_e164,telegram_user_id,phone_verified_at,onboarding_completed_at)
 		VALUES ($1,$2,NULLIF($3,''),$4,$5,$6,$7,$8,$9,$10)`,
-		userID, birthDate, cityID, cityName, preferences, teenMode, phoneE164, telegramUserID, *phoneVerifiedAt, now,
+		userID, birthDate, cityID, cityName, preferences, teenMode, phoneE164, *telegramUserID, *phoneVerifiedAt, now,
 	)
 	if err != nil {
 		return account.User{}, mapOnboardingError(err)
@@ -175,10 +176,7 @@ func mapOnboardingError(err error) error {
 	}
 	var pgErr *pgconn.PgError
 	if errors.As(err, &pgErr) {
-		if pgErr.Code == "23505" || pgErr.Code == "23503" || pgErr.Code == "23514" {
-			return onboarding.ErrConflict
-		}
-		if pgErr.Code == "40001" {
+		if pgErr.Code == "23505" || pgErr.Code == "23503" || pgErr.Code == "23514" || pgErr.Code == "40001" {
 			return onboarding.ErrConflict
 		}
 	}
