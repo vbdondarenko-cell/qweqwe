@@ -28,6 +28,32 @@ func TestV11CapabilityRegistryPostgresIntegration(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	t.Run("runtime api role is read only", func(t *testing.T) {
+		var roleExists bool
+		if err := pool.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='linkup_api')`).Scan(&roleExists); err != nil {
+			t.Fatal(err)
+		}
+		if !roleExists {
+			t.Skip("linkup_api role is not present in disposable PostgreSQL")
+		}
+		var canSelect, canInsert, canUpdate, canDelete, canSequence, canFunction bool
+		err := pool.QueryRow(ctx, `SELECT
+			has_table_privilege('linkup_api','public.capability_registry','SELECT'),
+			has_table_privilege('linkup_api','public.capability_registry','INSERT'),
+			has_table_privilege('linkup_api','public.capability_registry','UPDATE'),
+			has_table_privilege('linkup_api','public.capability_registry','DELETE'),
+			has_sequence_privilege('linkup_api','public.capability_registry_revision_seq','USAGE'),
+			has_function_privilege('linkup_api','public.linkup_capability_registry_bump_revision()','EXECUTE')`).
+			Scan(&canSelect, &canInsert, &canUpdate, &canDelete, &canSequence, &canFunction)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !canSelect || canInsert || canUpdate || canDelete || canSequence || canFunction {
+			t.Fatalf("unexpected linkup_api capability privileges select=%v insert=%v update=%v delete=%v sequence=%v function=%v",
+				canSelect, canInsert, canUpdate, canDelete, canSequence, canFunction)
+		}
+	})
+
 	store, err := NewCapabilityStore(pool)
 	if err != nil {
 		t.Fatal(err)
