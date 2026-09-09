@@ -16,6 +16,7 @@ type Config struct {
 	DatabaseURL            string
 	SessionTTL             time.Duration
 	PasswordResetTTL       time.Duration
+	RegistrationTTL        time.Duration
 	IdempotencyTTL         time.Duration
 	MigrationDir           string
 	ArgonMemoryKiB         uint32
@@ -36,33 +37,40 @@ type Config struct {
 	RecoveryFrom           string
 	RecoveryResetURL       string
 	RecoveryImplicitTLS    bool
+	TelegramBotToken       string
+	TelegramBotUsername    string
+	TelegramWebhookSecret  string
 }
 
 func Load() (Config, error) {
 	cfg := Config{
-		HTTPAddr:             envOr("LINKUP_HTTP_ADDR", ":8080"),
-		DatabaseURL:          os.Getenv("DATABASE_URL"),
-		SessionTTL:           30 * 24 * time.Hour,
-		PasswordResetTTL:     30 * time.Minute,
-		IdempotencyTTL:       24 * time.Hour,
-		MigrationDir:         envOr("LINKUP_MIGRATIONS_DIR", "../db/migrations"),
-		ArgonMemoryKiB:       19 * 1024,
-		ArgonIterations:      2,
-		ArgonParallel:        1,
-		AuthRateLimit:        10,
-		AuthRateWindow:       time.Minute,
-		AuthRateIdleTTL:      10 * time.Minute,
-		AuthRateMaxEntries:   20_000,
-		SocialRateLimit:      120,
-		SocialRateWindow:     time.Minute,
-		SocialRateIdleTTL:    10 * time.Minute,
-		SocialRateMaxEntries: 20_000,
-		RecoverySMTPAddress:  strings.TrimSpace(os.Getenv("LINKUP_RECOVERY_SMTP_ADDR")),
-		RecoverySMTPHost:     strings.TrimSpace(os.Getenv("LINKUP_RECOVERY_SMTP_HOST")),
-		RecoverySMTPUsername: strings.TrimSpace(os.Getenv("LINKUP_RECOVERY_SMTP_USERNAME")),
-		RecoverySMTPPassword: os.Getenv("LINKUP_RECOVERY_SMTP_PASSWORD"),
-		RecoveryFrom:         strings.TrimSpace(os.Getenv("LINKUP_RECOVERY_FROM")),
-		RecoveryResetURL:     strings.TrimSpace(os.Getenv("LINKUP_RECOVERY_RESET_URL")),
+		HTTPAddr:              envOr("LINKUP_HTTP_ADDR", ":8080"),
+		DatabaseURL:           os.Getenv("DATABASE_URL"),
+		SessionTTL:            30 * 24 * time.Hour,
+		PasswordResetTTL:      30 * time.Minute,
+		RegistrationTTL:       20 * time.Minute,
+		IdempotencyTTL:        24 * time.Hour,
+		MigrationDir:          envOr("LINKUP_MIGRATIONS_DIR", "../db/migrations"),
+		ArgonMemoryKiB:        19 * 1024,
+		ArgonIterations:       2,
+		ArgonParallel:         1,
+		AuthRateLimit:         10,
+		AuthRateWindow:        time.Minute,
+		AuthRateIdleTTL:       10 * time.Minute,
+		AuthRateMaxEntries:    20_000,
+		SocialRateLimit:       120,
+		SocialRateWindow:      time.Minute,
+		SocialRateIdleTTL:     10 * time.Minute,
+		SocialRateMaxEntries:  20_000,
+		RecoverySMTPAddress:   strings.TrimSpace(os.Getenv("LINKUP_RECOVERY_SMTP_ADDR")),
+		RecoverySMTPHost:      strings.TrimSpace(os.Getenv("LINKUP_RECOVERY_SMTP_HOST")),
+		RecoverySMTPUsername:  strings.TrimSpace(os.Getenv("LINKUP_RECOVERY_SMTP_USERNAME")),
+		RecoverySMTPPassword:  os.Getenv("LINKUP_RECOVERY_SMTP_PASSWORD"),
+		RecoveryFrom:          strings.TrimSpace(os.Getenv("LINKUP_RECOVERY_FROM")),
+		RecoveryResetURL:      strings.TrimSpace(os.Getenv("LINKUP_RECOVERY_RESET_URL")),
+		TelegramBotToken:      strings.TrimSpace(os.Getenv("LINKUP_TELEGRAM_BOT_TOKEN")),
+		TelegramBotUsername:   strings.TrimPrefix(strings.TrimSpace(os.Getenv("LINKUP_TELEGRAM_BOT_USERNAME")), "@"),
+		TelegramWebhookSecret: strings.TrimSpace(os.Getenv("LINKUP_TELEGRAM_WEBHOOK_SECRET")),
 	}
 	if cfg.DatabaseURL == "" {
 		return Config{}, errors.New("DATABASE_URL is required")
@@ -73,6 +81,9 @@ func Load() (Config, error) {
 		return Config{}, err
 	}
 	if cfg.PasswordResetTTL, err = durationEnv("LINKUP_PASSWORD_RESET_TTL", cfg.PasswordResetTTL); err != nil {
+		return Config{}, err
+	}
+	if cfg.RegistrationTTL, err = durationEnv("LINKUP_REGISTRATION_TTL", cfg.RegistrationTTL); err != nil {
 		return Config{}, err
 	}
 	if cfg.IdempotencyTTL, err = durationEnv("LINKUP_IDEMPOTENCY_TTL", cfg.IdempotencyTTL); err != nil {
@@ -137,11 +148,36 @@ func Load() (Config, error) {
 	if recoveryTransportFieldsPresent(cfg) && cfg.RecoverySMTPAddress == "" {
 		return Config{}, errors.New("LINKUP_RECOVERY_SMTP_ADDR is required when recovery SMTP is configured")
 	}
+	if err := validateTelegramConfig(cfg); err != nil {
+		return Config{}, err
+	}
 	return cfg, nil
 }
 
 func recoveryTransportFieldsPresent(cfg Config) bool {
 	return cfg.RecoverySMTPAddress != "" || cfg.RecoverySMTPHost != "" || cfg.RecoverySMTPUsername != "" || cfg.RecoverySMTPPassword != "" || cfg.RecoveryFrom != ""
+}
+
+func validateTelegramConfig(cfg Config) error {
+	configured := 0
+	if cfg.TelegramBotToken != "" { configured++ }
+	if cfg.TelegramBotUsername != "" { configured++ }
+	if cfg.TelegramWebhookSecret != "" { configured++ }
+	if configured == 0 {
+		return nil
+	}
+	if configured != 3 {
+		return errors.New("LINKUP_TELEGRAM_BOT_TOKEN, LINKUP_TELEGRAM_BOT_USERNAME and LINKUP_TELEGRAM_WEBHOOK_SECRET must be configured together")
+	}
+	if len(cfg.TelegramWebhookSecret) < 16 || len(cfg.TelegramWebhookSecret) > 256 {
+		return errors.New("LINKUP_TELEGRAM_WEBHOOK_SECRET must be 16..256 characters")
+	}
+	for _, r := range cfg.TelegramWebhookSecret {
+		if !((r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '_' || r == '-') {
+			return errors.New("LINKUP_TELEGRAM_WEBHOOK_SECRET contains unsupported characters")
+		}
+	}
+	return nil
 }
 
 func envOr(key, fallback string) string {
