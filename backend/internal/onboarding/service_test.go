@@ -39,8 +39,6 @@ func (s *onboardingTestStore) VerifyTelegramContact(_ context.Context, telegramU
 		return "", ErrNotFound
 	}
 	s.verifiedPhone = phoneE164
-	phone := phoneE164
-	s.status.Phone = &phone
 	s.status.PhoneVerified = true
 	if s.verifiedLang == "" {
 		s.verifiedLang = s.pending.Language
