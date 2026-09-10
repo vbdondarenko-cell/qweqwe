@@ -93,6 +93,8 @@ func main() {
 	if err != nil { slog.Error("realtime store init failed", "error", err); os.Exit(1) }
 	realtimeService, err := realtime.NewFeedService(realtimeStore)
 	if err != nil { slog.Error("realtime service init failed", "error", err); os.Exit(1) }
+	cityRealtimeService, err := realtime.NewCityFeedService(realtimeStore)
+	if err != nil { slog.Error("city realtime service init failed", "error", err); os.Exit(1) }
 	capabilityStore, err := postgres.NewCapabilityStore(pool)
 	if err != nil { slog.Error("capability store init failed", "error", err); os.Exit(1) }
 	capabilityService, err := capability.NewService(capabilityStore)
@@ -127,6 +129,7 @@ func main() {
 		Map: mapService,
 		Places: placeService,
 		Realtime: realtimeService,
+		CityRealtime: cityRealtimeService,
 		Capabilities: capabilityService,
 		Monetization: monetizationService,
 		Push: pushService,

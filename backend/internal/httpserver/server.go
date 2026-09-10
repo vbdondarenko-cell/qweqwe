@@ -37,6 +37,7 @@ type Dependencies struct {
 	Map                   *citymap.Service
 	Places                *places.Service
 	Realtime              RealtimeFeed
+	CityRealtime          CityRealtimeFeed
 	Monetization          *monetization.Service
 	Push                  *push.Service
 	Onboarding            *onboarding.Service
@@ -99,6 +100,7 @@ func New(deps Dependencies) *Server {
 	mux.Handle("DELETE /v1/me/push/android/{installationID}", s.requireAuth(s.requireCapability(capability.Notifications, http.HandlerFunc(s.revokeAndroidPush))))
 
 	mux.Handle("GET /v1/realtime/events", s.requireAuth(s.requireCapability(capability.Realtime, http.HandlerFunc(s.realtimeEvents))))
+	mux.Handle("GET /v1/realtime/city", s.requireAuth(s.requireCapability(capability.Realtime, s.requireCapability(capability.CityContext, http.HandlerFunc(s.realtimeCity)))))
 	mux.Handle("GET /v1/city-context", s.requireAuth(s.requireCapability(capability.CityContext, http.HandlerFunc(s.getCityContext))))
 	mux.Handle("POST /v1/city-context/resolve", s.requireAuth(s.requireCapability(capability.CityContext, http.HandlerFunc(s.resolveCityContext))))
 	mux.Handle("GET /v1/places/search", s.requireAuth(http.HandlerFunc(s.searchPlaces)))
