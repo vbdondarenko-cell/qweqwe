@@ -26,15 +26,18 @@ func (s *PlaceStore) Search(ctx context.Context, query places.SearchQuery) ([]pl
 	pattern := "%" + escapeLike(query.Text) + "%"
 	prefix := escapeLike(query.Text) + "%"
 	rows, err := s.pool.Query(ctx, `
-		SELECT id::text,name,category,locality,country_code,latitude_e6,longitude_e6,precision_m
+		SELECT id::text,name,category,locality,locality_id::text,country_code,latitude_e6,longitude_e6,precision_m
 		FROM canonical_places
 		WHERE active
 		  AND name ILIKE $1 ESCAPE '\'
-		  AND ($3='' OR lower(COALESCE(locality,''))=lower($3))
+		  AND (
+			($3<>'' AND locality_id=NULLIF($3,'')::uuid)
+			OR ($3='' AND ($4='' OR lower(COALESCE(locality,''))=lower($4)))
+		  )
 		ORDER BY
 		  CASE WHEN name ILIKE $2 ESCAPE '\' THEN 0 ELSE 1 END,
 		  lower(name),id
-		LIMIT $4`, pattern, prefix, query.Locality, query.Limit)
+		LIMIT $5`, pattern, prefix, query.LocalityID, query.Locality, query.Limit)
 	if err != nil {
 		return nil, err
 	}
@@ -43,15 +46,16 @@ func (s *PlaceStore) Search(ctx context.Context, query places.SearchQuery) ([]pl
 	items := make([]places.Place, 0, query.Limit)
 	for rows.Next() {
 		var item places.Place
-		var category, locality, country pgtype.Text
+		var category, locality, localityID, country pgtype.Text
 		if err := rows.Scan(
-			&item.ID, &item.Name, &category, &locality, &country,
+			&item.ID, &item.Name, &category, &locality, &localityID, &country,
 			&item.LatitudeE6, &item.LongitudeE6, &item.PrecisionM,
 		); err != nil {
 			return nil, err
 		}
 		item.Category = textPtr(category)
 		item.Locality = textPtr(locality)
+		item.LocalityID = textPtr(localityID)
 		item.CountryCode = textPtr(country)
 		items = append(items, item)
 	}

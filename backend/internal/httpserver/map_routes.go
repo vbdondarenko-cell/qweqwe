@@ -23,8 +23,13 @@ func (s *Server) mapViewport(w http.ResponseWriter, r *http.Request) {
 		writeProblem(w, r, http.StatusUnauthorized, "unauthorized", "authentication required")
 		return
 	}
-	if s.deps.Map == nil {
-		writeProblem(w, r, http.StatusServiceUnavailable, "not_ready", "map service is unavailable")
+	if s.deps.Map == nil || s.deps.CityContext == nil {
+		writeProblem(w, r, http.StatusServiceUnavailable, "not_ready", "map dependencies are unavailable")
+		return
+	}
+	city, err := s.deps.CityContext.Current(r.Context(), auth.User.ID)
+	if err != nil {
+		s.writeCityContextError(w, r, err)
 		return
 	}
 
@@ -45,7 +50,7 @@ func (s *Server) mapViewport(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	items, err := s.deps.Map.Viewport(r.Context(), auth.User.ID, citymap.Viewport{
+	items, err := s.deps.Map.Viewport(r.Context(), auth.User.ID, city.Locality.ID, citymap.Viewport{
 		WestE6: west, SouthE6: south, EastE6: east, NorthE6: north,
 		Zoom: zoom, From: from, To: to, Limit: limit,
 	})
@@ -66,8 +71,13 @@ func (s *Server) mapPlaceSlots(w http.ResponseWriter, r *http.Request) {
 		writeProblem(w, r, http.StatusUnauthorized, "unauthorized", "authentication required")
 		return
 	}
-	if s.deps.Map == nil {
-		writeProblem(w, r, http.StatusServiceUnavailable, "not_ready", "map service is unavailable")
+	if s.deps.Map == nil || s.deps.CityContext == nil {
+		writeProblem(w, r, http.StatusServiceUnavailable, "not_ready", "map dependencies are unavailable")
+		return
+	}
+	city, err := s.deps.CityContext.Current(r.Context(), auth.User.ID)
+	if err != nil {
+		s.writeCityContextError(w, r, err)
 		return
 	}
 
@@ -83,7 +93,7 @@ func (s *Server) mapPlaceSlots(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	items, err := s.deps.Map.PlaceSlots(r.Context(), auth.User.ID, citymap.PlaceSlotsQuery{
+	items, err := s.deps.Map.PlaceSlots(r.Context(), auth.User.ID, city.Locality.ID, citymap.PlaceSlotsQuery{
 		PlaceID: r.PathValue("placeID"), From: from, To: to, Limit: limit,
 	})
 	if err != nil {

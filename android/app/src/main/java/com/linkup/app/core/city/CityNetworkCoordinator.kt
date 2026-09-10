@@ -31,7 +31,7 @@ class CityNetworkCoordinator(
     private val mutableMapSlots = MutableStateFlow<LoadState<List<SlotModel>>>(LoadState.Idle)
     val mapSlots: StateFlow<LoadState<List<SlotModel>>> = mutableMapSlots.asStateFlow()
 
-    suspend fun searchPlaces(query: String, locality: String? = null) {
+    suspend fun searchPlaces(query: String, localityId: String? = null) {
         val normalized = query.trim()
         if (normalized.length < 2) {
             clearPlaces()
@@ -41,7 +41,7 @@ class CityNetworkCoordinator(
         val previous = mutablePlaces.value
         mutablePlaces.value = previous.asRefreshingOrLoading()
         try {
-            val items = api.searchPlaces(normalized, locality, 20)
+            val items = api.searchPlaces(normalized, localityId, 20)
             if (request != placeRequest) return
             mutablePlaces.value = if (items.isEmpty()) LoadState.Empty else LoadState.Content(items)
         } catch (error: CancellationException) {
@@ -133,7 +133,7 @@ class CityNetworkCoordinator(
     }
 
     private fun Exception.toSocialError(): SocialError = when (this) {
-        is ApiException -> SocialError(code = code, message = message, requestId = requestId)
+        is ApiException -> SocialError(code = code, message = message, requestId = requestId, httpStatus = status)
         is IOException -> SocialError(code = "network_error", message = message ?: "Network request failed")
         else -> SocialError(code = "client_error", message = message ?: "Request failed")
     }

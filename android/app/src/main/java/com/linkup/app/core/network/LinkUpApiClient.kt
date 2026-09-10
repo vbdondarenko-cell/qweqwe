@@ -178,18 +178,17 @@ class LinkUpApiClient(
         return buildList(items.length()) { for (index in 0 until items.length()) add(parseSlot(items.getJSONObject(index))) }
     }
 
-    override suspend fun searchPlaces(query: String, locality: String?, limit: Int): List<CanonicalPlace> {
+    override suspend fun searchPlaces(query: String, localityId: String?, limit: Int): List<CanonicalPlace> {
         val normalizedQuery = query.trim()
-        val normalizedLocality = locality?.trim()?.takeIf { it.isNotEmpty() }
+        val normalizedLocalityId = localityId?.trim()?.takeIf { it.isNotEmpty() }?.let(::uuid)
         require(normalizedQuery.length in 2..80)
-        require(normalizedLocality == null || normalizedLocality.length <= 120)
         require(limit in 1..50)
 
         val path = buildString {
             append("/v1/places/search?q=")
             append(queryParam(normalizedQuery))
-            normalizedLocality?.let {
-                append("&locality=")
+            normalizedLocalityId?.let {
+                append("&localityId=")
                 append(queryParam(it))
             }
             append("&limit=")
@@ -430,6 +429,7 @@ class LinkUpApiClient(
         name = json.getString("name"),
         category = nullableString(json, "category"),
         locality = nullableString(json, "locality"),
+        localityId = nullableString(json, "localityId")?.let(::uuid),
         countryCode = nullableString(json, "countryCode"),
         latitudeE6 = json.getInt("latitudeE6"),
         longitudeE6 = json.getInt("longitudeE6"),

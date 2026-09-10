@@ -56,13 +56,13 @@ func (v Viewport) BucketE6() int {
 }
 
 type Cluster struct {
-	Key        string  `json:"key"`
-	LatitudeE6 int     `json:"latitudeE6"`
-	LongitudeE6 int    `json:"longitudeE6"`
-	PlaceCount int     `json:"placeCount"`
-	SlotCount  int     `json:"slotCount"`
-	PlaceID    *string `json:"placeId,omitempty"`
-	PlaceName  *string `json:"placeName,omitempty"`
+	Key         string  `json:"key"`
+	LatitudeE6  int     `json:"latitudeE6"`
+	LongitudeE6 int     `json:"longitudeE6"`
+	PlaceCount  int     `json:"placeCount"`
+	SlotCount   int     `json:"slotCount"`
+	PlaceID     *string `json:"placeId,omitempty"`
+	PlaceName   *string `json:"placeName,omitempty"`
 }
 
 type PlaceSlotsQuery struct {
@@ -77,8 +77,8 @@ func (q PlaceSlotsQuery) Valid() bool {
 }
 
 type Store interface {
-	Viewport(ctx context.Context, viewerID string, query Viewport) ([]Cluster, error)
-	PlaceSlots(ctx context.Context, viewerID string, query PlaceSlotsQuery) ([]slot.Slot, error)
+	Viewport(ctx context.Context, viewerID, localityID string, query Viewport) ([]Cluster, error)
+	PlaceSlots(ctx context.Context, viewerID, localityID string, query PlaceSlotsQuery) ([]slot.Slot, error)
 }
 
 type Service struct{ store Store }
@@ -90,18 +90,18 @@ func NewService(store Store) (*Service, error) {
 	return &Service{store: store}, nil
 }
 
-func (s *Service) Viewport(ctx context.Context, viewerID string, query Viewport) ([]Cluster, error) {
-	if viewerID == "" || !query.Valid() {
+func (s *Service) Viewport(ctx context.Context, viewerID, localityID string, query Viewport) ([]Cluster, error) {
+	if viewerID == "" || !validUUID(localityID) || !query.Valid() {
 		return nil, ErrInvalidViewport
 	}
-	return s.store.Viewport(ctx, viewerID, query)
+	return s.store.Viewport(ctx, viewerID, localityID, query)
 }
 
-func (s *Service) PlaceSlots(ctx context.Context, viewerID string, query PlaceSlotsQuery) ([]slot.Slot, error) {
-	if viewerID == "" || !query.Valid() {
+func (s *Service) PlaceSlots(ctx context.Context, viewerID, localityID string, query PlaceSlotsQuery) ([]slot.Slot, error) {
+	if viewerID == "" || !validUUID(localityID) || !query.Valid() {
 		return nil, ErrInvalidViewport
 	}
-	return s.store.PlaceSlots(ctx, viewerID, query)
+	return s.store.PlaceSlots(ctx, viewerID, localityID, query)
 }
 
 func validTimeWindow(from, to time.Time) bool {

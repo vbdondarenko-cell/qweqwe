@@ -5,6 +5,7 @@ data class CanonicalPlace(
     val name: String,
     val category: String?,
     val locality: String?,
+    val localityId: String? = null,
     val countryCode: String?,
     val latitudeE6: Int,
     val longitudeE6: Int,

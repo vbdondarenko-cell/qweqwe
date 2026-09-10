@@ -3,7 +3,7 @@ package com.linkup.app.core.network
 interface CityNetworkApi {
     suspend fun searchPlaces(
         query: String,
-        locality: String? = null,
+        localityId: String? = null,
         limit: Int = 20,
     ): List<CanonicalPlace>
 

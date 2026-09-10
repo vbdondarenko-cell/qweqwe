@@ -798,3 +798,29 @@ Verification actually obtained:
 - No production capabilities enabled, backend/SQL/deployment changes or design/iOS modifications.
 
 Remaining: execute the targeted and full Android regression, then verify two-device expiry/reconnect/airplane-mode and foreground/account/capability cancellation behavior. Continue canonical v1.1 dependency gates after that evidence. Source review does not establish production readiness; all unclosed v1.0/v1.1 release gates remain mandatory.
+
+## 36. 2026-09-10 — server-authoritative Map locality boundary and canonical place search
+
+Continues the active v1.1 City Context → Map dependency chain from main `c973f29a`.
+
+Implemented:
+
+- canonical place search now accepts and returns canonical `localityId`; Android Map search forwards the fresh server City Context locality identity instead of filtering by a human-readable locality label;
+- Go validates locality IDs before place-search persistence access, while the PostgreSQL store filters by `canonical_places.locality_id`; legacy text locality remains only as a compatibility fallback when no canonical locality ID is supplied;
+- Map viewport and place-detail service contracts receive locality identity as a separate server-derived argument, not as a client viewport/query field;
+- both Map HTTP routes now require `map` and `city_context` capabilities and resolve a fresh City Context before querying Map data;
+- PostgreSQL Map queries require `canonical_places.locality_id` to match the server-derived locality, preventing a modified client bbox/place ID from reading another locality;
+- explicit PostgreSQL casts were added to Map positional parameters after real integration execution exposed ambiguous parameter typing (`integer >= text`);
+- Android CityNetworkCoordinator now preserves HTTP status in Map errors, allowing access/capability recovery decisions without parsing provider messages;
+- the canonical-place PostgreSQL integration cleanup was corrected to run before pool close and to fail visibly on cleanup errors, making repeated execution deterministic.
+
+Executed evidence:
+
+- targeted Go citymap/httpserver/places/postgres tests pass, including fail-closed invalid-locality handling, missing City Context preventing Map-store access, and server-derived locality forwarding for viewport and place-detail reads;
+- a disposable native PostgreSQL database proved canonical locality-scoped place search, viewport isolation, place-detail isolation and no cross-locality leakage; the test passed repeatedly and the disposable databases were removed;
+- the complete PostgreSQL integration package executed against a fresh disposable database with `LINKUP_TEST_DATABASE_DESTRUCTIVE=1` and returned `FULL_POSTGRES_RC=0`;
+- full Go regression is green: `go test -count=1 ./...`, `go vet ./...`, `go test -race -count=1 ./...`;
+- full Android regression is green: `:app:testDebugUnitTest :app:lintDebug :app:assembleDebug` completed `BUILD SUCCESSFUL`;
+- `git diff --check` passes; no iOS files, DB migrations, frozen design-reference files, capability enablement or production runtime/deployment were changed in this block.
+
+Remaining: physical Android/device verification of City Context → Map expiry/switch/reconnect behavior and two-client convergence are still required. Continue README §15 with hosting/access/waitlist only after the current City Context/Map dependency evidence is closed; no v1.1 production-readiness claim is implied by source and host tests alone.

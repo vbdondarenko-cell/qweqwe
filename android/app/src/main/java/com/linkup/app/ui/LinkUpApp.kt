@@ -601,7 +601,17 @@ private fun SignedInRoot(
                                 clusters = mapClusters,
                                 selectedCluster = selectedMapCluster,
                                 placeSlots = mapPlaceSlots,
-                                onSearchPlaces = { query -> if (mapEnabled) scope.launch { city.searchPlaces(query) } },
+                                onSearchPlaces = { query ->
+                                    if (mapEnabled) {
+                                        val currentCity = (cityContextState as? LoadState.Content)?.value
+                                            ?.takeIf { it.expiresAtEpochMillis > System.currentTimeMillis() }
+                                        if (currentCity != null) {
+                                            scope.launch { city.searchPlaces(query, currentCity.locality.id) }
+                                        } else if (cityContextEnabled) {
+                                            requestCityContext()
+                                        }
+                                    }
+                                },
                                 onSelectCenter = ::selectMapCenter,
                                 onRefreshMap = ::refreshCurrentMap,
                                 onZoomIn = { changeMapZoom(1) },

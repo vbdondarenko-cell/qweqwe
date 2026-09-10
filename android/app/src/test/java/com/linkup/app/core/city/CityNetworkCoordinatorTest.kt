@@ -1,5 +1,6 @@
 package com.linkup.app.core.city
 
+import com.linkup.app.core.network.ApiException
 import com.linkup.app.core.network.CanonicalPlace
 import com.linkup.app.core.network.CityNetworkApi
 import com.linkup.app.core.network.MapCluster
@@ -43,14 +44,48 @@ class CityNetworkCoordinatorTest {
         assertFalse(coordinator.refreshCurrentMapIfLoaded())
     }
 
+
+    @Test
+    fun `place search forwards canonical locality id`() = runTest {
+        val api = FakeCityNetworkApi()
+        val coordinator = CityNetworkCoordinator(api)
+        val localityId = "00000000-0000-0000-0000-000000000123"
+
+        coordinator.searchPlaces("  cafe  ", localityId)
+
+        assertEquals(1, api.placeCalls.size)
+        assertEquals("cafe", api.placeCalls.single().first)
+        assertEquals(localityId, api.placeCalls.single().second)
+    }
+
+    @Test
+    fun `map API failure preserves http status for access recovery`() = runTest {
+        val api = FakeCityNetworkApi()
+        val coordinator = CityNetworkCoordinator(api)
+        api.mapError = ApiException(403, "capability_disabled", "Map is disabled", "request-1")
+
+        coordinator.refreshMap(viewport())
+
+        val failure = coordinator.map.value as com.linkup.app.core.social.LoadState.Failure
+        assertEquals("capability_disabled", failure.error.code)
+        assertEquals(403, failure.error.httpStatus)
+        assertEquals("request-1", failure.error.requestId)
+    }
+
     private class FakeCityNetworkApi : CityNetworkApi {
+        val placeCalls = mutableListOf<Pair<String, String?>>()
         val mapCalls = mutableListOf<MapViewportQuery>()
         var failMap = false
+        var mapError: Exception? = null
 
-        override suspend fun searchPlaces(query: String, locality: String?, limit: Int): List<CanonicalPlace> = emptyList()
+        override suspend fun searchPlaces(query: String, localityId: String?, limit: Int): List<CanonicalPlace> {
+            placeCalls += query to localityId
+            return emptyList()
+        }
 
         override suspend fun mapViewport(query: MapViewportQuery): List<MapCluster> {
             mapCalls += query
+            mapError?.let { throw it }
             if (failMap) error("map unavailable")
             return emptyList()
         }

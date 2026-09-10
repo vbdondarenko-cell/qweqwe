@@ -32,7 +32,10 @@ func (s *Server) searchPlaces(w http.ResponseWriter, r *http.Request) {
 		limit = parsed
 	}
 	items, err := s.deps.Places.Search(r.Context(), places.SearchQuery{
-		Text: r.URL.Query().Get("q"), Locality: r.URL.Query().Get("locality"), Limit: limit,
+		Text:       r.URL.Query().Get("q"),
+		Locality:   r.URL.Query().Get("locality"),
+		LocalityID: r.URL.Query().Get("localityId"),
+		Limit:      limit,
 	})
 	if err != nil {
 		if errors.Is(err, places.ErrInvalidSearch) {
