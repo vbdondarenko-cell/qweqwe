@@ -13,6 +13,8 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
 
@@ -201,6 +203,73 @@ class CityContextCoordinatorTest {
         coordinator.loadCurrent()
         coordinator.resolveFromDevice()
         assertIs<LoadState.Failure>(coordinator.context.value)
+    }
+
+    @Test
+    fun `cancelled resolve overlapping a load restores settled state without a stuck spinner`() = runTest {
+        for (preload in listOf(false, true)) {
+            var waitForLoad = false
+            val loadStarted = CompletableDeferred<Unit>()
+            val releaseLoad = CompletableDeferred<Unit>()
+            val gpsStarted = CompletableDeferred<Unit>()
+            val api = object : CityContextApi {
+                override suspend fun currentCityContext(): CityContextModel {
+                    if (waitForLoad) {
+                        loadStarted.complete(Unit)
+                        releaseLoad.await()
+                    }
+                    return context()
+                }
+                override suspend fun resolveCityContext(observation: CityLocationObservation): CityContextModel =
+                    error("cancelled GPS must not be submitted")
+            }
+            val coordinator = CityContextCoordinator(api, observations {
+                gpsStarted.complete(Unit)
+                awaitCancellation()
+            })
+            if (preload) coordinator.loadCurrent()
+            val settled = coordinator.context.value
+            waitForLoad = true
+            val older = launch { coordinator.loadCurrent() }
+            loadStarted.await()
+            val newer = launch { coordinator.resolveFromDevice() }
+            gpsStarted.await()
+
+            newer.cancelAndJoin()
+            assertEquals(settled, coordinator.context.value)
+            releaseLoad.complete(Unit)
+            older.join()
+            assertEquals(settled, coordinator.context.value)
+        }
+    }
+
+    @Test
+    fun `cancelled load overlapping GPS restores idle and suppresses older submission`() = runTest {
+        val gpsStarted = CompletableDeferred<Unit>()
+        val releaseGps = CompletableDeferred<Unit>()
+        val loadStarted = CompletableDeferred<Unit>()
+        val api = object : CityContextApi {
+            override suspend fun currentCityContext(): CityContextModel {
+                loadStarted.complete(Unit)
+                awaitCancellation()
+            }
+            override suspend fun resolveCityContext(observation: CityLocationObservation): CityContextModel =
+                error("superseded GPS must not be submitted")
+        }
+        val coordinator = CityContextCoordinator(api, observations {
+            gpsStarted.complete(Unit)
+            releaseGps.await()
+        })
+        val older = launch { coordinator.resolveFromDevice() }
+        gpsStarted.await()
+        val newer = launch { coordinator.loadCurrent() }
+        loadStarted.await()
+
+        newer.cancelAndJoin()
+        assertIs<LoadState.Idle>(coordinator.context.value)
+        releaseGps.complete(Unit)
+        older.join()
+        assertIs<LoadState.Idle>(coordinator.context.value)
     }
 
     private inner class ControlledCityApi : CityContextApi {

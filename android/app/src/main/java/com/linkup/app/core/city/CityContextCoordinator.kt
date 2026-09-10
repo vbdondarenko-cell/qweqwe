@@ -21,6 +21,7 @@ class CityContextCoordinator(
     private val locations: LocationObservationSource,
 ) {
     private var requestGeneration = 0L
+    private var settledContext: LoadState<CityContextModel> = LoadState.Idle
     private val mutableContext = MutableStateFlow<LoadState<CityContextModel>>(LoadState.Idle)
     val context: StateFlow<LoadState<CityContextModel>> = mutableContext.asStateFlow()
 
@@ -28,29 +29,29 @@ class CityContextCoordinator(
 
     suspend fun loadCurrent() {
         val request = ++requestGeneration
-        val previous = mutableContext.value
+        val previous = settledContext
         mutableContext.value = previous.asRefreshingOrLoading()
         try {
             val current = api.currentCityContext()
-            if (request == requestGeneration) mutableContext.value = LoadState.Content(current)
+            if (request == requestGeneration) settle(LoadState.Content(current))
         } catch (error: CancellationException) {
-            if (request == requestGeneration) mutableContext.value = previous
+            if (request == requestGeneration) settle(previous)
             throw error
         } catch (error: ApiException) {
             if (request != requestGeneration) return
-            mutableContext.value = if (error.status == 404 && error.code == "city_context_unavailable") {
+            settle(if (error.status == 404 && error.code == "city_context_unavailable") {
                 LoadState.Empty
             } else {
                 previous.afterRefreshFailure(error)
-            }
+            })
         } catch (error: Exception) {
-            if (request == requestGeneration) mutableContext.value = previous.afterRefreshFailure(error)
+            if (request == requestGeneration) settle(previous.afterRefreshFailure(error))
         }
     }
 
     suspend fun resolveFromDevice() {
         val request = ++requestGeneration
-        val previous = mutableContext.value
+        val previous = settledContext
         mutableContext.value = previous.asRefreshingOrLoading()
         try {
             // The raw observation only exists on this stack frame and is sent directly
@@ -65,18 +66,25 @@ class CityContextCoordinator(
                 (observation.permissionClass == CityPermissionClass.PRECISE && permission != CityPermissionClass.PRECISE)
             ) throw LocationPermissionRequiredException()
             val resolved = api.resolveCityContext(observation)
-            if (request == requestGeneration) mutableContext.value = LoadState.Content(resolved)
+            if (request == requestGeneration) settle(LoadState.Content(resolved))
         } catch (error: CancellationException) {
-            if (request == requestGeneration) mutableContext.value = previous
+            if (request == requestGeneration) settle(previous)
             throw error
         } catch (error: Exception) {
-            if (request == requestGeneration) mutableContext.value = previous.afterRefreshFailure(error)
+            if (request == requestGeneration) settle(previous.afterRefreshFailure(error))
         }
     }
 
     fun clear() {
         ++requestGeneration
-        mutableContext.value = LoadState.Idle
+        settle(LoadState.Idle)
+    }
+
+    private fun settle(state: LoadState<CityContextModel>) {
+        // Overlapping requests must never save another request's Loading/refreshing
+        // state as their cancellation fallback: that request may already be stale.
+        settledContext = state
+        mutableContext.value = state
     }
 
     private fun <T> LoadState<T>.asRefreshingOrLoading(): LoadState<T> = when (this) {

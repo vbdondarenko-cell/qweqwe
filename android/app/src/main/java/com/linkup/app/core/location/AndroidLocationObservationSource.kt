@@ -9,6 +9,7 @@ import android.location.LocationListener
 import android.location.LocationManager
 import android.os.Build
 import android.os.Bundle
+import android.os.CancellationSignal
 import android.os.Handler
 import android.os.Looper
 import com.linkup.app.core.network.CityLocationObservation
@@ -17,8 +18,9 @@ import java.util.concurrent.Executor
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 import kotlin.math.roundToInt
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.suspendCancellableCoroutine
-import kotlinx.coroutines.withTimeout
 
 class LocationPermissionRequiredException : IllegalStateException("Location permission is required")
 class LocationUnavailableException : IllegalStateException("No enabled location provider is available")
@@ -44,23 +46,16 @@ class AndroidLocationObservationSource(context: Context) : LocationObservationSo
 
     @SuppressLint("MissingPermission")
     override suspend fun currentObservation(): CityLocationObservation {
+        currentCoroutineContext().ensureActive()
         val permission = permissionClass() ?: throw LocationPermissionRequiredException()
         val providers = candidateProviders(permission)
         if (providers.isEmpty()) throw LocationUnavailableException()
 
         newestUsableLastKnown(providers, permission)?.let { return it.toObservation(permission) }
 
-        var lastError: Exception? = null
-        for (provider in providers) {
-            try {
-                return withTimeout(PROVIDER_TIMEOUT_MS) { requestOne(provider) }.toObservation(permission)
-            } catch (error: SecurityException) {
-                throw LocationPermissionRequiredException()
-            } catch (error: Exception) {
-                lastError = error
-            }
+        return acquireLocationFromProviders(providers, PROVIDER_TIMEOUT_MS) { provider ->
+            requestOne(provider).toObservation(permission)
         }
-        throw lastError ?: LocationUnavailableException()
     }
 
     @SuppressLint("MissingPermission")
@@ -75,7 +70,7 @@ class AndroidLocationObservationSource(context: Context) : LocationObservationSo
                         permission = permission,
                         capturedAtEpochMillis = location.time,
                         nowEpochMillis = now,
-                        accuracyM = if (location.hasAccuracy()) location.accuracy.roundToInt().coerceAtLeast(1) else null,
+                        accuracyM = deviceAccuracyMeters(location.hasAccuracy(), location.accuracy),
                         mocked = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) location.isMock else location.isFromMockProvider,
                     )
             }
@@ -84,9 +79,12 @@ class AndroidLocationObservationSource(context: Context) : LocationObservationSo
 
     @SuppressLint("MissingPermission")
     private suspend fun requestOne(provider: String): Location = suspendCancellableCoroutine { continuation ->
+        if (!continuation.isActive) return@suspendCancellableCoroutine
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            val cancellation = CancellationSignal()
+            continuation.invokeOnCancellation { cancellation.cancel() }
             try {
-                locationManager.getCurrentLocation(provider, null, mainExecutor) { location ->
+                locationManager.getCurrentLocation(provider, cancellation, mainExecutor) { location ->
                     if (!continuation.isActive) return@getCurrentLocation
                     if (location == null) continuation.resumeWithException(LocationUnavailableException())
                     else continuation.resume(location)
@@ -100,7 +98,7 @@ class AndroidLocationObservationSource(context: Context) : LocationObservationSo
         lateinit var listener: LocationListener
         listener = object : LocationListener {
             override fun onLocationChanged(location: Location) {
-                locationManager.removeUpdates(this)
+                runCatching { locationManager.removeUpdates(this) }
                 if (continuation.isActive) continuation.resume(location)
             }
 
@@ -108,14 +106,18 @@ class AndroidLocationObservationSource(context: Context) : LocationObservationSo
             override fun onStatusChanged(provider: String?, status: Int, extras: Bundle?) = Unit
             override fun onProviderEnabled(provider: String) = Unit
             override fun onProviderDisabled(provider: String) {
-                locationManager.removeUpdates(this)
+                runCatching { locationManager.removeUpdates(this) }
                 if (continuation.isActive) continuation.resumeWithException(LocationUnavailableException())
             }
         }
         continuation.invokeOnCancellation { runCatching { locationManager.removeUpdates(listener) } }
         try {
+            if (!continuation.isActive) return@suspendCancellableCoroutine
             locationManager.requestSingleUpdate(provider, listener, Looper.getMainLooper())
+            // Cancellation can race registration after the cancellation handler ran.
+            if (!continuation.isActive) runCatching { locationManager.removeUpdates(listener) }
         } catch (error: Exception) {
+            runCatching { locationManager.removeUpdates(listener) }
             if (continuation.isActive) continuation.resumeWithException(error)
         }
     }
@@ -134,9 +136,11 @@ class AndroidLocationObservationSource(context: Context) : LocationObservationSo
 
     private fun Location.toObservation(permission: CityPermissionClass): CityLocationObservation {
         require(latitude in -90.0..90.0 && longitude in -180.0..180.0)
-        val accuracyMeters = if (hasAccuracy()) accuracy.roundToInt().coerceAtLeast(1) else Int.MAX_VALUE
+        val accuracyMeters = deviceAccuracyMeters(hasAccuracy(), accuracy)
+            ?: throw IllegalArgumentException("location accuracy is unavailable or invalid")
         val now = System.currentTimeMillis()
-        val capturedAt = time.takeIf { it > 0L } ?: now
+        // Never turn an unknown capture time into a fresh device observation.
+        val capturedAt = time
         val mocked = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) isMock else isFromMockProvider
         require(deviceObservationMetadataIsUsable(permission, capturedAt, now, accuracyMeters, mocked)) {
             "location observation is outside city-context policy bounds"
@@ -156,6 +160,11 @@ class AndroidLocationObservationSource(context: Context) : LocationObservationSo
         const val MAX_FUTURE_LOCATION_MS = 30L * 1000L
         const val PROVIDER_TIMEOUT_MS = 12_000L
     }
+}
+
+internal fun deviceAccuracyMeters(hasAccuracy: Boolean, accuracy: Float): Int? {
+    if (!hasAccuracy || !accuracy.isFinite() || accuracy <= 0f) return null
+    return accuracy.roundToInt().coerceAtLeast(1)
 }
 
 internal fun deviceObservationMetadataIsUsable(

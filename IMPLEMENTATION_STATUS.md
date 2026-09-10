@@ -753,3 +753,25 @@ Verification actually obtained:
 - No Go/SQL changes, database writes, capability enablement, server deployment, design-reference or iOS modifications in this block.
 
 Remaining: execute the targeted Android tests and full Android regression in a provisioned environment, then verify permission downgrade/sign-out/reconnect on device and two-client city convergence. Continue the README §15 dependency chain against current source, retaining all v1.0 release gates. No defensible numeric production-readiness estimate was obtained from this source-only block; v1.1 is NOT production-complete.
+
+
+## 34. 2026-09-10 — cancellable Android city-location acquisition
+
+Continues v1.1 README §§6.2–6.3 from main `df446b0` (the published equivalent of the prior local `2b14ca1`, with identical tree).
+
+Changes:
+
+- `LocationObservationAcquisition.kt` is the shared provider-attempt implementation used by `AndroidLocationObservationSource`: one attempt per provider, the existing 12-second per-provider timeout, fallback on unavailable/invalid fixes, immediate propagation of caller cancellation or revoked permission. A provider's own timeout can fall back; an outer operation timeout cannot.
+- Android API 30+ `getCurrentLocation` now receives a CancellationSignal linked to coroutine cancellation. Legacy listener registration cleans up on cancellation, including cancellation racing registration, provider-disable, completion and registration failure.
+- Device observations preserve their actual capture timestamp: missing timestamps no longer become `now`. Missing, non-finite, zero or negative accuracy is rejected before integer normalization.
+- `CityContextCoordinator` retains a settled snapshot separately from transient Loading/refreshing presentation. Cancelling a newer request cannot restore an obsolete in-flight spinner; older responses remain generation-guarded.
+- Added 14 unit test cases: 9 acquisition/cancellation/fallback cases, 3 observation-metadata cases and 2 overlapping-load/resolve cancellation cases (including both cached and initially empty state).
+
+Verification:
+
+- `git diff --check` passed; inspected the production acquisition call site, API-level branches, permission-failure handling and all coordinator state publication paths.
+- Attempted the three targeted Android test classes via the repository Gradle wrapper. Pinned Gradle distribution download again failed with `java.net.SocketException: Network is unreachable`; no Kotlin compilation or test execution is claimed.
+- Native CancellationSignal/listener cleanup requires Android device or instrumentation verification on both API 26–29 and API 30+; coroutine source tests alone do not prove platform GPS teardown.
+- API contracts consulted: https://developer.android.com/reference/android/location/LocationManager and https://kotlinlang.org/api/kotlinx.coroutines/kotlinx-coroutines-core/kotlinx.coroutines/with-timeout-or-null.html .
+
+Remaining: execute targeted tests and full Android regression in a provisioned environment; verify GPS cancellation, permission changes, foreground/background transitions and city-realtime recovery on device. City realtime expiry/recovery orchestration still needs its own executed convergence review. No backend/DB, deployment, capability enablement, design or iOS changes. Production readiness is not re-estimated from unexecuted tests; v1.1 release gates remain open.
