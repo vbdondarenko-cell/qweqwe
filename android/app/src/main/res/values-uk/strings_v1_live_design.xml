@@ -70,4 +70,7 @@
     <string name="fly_use_pulse">Реальні дії приєднання/запиту зараз доступні в Pulse.</string>
     <string name="open_pulse">Відкрити Pulse</string>
     <string name="nav_create">Створити</string>
+    <string name="slot_join_waitlist">Стати в чергу</string>
+    <string name="slot_waitlisted">У черзі</string>
+    <string name="slot_waitlist_unavailable">Черга недоступна</string>
 </resources>

@@ -44,6 +44,7 @@ import androidx.compose.ui.unit.sp
 import com.linkup.app.R
 import com.linkup.app.core.network.CanonicalPlace
 import com.linkup.app.core.network.CreateSlotInput
+import com.linkup.app.core.network.SlotAccessMode
 import com.linkup.app.core.scheduling.scheduleLabel
 import com.linkup.app.core.social.LoadState
 import com.linkup.app.ui.theme.LinkUpBorder
@@ -77,6 +78,7 @@ fun CreateLinkScreen(
     onPlaceSearch: (String) -> Unit,
     onClearPlaceSearch: () -> Unit,
     onClose: () -> Unit,
+    waitlistEnabled: Boolean = false,
     onSaveDraft: (CreateSlotInput) -> Unit,
 ) {
     var step by remember { mutableIntStateOf(1) }
@@ -87,6 +89,10 @@ fun CreateLinkScreen(
     var selectedPlace by remember { mutableStateOf<CanonicalPlace?>(null) }
     var capacity by remember { mutableIntStateOf(6) }
     var startAt by rememberSaveable { mutableStateOf<Long?>(null) }
+    var accessModeName by rememberSaveable { mutableStateOf(SlotAccessMode.APPROVAL.name) }
+    val accessMode = SlotAccessMode.valueOf(accessModeName).let { selected ->
+        if (selected == SlotAccessMode.WAITLIST && !waitlistEnabled) SlotAccessMode.APPROVAL else selected
+    }
     val closeDescription = stringResource(R.string.a11y_close)
     BackHandler(enabled = !submitting) {
         if (step > 1) step -= 1 else onClose()
@@ -198,7 +204,20 @@ fun CreateLinkScreen(
                         CounterButton("+") { capacity = (capacity + 1).coerceAtMost(50) }
                     }
                     Text(stringResource(R.string.create_access_level), color = LinkUpTextDimmed, fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
-                    FixedOption("✓", stringResource(R.string.create_approval_required), stringResource(R.string.create_approval_subtitle), LinkUpWarning)
+                    SelectableOption(
+                        "⚡", stringResource(R.string.create_instant), stringResource(R.string.create_instant_subtitle), LinkUpSuccess,
+                        accessMode == SlotAccessMode.INSTANT,
+                    ) { accessModeName = SlotAccessMode.INSTANT.name }
+                    SelectableOption(
+                        "✓", stringResource(R.string.create_approval_required), stringResource(R.string.create_approval_subtitle), LinkUpWarning,
+                        accessMode == SlotAccessMode.APPROVAL,
+                    ) { accessModeName = SlotAccessMode.APPROVAL.name }
+                    if (waitlistEnabled) {
+                        SelectableOption(
+                            "≡", stringResource(R.string.create_waitlist), stringResource(R.string.create_waitlist_subtitle), LinkUpRed,
+                            accessMode == SlotAccessMode.WAITLIST,
+                        ) { accessModeName = SlotAccessMode.WAITLIST.name }
+                    }
                     Text(stringResource(R.string.create_visibility), color = LinkUpTextDimmed, fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
                     FixedOption("◎", stringResource(R.string.create_public), stringResource(R.string.create_public_subtitle), LinkUpRed)
                 }
@@ -261,6 +280,7 @@ fun CreateLinkScreen(
                             canonicalPlaceId = selectedPlace?.id,
                             capacity = capacity,
                             startAtEpochMillis = startAt,
+                            accessMode = accessMode,
                         ),
                     )
                 }
@@ -300,6 +320,31 @@ private fun CounterButton(label: String, onClick: () -> Unit) {
             .border(1.dp, LinkUpBorder, RoundedCornerShape(16.dp)).clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) { Text(label, color = LinkUpTextDimmed, fontSize = 22.sp) }
+}
+
+@Composable
+private fun SelectableOption(
+    icon: String,
+    title: String,
+    subtitle: String,
+    color: androidx.compose.ui.graphics.Color,
+    selected: Boolean,
+    onClick: () -> Unit,
+) {
+    Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp))
+            .background(color.copy(alpha = if (selected) .16f else .06f))
+            .border(1.dp, color.copy(alpha = if (selected) .75f else .25f), RoundedCornerShape(14.dp))
+            .clickable(onClick = onClick).padding(14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(icon, color = color, fontSize = 18.sp)
+        Spacer(Modifier.width(12.dp))
+        Column {
+            Text(title, color = LinkUpTextPrimary, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+            Text(subtitle, color = LinkUpTextMuted, fontSize = 11.sp)
+        }
+    }
 }
 
 @Composable

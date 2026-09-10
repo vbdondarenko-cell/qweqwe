@@ -66,6 +66,7 @@ fun FrozenPulseScreen(
     onRefresh: () -> Unit,
     onSlotClick: (SlotModel) -> Unit,
     onPrimaryAction: (SlotModel) -> Unit,
+    waitlistEnabled: Boolean = false,
     modifier: Modifier = Modifier,
     onOpenNotifications: () -> Unit = onRefresh,
 ) {
@@ -115,8 +116,8 @@ fun FrozenPulseScreen(
                         FrozenSlotCard(
                             slot = slot.toFrozenSlot(),
                             onClick = { onSlotClick(slot) },
-                            actionLabel = primaryActionLabel(slot.primaryActionKind()),
-                            actionEnabled = slot.primaryActionEnabled(),
+                            actionLabel = primaryActionLabel(slot.primaryActionKind(waitlistEnabled)),
+                            actionEnabled = slot.primaryActionEnabled(waitlistEnabled),
                             onPrimaryAction = { onPrimaryAction(slot) },
                         )
                     }
@@ -180,12 +181,15 @@ private fun primaryActionLabel(action: FrozenPrimaryAction): String = stringReso
     when (action) {
         FrozenPrimaryAction.REQUEST -> R.string.slot_request_to_join
         FrozenPrimaryAction.JOIN -> R.string.slot_join_now
+        FrozenPrimaryAction.WAITLIST -> R.string.slot_join_waitlist
         FrozenPrimaryAction.PENDING -> R.string.slot_request_sent
+        FrozenPrimaryAction.WAITLISTED -> R.string.slot_waitlisted
         FrozenPrimaryAction.OPEN -> R.string.common_open
         FrozenPrimaryAction.MANAGE -> R.string.common_manage
         FrozenPrimaryAction.FULL -> R.string.slot_state_full
         FrozenPrimaryAction.ACTIVE -> R.string.slot_state_active
         FrozenPrimaryAction.CLOSED -> R.string.slot_closed
+        FrozenPrimaryAction.UNAVAILABLE -> R.string.slot_waitlist_unavailable
     },
 )
 

@@ -126,9 +126,9 @@ func (s *V11SlotStore) PublishDraft(
 	if acceptedCount != 0 || capacity < 2 {
 		return slot.Slot{}, slot.ErrInvalidState
 	}
-	// WAITLIST remains fail-closed until its queue/promotion transaction is implemented.
-	// INSTANT is safe to publish because Join serializes admissions on this Slot row.
-	if accessMode != string(slot.AccessApproval) && accessMode != string(slot.AccessInstant) {
+	// All canonical access modes now have server-side admission semantics.
+	// WAITLIST publication is additionally capability-gated at the HTTP boundary.
+	if accessMode != string(slot.AccessApproval) && accessMode != string(slot.AccessInstant) && accessMode != string(slot.AccessWaitlist) {
 		return slot.Slot{}, slot.ErrInvalidState
 	}
 	if startAt.Valid && startAt.Time.Before(now.Add(-30*time.Second)) {

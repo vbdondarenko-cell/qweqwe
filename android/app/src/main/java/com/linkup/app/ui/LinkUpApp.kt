@@ -72,7 +72,7 @@ import com.linkup.app.ui.design.FrozenMainTab
 import com.linkup.app.ui.design.CapabilityMapScreen
 import com.linkup.app.ui.design.FrozenMeScreen
 import com.linkup.app.ui.design.FrozenPulseScreen
-import com.linkup.app.ui.design.canJoin
+import com.linkup.app.ui.design.canParticipate
 import com.linkup.app.ui.me.EditProfileScreen
 import com.linkup.app.ui.social.ChatPollingEffect
 import com.linkup.app.ui.social.ChatScreen
@@ -267,6 +267,7 @@ private fun SignedInRoot(
     val capabilitySnapshot by capabilities.snapshot.collectAsState()
     val mapEnabled = capabilitySnapshot.enabled(CapabilityKey.MAP)
     val cityContextEnabled = capabilitySnapshot.enabled(CapabilityKey.CITY_CONTEXT)
+    val waitlistEnabled = capabilitySnapshot.enabled(CapabilityKey.WAITLIST)
     val cityContextState by cityContext.context.collectAsState()
     val pulse by social.pulse.collectAsState()
     val mySlots by social.mySlots.collectAsState()
@@ -358,7 +359,7 @@ private fun SignedInRoot(
 
     fun handleDesignedPrimaryAction(slot: SlotModel) {
         if (slot.viewerState == SlotViewerState.NONE) {
-            if (!slot.canJoin()) return
+            if (!slot.canParticipate(waitlistEnabled)) return
             scope.launch {
                 if (social.participate(slot)) detailOpen = true
             }
@@ -506,6 +507,7 @@ private fun SignedInRoot(
                 mutation = mutation,
                 hostingBusy = hostingBusy,
                 hostingError = hostingError,
+                waitlistEnabled = waitlistEnabled,
                 onPublishDraft = { draft ->
                     scope.launch {
                         val published = hosting.publishDraft(draft)
@@ -549,6 +551,7 @@ private fun SignedInRoot(
                                 onRefresh = { scope.launch { social.refreshPulse() } },
                                 onSlotClick = ::openDesignedSlot,
                                 onPrimaryAction = ::handleDesignedPrimaryAction,
+                                waitlistEnabled = waitlistEnabled,
                             )
                             MainTab.LINK -> CreateLinkScreen(
                                 submitting = hostingBusy,
@@ -560,6 +563,7 @@ private fun SignedInRoot(
                                     city.clearPlaces()
                                     tab = MainTab.PULSE
                                 },
+                                waitlistEnabled = waitlistEnabled,
                                 onSaveDraft = { input ->
                                     scope.launch {
                                         if (hosting.createDraft(input)) {

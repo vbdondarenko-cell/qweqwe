@@ -65,30 +65,36 @@ internal fun SlotModel.toFrozenSlot(): FrozenSlot {
     )
 }
 
-internal enum class FrozenPrimaryAction { REQUEST, JOIN, PENDING, OPEN, MANAGE, FULL, ACTIVE, CLOSED }
+internal enum class FrozenPrimaryAction {
+    REQUEST, JOIN, WAITLIST, PENDING, WAITLISTED, OPEN, MANAGE, FULL, ACTIVE, CLOSED, UNAVAILABLE
+}
 
-internal fun SlotModel.primaryActionKind(): FrozenPrimaryAction = when (viewerState) {
-    SlotViewerState.PENDING -> FrozenPrimaryAction.PENDING
+internal fun SlotModel.primaryActionKind(waitlistEnabled: Boolean = false): FrozenPrimaryAction = when (viewerState) {
+    SlotViewerState.PENDING -> if (accessMode == SlotAccessMode.WAITLIST) FrozenPrimaryAction.WAITLISTED else FrozenPrimaryAction.PENDING
     SlotViewerState.ACCEPTED -> FrozenPrimaryAction.OPEN
     SlotViewerState.HOST -> FrozenPrimaryAction.MANAGE
     SlotViewerState.NONE -> when {
-        state == SlotState.FULL || acceptedCount >= capacity -> FrozenPrimaryAction.FULL
         state == SlotState.ACTIVE -> FrozenPrimaryAction.ACTIVE
-        state !in setOf(SlotState.PUBLISHED, SlotState.FILLING) -> FrozenPrimaryAction.CLOSED
-        accessMode == SlotAccessMode.INSTANT -> FrozenPrimaryAction.JOIN
+        state !in setOf(SlotState.PUBLISHED, SlotState.FILLING, SlotState.FULL) -> FrozenPrimaryAction.CLOSED
+        accessMode == SlotAccessMode.WAITLIST && !waitlistEnabled -> FrozenPrimaryAction.UNAVAILABLE
+        accessMode == SlotAccessMode.WAITLIST && (state == SlotState.FULL || acceptedCount >= capacity) -> FrozenPrimaryAction.WAITLIST
+        state == SlotState.FULL || acceptedCount >= capacity -> FrozenPrimaryAction.FULL
+        accessMode == SlotAccessMode.INSTANT || accessMode == SlotAccessMode.WAITLIST -> FrozenPrimaryAction.JOIN
         else -> FrozenPrimaryAction.REQUEST
     }
 }
 
-internal fun SlotModel.canJoin(): Boolean =
-    viewerState == SlotViewerState.NONE &&
-        state in setOf(SlotState.PUBLISHED, SlotState.FILLING) &&
-        acceptedCount < capacity
+internal fun SlotModel.canParticipate(waitlistEnabled: Boolean): Boolean =
+    viewerState == SlotViewerState.NONE && when (accessMode) {
+        SlotAccessMode.WAITLIST -> waitlistEnabled && state in setOf(SlotState.PUBLISHED, SlotState.FILLING, SlotState.FULL)
+        else -> state in setOf(SlotState.PUBLISHED, SlotState.FILLING) && acceptedCount < capacity
+    }
 
-internal fun SlotModel.primaryActionEnabled(): Boolean =
-    primaryActionKind() in setOf(
+internal fun SlotModel.primaryActionEnabled(waitlistEnabled: Boolean = false): Boolean =
+    primaryActionKind(waitlistEnabled) in setOf(
         FrozenPrimaryAction.REQUEST,
         FrozenPrimaryAction.JOIN,
+        FrozenPrimaryAction.WAITLIST,
         FrozenPrimaryAction.OPEN,
         FrozenPrimaryAction.MANAGE,
     )

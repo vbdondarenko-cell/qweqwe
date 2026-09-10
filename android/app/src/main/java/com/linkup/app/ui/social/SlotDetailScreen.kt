@@ -62,6 +62,7 @@ fun SlotDetailScreen(
     mutation: MutationState,
     hostingBusy: Boolean,
     hostingError: String?,
+    waitlistEnabled: Boolean,
     onPublishDraft: (SlotModel) -> Unit,
     onBack: () -> Unit,
     onRefresh: (String) -> Unit,
@@ -133,15 +134,25 @@ fun SlotDetailScreen(
                     hostingError?.let { Text(it, color = LinkUpWarning, fontSize = 12.sp) }
 
                     when (slot.viewerState) {
-                        SlotViewerState.NONE -> if (slot.state in setOf(SlotState.PUBLISHED, SlotState.FILLING) && slot.acceptedCount < slot.capacity) {
-                            ActionButton(
-                                stringResource(if (slot.accessMode == SlotAccessMode.INSTANT) R.string.slot_join_now else R.string.slot_request_to_join),
-                                LinkUpWarning,
-                                mutation !is MutationState.Running,
-                            ) { onRequest(slot.id) }
+                        SlotViewerState.NONE -> {
+                            val waitlistAvailable = slot.accessMode == SlotAccessMode.WAITLIST && waitlistEnabled &&
+                                slot.state in setOf(SlotState.PUBLISHED, SlotState.FILLING, SlotState.FULL)
+                            val normalAvailable = slot.accessMode != SlotAccessMode.WAITLIST &&
+                                slot.state in setOf(SlotState.PUBLISHED, SlotState.FILLING) && slot.acceptedCount < slot.capacity
+                            if (waitlistAvailable || normalAvailable) {
+                                val label = when {
+                                    slot.accessMode == SlotAccessMode.WAITLIST && (slot.state == SlotState.FULL || slot.acceptedCount >= slot.capacity) -> R.string.slot_join_waitlist
+                                    slot.accessMode == SlotAccessMode.INSTANT || slot.accessMode == SlotAccessMode.WAITLIST -> R.string.slot_join_now
+                                    else -> R.string.slot_request_to_join
+                                }
+                                ActionButton(stringResource(label), LinkUpWarning, mutation !is MutationState.Running) { onRequest(slot.id) }
+                            }
                         }
                         SlotViewerState.PENDING -> if (slot.state !in setOf(SlotState.COMPLETED, SlotState.CANCELLED, SlotState.EXPIRED, SlotState.MODERATED, SlotState.ACTIVE)) {
-                            ActionButton(stringResource(R.string.slot_cancel_request), LinkUpWarning, mutation !is MutationState.Running) { onLeave(slot.id) }
+                            ActionButton(
+                                stringResource(if (slot.accessMode == SlotAccessMode.WAITLIST) R.string.slot_leave_waitlist else R.string.slot_cancel_request),
+                                LinkUpWarning, mutation !is MutationState.Running,
+                            ) { onLeave(slot.id) }
                         }
                         SlotViewerState.ACCEPTED -> if (slot.state in setOf(SlotState.FILLING, SlotState.FULL, SlotState.ACTIVE)) {
                             ActionButton(stringResource(R.string.slot_open_chat), LinkUpRed, true) { onOpenChat(slot.id) }
@@ -200,7 +211,10 @@ private fun HostControls(
     Text(stringResource(R.string.host_controls), color = LinkUpTextPrimary, fontWeight = FontWeight.Bold, fontSize = 15.sp)
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         SmallAction(stringResource(R.string.slot_edit), Modifier.weight(1f), !busy) { onEdit(slot) }
-        SmallAction(stringResource(R.string.slot_requests), Modifier.weight(1f), !busy) { onRefreshPending(slot.id) }
+        SmallAction(
+            stringResource(if (slot.accessMode == SlotAccessMode.WAITLIST) R.string.slot_waitlist else R.string.slot_requests),
+            Modifier.weight(1f), !busy,
+        ) { onRefreshPending(slot.id) }
     }
 
     if (slot.state == SlotState.DRAFT) {
@@ -210,7 +224,10 @@ private fun HostControls(
     when (pending) {
         LoadState.Idle -> Unit
         LoadState.Loading -> CircularProgressIndicator(color = LinkUpRed, modifier = Modifier.size(24.dp))
-        LoadState.Empty -> Text(stringResource(R.string.slot_no_pending_requests), color = LinkUpTextMuted, fontSize = 12.sp)
+        LoadState.Empty -> Text(
+            stringResource(if (slot.accessMode == SlotAccessMode.WAITLIST) R.string.slot_waitlist_empty else R.string.slot_no_pending_requests),
+            color = LinkUpTextMuted, fontSize = 12.sp,
+        )
         is LoadState.Failure -> Text(pending.error.message, color = LinkUpWarning, fontSize = 12.sp)
         is LoadState.Content -> pending.value.forEach { request ->
             Row(
@@ -225,10 +242,15 @@ private fun HostControls(
                     }
                 }
                 TextButton(onClick = { onReject(slot.id, request.user.id) }, enabled = !busy) {
-                    Text(stringResource(R.string.slot_decline), color = LinkUpTextMuted)
+                    Text(
+                        stringResource(if (slot.accessMode == SlotAccessMode.WAITLIST) R.string.slot_remove_waitlist else R.string.slot_decline),
+                        color = LinkUpTextMuted,
+                    )
                 }
-                TextButton(onClick = { onApprove(slot.id, request.user.id) }, enabled = !busy) {
-                    Text(stringResource(R.string.slot_accept), color = LinkUpSuccess, fontWeight = FontWeight.Bold)
+                if (slot.accessMode != SlotAccessMode.WAITLIST) {
+                    TextButton(onClick = { onApprove(slot.id, request.user.id) }, enabled = !busy) {
+                        Text(stringResource(R.string.slot_accept), color = LinkUpSuccess, fontWeight = FontWeight.Bold)
+                    }
                 }
             }
         }

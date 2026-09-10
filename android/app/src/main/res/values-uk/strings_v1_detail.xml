@@ -22,4 +22,8 @@
     <string name="slot_state_cancelled">СКАСОВАНО</string>
     <string name="slot_state_expired">ЗАВЕРШИВСЯ</string>
     <string name="slot_state_moderated">МОДЕРОВАНО</string>
+    <string name="slot_leave_waitlist">Вийти з черги</string>
+    <string name="slot_waitlist">Черга</string>
+    <string name="slot_waitlist_empty">Черга порожня</string>
+    <string name="slot_remove_waitlist">Прибрати</string>
 </resources>

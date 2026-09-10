@@ -44,6 +44,35 @@ func blockPairTx(ctx context.Context, tx pgx.Tx, blockerID, blockedID string, no
 		return err
 	}
 
+	// Remember WAITLIST Slots where this block removes an accepted member. The
+	// Slot rows are already locked above, so promotion can safely happen in the
+	// same transaction after relationship cleanup without creating a seat gap.
+	rows, err := tx.Query(ctx, `
+		SELECT DISTINCT s.id::text
+		FROM slots s
+		JOIN slot_memberships m ON m.slot_id=s.id
+		WHERE s.access_mode='WAITLIST'
+		  AND s.state IN ('PUBLISHED','FILLING','FULL')
+		  AND ((s.host_id=$1 AND m.user_id=$2) OR (s.host_id=$2 AND m.user_id=$1))
+		ORDER BY s.id`, blockerID, blockedID)
+	if err != nil {
+		return err
+	}
+	var waitlistFreed []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			rows.Close()
+			return err
+		}
+		waitlistFreed = append(waitlistFreed, id)
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return err
+	}
+	rows.Close()
+
 	if _, err := tx.Exec(ctx, `
 		INSERT INTO user_blocks (blocker_id,blocked_id,created_at)
 		VALUES ($1,$2,$3)
@@ -84,6 +113,32 @@ func blockPairTx(ctx context.Context, tx pgx.Tx, blockerID, blockedID string, no
 		FROM counts
 		WHERE s.id=counts.slot_id`, blockerID, blockedID, now); err != nil {
 		return err
+	}
+
+	for _, slotID := range waitlistFreed {
+		var hostID, state string
+		var acceptedCount, capacity int
+		if err := tx.QueryRow(ctx, `SELECT host_id,state,accepted_count,capacity FROM slots WHERE id=$1`, slotID).
+			Scan(&hostID, &state, &acceptedCount, &capacity); err != nil {
+			return err
+		}
+		for acceptedCount < capacity {
+			next, promotedID, err := promoteOldestWaitlistTx(ctx, tx, slotID, hostID, acceptedCount, capacity, now)
+			if err != nil {
+				return err
+			}
+			acceptedCount = next
+			if promotedID == "" {
+				break
+			}
+		}
+		state = "FILLING"
+		if acceptedCount >= capacity {
+			state = "FULL"
+		}
+		if _, err := tx.Exec(ctx, `UPDATE slots SET accepted_count=$2,state=$3 WHERE id=$1`, slotID, acceptedCount, state); err != nil {
+			return err
+		}
 	}
 	return nil
 }

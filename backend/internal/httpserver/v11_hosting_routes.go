@@ -58,6 +58,9 @@ func (s *Server) publishDraftSlot(w http.ResponseWriter, r *http.Request) {
 		writeProblem(w, r, http.StatusBadRequest, "invalid_request", "invalid JSON body")
 		return
 	}
+	if !s.requireWaitlistCapabilityForSlot(w, r, auth.User.ID, r.PathValue("slotID")) {
+		return
+	}
 	out, err := s.deps.Slots.PublishDraft(
 		r.Context(),
 		auth.User.ID,

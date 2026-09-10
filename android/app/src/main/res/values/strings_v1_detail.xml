@@ -22,4 +22,8 @@
     <string name="slot_state_cancelled">CANCELLED</string>
     <string name="slot_state_expired">EXPIRED</string>
     <string name="slot_state_moderated">MODERATED</string>
+    <string name="slot_leave_waitlist">Leave waitlist</string>
+    <string name="slot_waitlist">Waitlist</string>
+    <string name="slot_waitlist_empty">Waitlist is empty</string>
+    <string name="slot_remove_waitlist">Remove</string>
 </resources>

@@ -30,4 +30,8 @@
     <string name="create_publishing">Публікація…</string>
     <string name="create_save_draft">Зберегти чернетку</string>
     <string name="create_saving_draft">Збереження…</string>
+    <string name="create_instant">Миттєвий доступ</string>
+    <string name="create_instant_subtitle">Миттєве приєднання, доки є вільне місце</string>
+    <string name="create_waitlist">Черга</string>
+    <string name="create_waitlist_subtitle">Миттєве приєднання, доки є місце, далі — черга FIFO</string>
 </resources>

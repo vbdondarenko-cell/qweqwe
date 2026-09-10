@@ -824,3 +824,26 @@ Executed evidence:
 - `git diff --check` passes; no iOS files, DB migrations, frozen design-reference files, capability enablement or production runtime/deployment were changed in this block.
 
 Remaining: physical Android/device verification of City Context → Map expiry/switch/reconnect behavior and two-client convergence are still required. Continue README §15 with hosting/access/waitlist only after the current City Context/Map dependency evidence is closed; no v1.1 production-readiness claim is implied by source and host tests alone.
+
+## 37. 2026-09-10 — concurrency-safe WAITLIST admission and Android states
+
+Continues README §6.6 from main `34bba8bd`.
+
+Implemented:
+
+- WAITLIST now uses the canonical `slot_requests` queue: free seats auto-admit, overflow remains FIFO pending, ordered by request creation time with deterministic user-ID tie breaking;
+- leave, host removal and capacity expansion promote the oldest eligible request while holding the Slot row lock; accepted-count, membership and capacity invariants are updated in the same transaction;
+- blocking either side revokes relationships and, for affected WAITLIST Slots, fills newly released seats from the remaining eligible FIFO queue before commit;
+- WAITLIST publish/request paths are server fail-closed behind the `waitlist` capability; APPROVAL and INSTANT behavior remains unchanged;
+- Android exposes capability-aware INSTANT / APPROVAL / WAITLIST draft selection and honest Join waitlist / Waitlisted / Leave waitlist states without changing the frozen layout;
+- host WAITLIST controls do not expose manual Accept, preventing a client from bypassing FIFO admission.
+
+Executed evidence:
+
+- targeted Go slot/httpserver/postgres tests pass, including disabled/enabled WAITLIST capability routing;
+- disposable PostgreSQL WAITLIST tests pass (`WAITLIST_DB_RC=0`) for FIFO promotion, host removal, capacity expansion, withdrawal, blocked candidates and concurrent FULL/reopen mutations without oversubscription;
+- full Go regression is green in an LF-normalized Linux tree: `go test -count=1 ./...`, `go vet ./...`, `go test -race -count=1 ./...` (`GO_FULL_LF_RC=0`);
+- full Android regression is green on JDK 17 / Android SDK: `:app:testDebugUnitTest :app:lintDebug :app:assembleDebug` completed `BUILD SUCCESSFUL` with 53 actionable tasks; the generated debug APK is present;
+- no DB migration, iOS, production capability, production DB/runtime deployment or frozen design-reference change is part of this block.
+
+Remaining: request-expiry/withdrawal hardening, expiry-during-mutation tests, complete optimistic-version conflict UX and two-client/device WAITLIST verification. Then continue README §6.7 Chat V2.

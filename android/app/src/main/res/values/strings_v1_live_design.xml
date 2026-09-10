@@ -70,4 +70,7 @@
     <string name="fly_use_pulse">Current real join/request actions are available in Pulse.</string>
     <string name="open_pulse">Open Pulse</string>
     <string name="nav_create">Create</string>
+    <string name="slot_join_waitlist">Join waitlist</string>
+    <string name="slot_waitlisted">Waitlisted</string>
+    <string name="slot_waitlist_unavailable">Waitlist unavailable</string>
 </resources>

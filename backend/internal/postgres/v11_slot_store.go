@@ -220,6 +220,28 @@ func (s *V11SlotStore) Edit(ctx context.Context, actorID, slotID string, patch s
 	if err != nil {
 		return slot.Slot{}, err
 	}
+	if currentAccessMode == string(slot.AccessWaitlist) && state != "DRAFT" && state != "ACTIVE" && newCapacity > acceptedCount {
+		beforePromotion := acceptedCount
+		for acceptedCount < newCapacity {
+			nextCount, promotedID, promoteErr := promoteOldestWaitlistTx(ctx, tx, slotID, hostID, acceptedCount, newCapacity, now)
+			if promoteErr != nil {
+				return slot.Slot{}, promoteErr
+			}
+			acceptedCount = nextCount
+			if promotedID == "" {
+				break
+			}
+		}
+		if acceptedCount != beforePromotion {
+			promotedState := "FILLING"
+			if acceptedCount >= newCapacity {
+				promotedState = "FULL"
+			}
+			if _, err := tx.Exec(ctx, `UPDATE slots SET accepted_count=$2,state=$3 WHERE id=$1`, slotID, acceptedCount, promotedState); err != nil {
+				return slot.Slot{}, err
+			}
+		}
+	}
 	out, err := getV11SlotInternalTx(ctx, tx, slotID, actorID)
 	if err != nil {
 		return slot.Slot{}, err
@@ -232,20 +254,6 @@ func (s *V11SlotStore) Edit(ctx context.Context, actorID, slotID string, patch s
 
 func (s *V11SlotStore) Cancel(ctx context.Context, actorID, slotID string, expectedVersion int64, key string, requestHash []byte, now time.Time) (slot.Slot, error) {
 	if _, err := s.SlotStore.Cancel(ctx, actorID, slotID, expectedVersion, key, requestHash, now); err != nil {
-		return slot.Slot{}, err
-	}
-	return s.getInternal(ctx, actorID, slotID)
-}
-
-func (s *V11SlotStore) Request(ctx context.Context, actorID, slotID, key string, requestHash []byte, now time.Time) (slot.Slot, error) {
-	if _, err := s.SlotStore.Request(ctx, actorID, slotID, key, requestHash, now); err != nil {
-		return slot.Slot{}, err
-	}
-	return s.getInternal(ctx, actorID, slotID)
-}
-
-func (s *V11SlotStore) Leave(ctx context.Context, actorID, slotID, key string, requestHash []byte, now time.Time) (slot.Slot, error) {
-	if _, err := s.SlotStore.Leave(ctx, actorID, slotID, key, requestHash, now); err != nil {
 		return slot.Slot{}, err
 	}
 	return s.getInternal(ctx, actorID, slotID)
@@ -280,6 +288,13 @@ func (s *V11SlotStore) Complete(ctx context.Context, actorID, slotID, key string
 }
 
 func (s *V11SlotStore) RemoveMember(ctx context.Context, actorID, slotID, memberID string, expectedVersion int64, key string, requestHash []byte, now time.Time) (slot.Slot, error) {
+	mode, err := s.slotAccessMode(ctx, slotID)
+	if err != nil {
+		return slot.Slot{}, err
+	}
+	if mode == string(slot.AccessWaitlist) {
+		return s.waitlistRemoveMember(ctx, actorID, slotID, memberID, expectedVersion, key, requestHash, now)
+	}
 	if _, err := s.SlotStore.RemoveMember(ctx, actorID, slotID, memberID, expectedVersion, key, requestHash, now); err != nil {
 		return slot.Slot{}, err
 	}
