@@ -86,6 +86,7 @@ class CityContextCoordinatorTest {
 
             val state = assertIs<LoadState.Failure>(coordinator.context.value)
             assertEquals(api.failure!!.code, state.error.code)
+            assertEquals(status, state.error.httpStatus)
         }
     }
 

@@ -108,7 +108,7 @@ class CityContextCoordinator(
     }
 
     private fun Exception.toSocialError(): SocialError = when (this) {
-        is ApiException -> SocialError(code = code, message = message, requestId = requestId)
+        is ApiException -> SocialError(code = code, message = message, requestId = requestId, httpStatus = status)
         is IOException -> SocialError(code = "network_error", message = message ?: "Network request failed")
         else -> SocialError(code = "location_error", message = message ?: "City context could not be resolved")
     }

@@ -775,3 +775,26 @@ Verification:
 - API contracts consulted: https://developer.android.com/reference/android/location/LocationManager and https://kotlinlang.org/api/kotlinx.coroutines/kotlinx-coroutines-core/kotlinx.coroutines/with-timeout-or-null.html .
 
 Remaining: execute targeted tests and full Android regression in a provisioned environment; verify GPS cancellation, permission changes, foreground/background transitions and city-realtime recovery on device. City realtime expiry/recovery orchestration still needs its own executed convergence review. No backend/DB, deployment, capability enablement, design or iOS changes. Production readiness is not re-estimated from unexecuted tests; v1.1 release gates remain open.
+
+
+## 35. 2026-09-10 — city realtime session recovery after City-Lock expiry
+
+Continues README §§6.2–6.3 from main `04d48ce`.
+
+Implemented:
+
+- `CityRealtimeSession.kt` owns the sequential city stream recovery loop. MainActivity now scopes it to signed-in user identity plus server realtime/city-context capabilities and STARTED lifecycle, rather than cancelling it whenever City Context temporarily leaves Content.
+- An expired City-Lock can transition through Empty/Loading during the existing authorized resolver flow without cancelling that same recovery. Loss of account, lifecycle or capability still cancels the owner coroutine.
+- Initial session, successful expiry recovery and locality changes require canonical Pulse/loaded-Map snapshot refresh before consuming the next delta batch. Snapshot expiry/auth failures reach the same recovery/stop path rather than becoming a permanent failed-refresh loop.
+- Ambiguous resolver/network failures trigger spaced GET readback only. No resolver POST is blindly replayed. If readback confirms no lock, or permission/locality is unavailable, polling suspends until explicit resolution/foreground initialization supplies a context.
+- HTTP 401 ends the local session; 403 stops the city loop and refreshes capability state. Generic city errors preserve HTTP status in SocialError so retry/access decisions do not depend on a specific provider error message.
+- The existing 5-second retry interval and existing cursor acknowledgement/reconciliation contract remain in use. Cached city with a failed/in-progress refresh is no longer reported as a successful city refresh by the MainActivity helper.
+- Added 11 CityRealtimeSession tests covering expiry, ambiguous readback, empty/unresolved city, access denial, owner cancellation, failed snapshots and city switch; expanded coordinator assertions for preserved HTTP status.
+
+Verification actually obtained:
+
+- `git diff --check` and production call-site/control-flow inspection passed.
+- Attempted `:app:testDebugUnitTest` for CityRealtimeSessionTest and CityContextCoordinatorTest; Gradle distribution download failed with `Network is unreachable`. Neither these tests nor Android compilation executed in this environment.
+- No production capabilities enabled, backend/SQL/deployment changes or design/iOS modifications.
+
+Remaining: execute the targeted and full Android regression, then verify two-device expiry/reconnect/airplane-mode and foreground/account/capability cancellation behavior. Continue canonical v1.1 dependency gates after that evidence. Source review does not establish production readiness; all unclosed v1.0/v1.1 release gates remain mandatory.

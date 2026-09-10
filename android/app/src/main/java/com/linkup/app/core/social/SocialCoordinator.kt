@@ -34,6 +34,7 @@ data class SocialError(
     val code: String,
     val message: String,
     val requestId: String? = null,
+    val httpStatus: Int? = null,
 )
 
 sealed interface MutationState {

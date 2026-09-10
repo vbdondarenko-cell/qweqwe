@@ -48,6 +48,7 @@ import com.linkup.app.core.realtime.RealtimeCoordinator
 import com.linkup.app.core.realtime.RealtimePull
 import com.linkup.app.core.realtime.SharedPreferencesCityRealtimeCursorStore
 import com.linkup.app.core.realtime.SharedPreferencesRealtimeCursorStore
+import com.linkup.app.core.realtime.runCityRealtimeSession
 import com.linkup.app.core.session.SecureOnboardingStore
 import com.linkup.app.core.session.SecureSessionStore
 import com.linkup.app.core.session.SessionCoordinator
@@ -152,11 +153,12 @@ class MainActivity : ComponentActivity() {
         activityScope.launch {
             lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
                 combine(sessionCoordinator.state, capabilityCoordinator.snapshot) { state, capabilities ->
-                    state is SessionState.SignedIn && capabilities.enabled(CapabilityKey.CITY_CONTEXT)
+                    if (capabilities.enabled(CapabilityKey.CITY_CONTEXT))
+                        (state as? SessionState.SignedIn)?.user?.id else null
                 }
                     .distinctUntilChanged()
-                    .collectLatest { enabled ->
-                        if (enabled) {
+                    .collectLatest { userId ->
+                        if (userId != null) {
                             if (refreshCityContextIfPermitted(cityContextCoordinator, sessionCoordinator)) {
                                 socialCoordinator.refreshPulse()
                                 cityNetworkCoordinator.refreshCurrentMapIfLoaded()
@@ -233,14 +235,12 @@ class MainActivity : ComponentActivity() {
                 combine(
                     sessionCoordinator.state,
                     capabilityCoordinator.snapshot,
-                    cityContextCoordinator.context,
-                ) { state, capabilities, cityContext ->
+                ) { state, capabilities ->
                     val userId = (state as? SessionState.SignedIn)?.user?.id
                     if (
                         userId != null &&
                         capabilities.enabled(CapabilityKey.REALTIME) &&
-                        capabilities.enabled(CapabilityKey.CITY_CONTEXT) &&
-                        cityContext is LoadState.Content<*>
+                        capabilities.enabled(CapabilityKey.CITY_CONTEXT)
                     ) userId else null
                 }
                     .distinctUntilChanged()
@@ -253,6 +253,7 @@ class MainActivity : ComponentActivity() {
                                 sessions = sessionCoordinator,
                                 social = socialCoordinator,
                                 city = cityNetworkCoordinator,
+                                capabilities = capabilityCoordinator,
                             )
                         }
                     }
@@ -287,7 +288,7 @@ class MainActivity : ComponentActivity() {
             sessions.clearLocalSession()
             return false
         }
-        if (loaded is LoadState.Content) return true
+        if (loaded is LoadState.Content) return !loaded.refreshing && loaded.refreshError == null
         if (loaded != LoadState.Empty || cityContext.permissionClass() == null) return false
 
         cityContext.resolveFromDevice()
@@ -296,7 +297,7 @@ class MainActivity : ComponentActivity() {
             sessions.clearLocalSession()
             return false
         }
-        return resolved is LoadState.Content
+        return resolved is LoadState.Content && !resolved.refreshing && resolved.refreshError == null
     }
 
     private suspend fun runCityRealtimeLoop(
@@ -306,9 +307,36 @@ class MainActivity : ComponentActivity() {
         sessions: SessionCoordinator,
         social: SocialCoordinator,
         city: CityNetworkCoordinator,
+        capabilities: CapabilityCoordinator,
     ) {
-        while (currentCoroutineContext().isActive) {
-            val nextDelay = try {
+        runCityRealtimeSession(
+            context = cityContext.context,
+            retryMillis = CITY_REALTIME_RETRY_MS,
+            readContext = { cityContext.loadCurrent() },
+            recoverContext = { refreshCityContextIfPermitted(cityContext, sessions) },
+            refreshSnapshot = {
+                social.refreshPulse()
+                val pulse = social.pulse.value
+                val error = when (pulse) {
+                    is LoadState.Failure -> pulse.error
+                    is LoadState.Content -> pulse.refreshError
+                    else -> null
+                }
+                // A failed snapshot must not hide the expiry/auth signal and prevent
+                // the session from ever reaching its recovery path.
+                if (error != null) when (error.code) {
+                    "city_context_unavailable" -> throw ApiException(404, error.code, error.message)
+                    "unauthorized" -> throw ApiException(401, error.code, error.message)
+                    "capability_disabled", "forbidden" -> throw ApiException(403, error.code, error.message)
+                }
+                pulse.refreshSucceeded() && city.refreshCurrentMapIfLoaded()
+            },
+            onUnauthorized = { sessions.clearLocalSession() },
+            onForbidden = {
+                cityContext.clear()
+                capabilities.refresh()
+            },
+            poll = {
                 val pull = realtime.pull(userId, CITY_REALTIME_BATCH_SIZE)
                 if (pull.nextCursor <= pull.fromCursor) {
                     CITY_REALTIME_POLL_MS
@@ -321,20 +349,8 @@ class MainActivity : ComponentActivity() {
                         else -> CITY_REALTIME_POLL_MS
                     }
                 }
-            } catch (error: CancellationException) {
-                throw error
-            } catch (error: ApiException) {
-                when {
-                    error.status == 401 -> sessions.clearLocalSession()
-                    error.status == 404 && error.code == "city_context_unavailable" ->
-                        refreshCityContextIfPermitted(cityContext, sessions)
-                }
-                CITY_REALTIME_RETRY_MS
-            } catch (_: Exception) {
-                CITY_REALTIME_RETRY_MS
-            }
-            delay(nextDelay)
-        }
+            },
+        )
     }
 
     private suspend fun reconcileCityRealtime(
