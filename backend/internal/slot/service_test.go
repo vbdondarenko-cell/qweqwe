@@ -453,3 +453,18 @@ func TestRemoveMemberValidatesVersionAndIdentity(t *testing.T) {
     out, err := svc.RemoveMember(context.Background(),"host","link","member",3,"remove-member-001")
     if err != nil || out.AcceptedCount != 0 || out.State != StateFilling || out.Version != 4 { t.Fatalf("out=%v err=%v",out,err) }
 }
+
+func TestLegacyCreateRejectsFutureAccessModes(t *testing.T) {
+	store := &memoryStore{}
+	service, err := NewService(store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mode := AccessWaitlist
+	_, err = service.Create(context.Background(), "host-id", CreateInput{
+		Title: "Coffee", Activity: "coffee", PlaceText: "Center", Capacity: 4, AccessMode: &mode,
+	}, "00000000-0000-0000-0000-000000000099")
+	if err != ErrInvalidState {
+		t.Fatalf("expected ErrInvalidState, got %v", err)
+	}
+}

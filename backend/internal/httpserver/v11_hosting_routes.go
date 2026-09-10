@@ -34,6 +34,7 @@ func (s *Server) createDraftSlot(w http.ResponseWriter, r *http.Request) {
 		CanonicalPlaceID: in.CanonicalPlaceID,
 		StartAt:          in.StartAt,
 		Capacity:         in.Capacity,
+		AccessMode:       in.AccessMode,
 	}, r.Header.Get("Idempotency-Key"))
 	if err != nil {
 		s.writeSlotError(w, r, err)

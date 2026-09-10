@@ -8,9 +8,9 @@ import (
 
 type hostingStoreStub struct {
 	Store
-	created       Slot
-	publishedID   string
-	publishedVer  int64
+	created      Slot
+	publishedID  string
+	publishedVer int64
 }
 
 func (s *hostingStoreStub) CreateDraft(_ context.Context, _ string, candidate Slot, _ string, _ []byte) (Slot, error) {
@@ -33,10 +33,10 @@ func TestCreateDraftUsesNonDiscoverableDraftState(t *testing.T) {
 	service.now = func() time.Time { return time.Date(2026, 9, 8, 12, 0, 0, 0, time.UTC) }
 
 	out, err := service.CreateDraft(context.Background(), "host-id", CreateInput{
-		Title: "Coffee later",
-		Activity: "coffee",
+		Title:     "Coffee later",
+		Activity:  "coffee",
 		PlaceText: "Central Cafe",
-		Capacity: 4,
+		Capacity:  4,
 	}, "00000000-0000-0000-0000-000000000001")
 	if err != nil {
 		t.Fatal(err)
@@ -46,6 +46,24 @@ func TestCreateDraftUsesNonDiscoverableDraftState(t *testing.T) {
 	}
 	if out.AccessMode != AccessApproval || out.Visibility != VisibilityPublic || out.AcceptedCount != 0 {
 		t.Fatalf("unexpected draft authority defaults: %#v", out)
+	}
+}
+
+func TestCreateDraftPreservesConfiguredAccessMode(t *testing.T) {
+	store := &hostingStoreStub{}
+	service, err := NewService(store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mode := AccessWaitlist
+	out, err := service.CreateDraft(context.Background(), "host-id", CreateInput{
+		Title: "Coffee later", Activity: "coffee", PlaceText: "Central Cafe", Capacity: 4, AccessMode: &mode,
+	}, "00000000-0000-0000-0000-000000000003")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out.AccessMode != AccessWaitlist || store.created.AccessMode != AccessWaitlist {
+		t.Fatalf("draft access mode lost: out=%s stored=%s", out.AccessMode, store.created.AccessMode)
 	}
 }
 

@@ -35,7 +35,7 @@ func TestCreateDraftSlotHTTPReturnsDraft(t *testing.T) {
 		t.Fatal(err)
 	}
 	server := &Server{deps: Dependencies{Slots: service}}
-	body := []byte(`{"title":"Coffee","activity":"coffee","placeText":"Center","capacity":4}`)
+	body := []byte(`{"title":"Coffee","activity":"coffee","placeText":"Center","capacity":4,"accessMode":"WAITLIST"}`)
 	req := authenticatedRequest(http.MethodPost, "/v1/slots/drafts", body)
 	req.Header.Set("Idempotency-Key", "00000000-0000-0000-0000-000000000001")
 	rr := httptest.NewRecorder()
@@ -47,6 +47,9 @@ func TestCreateDraftSlotHTTPReturnsDraft(t *testing.T) {
 	}
 	if store.created.State != slot.StateDraft {
 		t.Fatalf("create draft routed to discoverable state: %s", store.created.State)
+	}
+	if store.created.AccessMode != slot.AccessWaitlist {
+		t.Fatalf("draft access mode lost at HTTP boundary: %s", store.created.AccessMode)
 	}
 }
 

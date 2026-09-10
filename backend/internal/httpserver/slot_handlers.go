@@ -9,27 +9,29 @@ import (
 )
 
 type createSlotRequest struct {
-	Title            string     `json:"title"`
-	Activity         string     `json:"activity"`
-	Details          *string    `json:"details"`
-	PlaceText        string     `json:"placeText"`
-	ZoneText         *string    `json:"zoneText"`
-	CanonicalPlaceID *string    `json:"canonicalPlaceId"`
-	StartAt          *time.Time `json:"startAt"`
-	Capacity         int        `json:"capacity"`
+	Title            string           `json:"title"`
+	Activity         string           `json:"activity"`
+	Details          *string          `json:"details"`
+	PlaceText        string           `json:"placeText"`
+	ZoneText         *string          `json:"zoneText"`
+	CanonicalPlaceID *string          `json:"canonicalPlaceId"`
+	StartAt          *time.Time       `json:"startAt"`
+	Capacity         int              `json:"capacity"`
+	AccessMode       *slot.AccessMode `json:"accessMode"`
 }
 
 type editSlotRequest struct {
-	ExpectedVersion       int64      `json:"expectedVersion"`
-	Title                 *string    `json:"title"`
-	Details               *string    `json:"details"`
-	PlaceText             *string    `json:"placeText"`
-	ZoneText              *string    `json:"zoneText"`
-	CanonicalPlaceID      *string    `json:"canonicalPlaceId"`
-	ClearCanonicalPlaceID bool       `json:"clearCanonicalPlaceId"`
-	StartAt               *time.Time `json:"startAt"`
-	ClearStartAt          bool       `json:"clearStartAt"`
-	Capacity              *int       `json:"capacity"`
+	ExpectedVersion       int64            `json:"expectedVersion"`
+	Title                 *string          `json:"title"`
+	Details               *string          `json:"details"`
+	PlaceText             *string          `json:"placeText"`
+	ZoneText              *string          `json:"zoneText"`
+	CanonicalPlaceID      *string          `json:"canonicalPlaceId"`
+	ClearCanonicalPlaceID bool             `json:"clearCanonicalPlaceId"`
+	StartAt               *time.Time       `json:"startAt"`
+	ClearStartAt          bool             `json:"clearStartAt"`
+	Capacity              *int             `json:"capacity"`
+	AccessMode            *slot.AccessMode `json:"accessMode"`
 }
 
 type cancelSlotRequest struct {
@@ -64,6 +66,7 @@ func (s *Server) createSlot(w http.ResponseWriter, r *http.Request) {
 		CanonicalPlaceID: in.CanonicalPlaceID,
 		StartAt:          in.StartAt,
 		Capacity:         in.Capacity,
+		AccessMode:       in.AccessMode,
 	}, r.Header.Get("Idempotency-Key"))
 	if err != nil {
 		s.writeSlotError(w, r, err)
@@ -122,6 +125,7 @@ func (s *Server) editSlot(w http.ResponseWriter, r *http.Request) {
 		StartAt:               in.StartAt,
 		ClearStartAt:          in.ClearStartAt,
 		Capacity:              in.Capacity,
+		AccessMode:            in.AccessMode,
 	}, r.Header.Get("Idempotency-Key"))
 	if err != nil {
 		s.writeSlotError(w, r, err)

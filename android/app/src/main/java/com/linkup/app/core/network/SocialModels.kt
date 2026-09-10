@@ -55,6 +55,7 @@ data class CreateSlotInput(
     val canonicalPlaceId: String? = null,
     val startAtEpochMillis: Long? = null,
     val capacity: Int,
+    val accessMode: SlotAccessMode = SlotAccessMode.APPROVAL,
 )
 
 data class EditSlotInput(
@@ -68,6 +69,7 @@ data class EditSlotInput(
     val startAtEpochMillis: Long? = null,
     val clearStartAt: Boolean = false,
     val capacity: Int? = null,
+    val accessMode: SlotAccessMode? = null,
 )
 
 data class PendingSlotRequest(

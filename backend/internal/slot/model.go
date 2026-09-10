@@ -93,6 +93,7 @@ type CreateInput struct {
 	CanonicalPlaceID *string
 	StartAt          *time.Time
 	Capacity         int
+	AccessMode       *AccessMode
 }
 
 type EditInput struct {
@@ -106,6 +107,7 @@ type EditInput struct {
 	StartAt               *time.Time
 	ClearStartAt          bool
 	Capacity              *int
+	AccessMode            *AccessMode
 }
 
 type Store interface {

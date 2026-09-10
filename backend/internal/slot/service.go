@@ -31,6 +31,12 @@ func (s *Service) Create(ctx context.Context, actorID string, in CreateInput, id
 	if err := normalizeCreate(&in); err != nil {
 		return Slot{}, err
 	}
+	// The legacy immediate-create route remains the stable v1.0 APPROVAL flow.
+	// INSTANT/WAITLIST are configured through DRAFT and only publish after their
+	// dedicated concurrency semantics are available.
+	if in.AccessMode != nil && *in.AccessMode != AccessApproval {
+		return Slot{}, ErrInvalidState
+	}
 	id, err := identifier.NewUUID()
 	if err != nil {
 		return Slot{}, err
@@ -49,7 +55,7 @@ func (s *Service) Create(ctx context.Context, actorID string, in CreateInput, id
 		Capacity:         in.Capacity,
 		AcceptedCount:    0,
 		State:            StateFilling,
-		AccessMode:       AccessApproval,
+		AccessMode:       effectiveAccessMode(in.AccessMode),
 		Visibility:       VisibilityPublic,
 		ViewerState:      ViewerHost,
 		Version:          1,
@@ -65,7 +71,8 @@ func (s *Service) Create(ctx context.Context, actorID string, in CreateInput, id
 		CanonicalPlaceID *string
 		StartAt          *time.Time
 		Capacity         int
-	}{in.Title, in.Activity, in.Details, in.PlaceText, in.ZoneText, in.CanonicalPlaceID, in.StartAt, in.Capacity})
+		AccessMode       AccessMode
+	}{in.Title, in.Activity, in.Details, in.PlaceText, in.ZoneText, in.CanonicalPlaceID, in.StartAt, in.Capacity, effectiveAccessMode(in.AccessMode)})
 	if err != nil {
 		return Slot{}, err
 	}
@@ -263,11 +270,18 @@ func normalizeCreate(in *CreateInput) error {
 		v := in.StartAt.UTC()
 		in.StartAt = &v
 	}
+	if in.AccessMode != nil {
+		mode := AccessMode(strings.ToUpper(strings.TrimSpace(string(*in.AccessMode))))
+		if !validAccessMode(mode) {
+			return ErrInvalidInput
+		}
+		in.AccessMode = &mode
+	}
 	return nil
 }
 
 func normalizeEdit(in *EditInput) error {
-	if in.Title == nil && in.Details == nil && in.PlaceText == nil && in.ZoneText == nil && in.CanonicalPlaceID == nil && !in.ClearCanonicalPlaceID && in.StartAt == nil && !in.ClearStartAt && in.Capacity == nil {
+	if in.Title == nil && in.Details == nil && in.PlaceText == nil && in.ZoneText == nil && in.CanonicalPlaceID == nil && !in.ClearCanonicalPlaceID && in.StartAt == nil && !in.ClearStartAt && in.Capacity == nil && in.AccessMode == nil {
 		return ErrInvalidInput
 	}
 	if (in.StartAt != nil && in.ClearStartAt) || (in.CanonicalPlaceID != nil && in.ClearCanonicalPlaceID) {
@@ -315,7 +329,25 @@ func normalizeEdit(in *EditInput) error {
 	if in.Capacity != nil && (*in.Capacity < 2 || *in.Capacity > MaxV1Capacity) {
 		return ErrInvalidInput
 	}
+	if in.AccessMode != nil {
+		mode := AccessMode(strings.ToUpper(strings.TrimSpace(string(*in.AccessMode))))
+		if !validAccessMode(mode) {
+			return ErrInvalidInput
+		}
+		in.AccessMode = &mode
+	}
 	return nil
+}
+
+func effectiveAccessMode(mode *AccessMode) AccessMode {
+	if mode == nil {
+		return AccessApproval
+	}
+	return *mode
+}
+
+func validAccessMode(mode AccessMode) bool {
+	return mode == AccessInstant || mode == AccessApproval || mode == AccessWaitlist
 }
 
 func validUUID(value string) bool {

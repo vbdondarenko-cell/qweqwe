@@ -6,6 +6,7 @@ import com.linkup.app.core.network.EditSlotInput
 import com.linkup.app.core.network.MySlotsView
 import com.linkup.app.core.network.PendingSlotRequest
 import com.linkup.app.core.network.SlotModel
+import com.linkup.app.core.network.SlotAccessMode
 import com.linkup.app.core.network.SlotOrganizer
 import com.linkup.app.core.network.SocialApi
 import kotlin.test.Test
@@ -32,11 +33,16 @@ class DurableHostingApiTest {
             },
         )
 
-        val out = api.createDraft(CreateSlotInput("Coffee", "coffee", placeText = "Center", capacity = 4))
+        val out = api.createDraft(
+            CreateSlotInput(
+                "Coffee", "coffee", placeText = "Center", capacity = 4, accessMode = SlotAccessMode.WAITLIST,
+            ),
+        )
 
         assertEquals("DRAFT", out.state.name)
         assertEquals("/v1/slots/drafts", observed?.path)
         assertEquals("POST", observed?.method)
+        assertTrue(observed!!.bodyJson!!.contains("\"accessMode\":\"WAITLIST\""))
         assertTrue(outbox.items.isEmpty())
     }
 

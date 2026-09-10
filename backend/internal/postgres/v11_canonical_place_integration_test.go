@@ -151,6 +151,30 @@ func TestV11CanonicalPlaceSlotAndMapIntegration(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	waitlistMode := slot.AccessWaitlist
+	draft, err := slotService.CreateDraft(ctx, viewer.User.ID, slot.CreateInput{
+		Title: "Waitlist draft", Activity: "coffee", PlaceText: "Integration Place", Capacity: 3, AccessMode: &waitlistMode,
+	}, "v11-hosting-draft-access-mode-0001")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if draft.State != slot.StateDraft || draft.AccessMode != slot.AccessWaitlist {
+		t.Fatalf("draft access mode was not persisted: %#v", draft)
+	}
+	instantMode := slot.AccessInstant
+	editedDraft, err := slotService.Edit(ctx, viewer.User.ID, draft.ID, slot.EditInput{
+		ExpectedVersion: draft.Version, AccessMode: &instantMode,
+	}, "v11-hosting-edit-access-mode-0001")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if editedDraft.AccessMode != slot.AccessInstant || editedDraft.Version != draft.Version+1 {
+		t.Fatalf("draft access mode edit failed: %#v", editedDraft)
+	}
+	if _, err := slotService.PublishDraft(ctx, viewer.User.ID, draft.ID, editedDraft.Version, "v11-hosting-publish-future-mode-0001"); err != slot.ErrInvalidState {
+		t.Fatalf("future access mode published before concurrency semantics: %v", err)
+	}
+
 	start := time.Now().UTC().Add(2 * time.Hour).Truncate(time.Second)
 	created, err := slotService.Create(ctx, viewer.User.ID, slot.CreateInput{
 		Title: "Map integration", Activity: "coffee", PlaceText: "Integration Place",

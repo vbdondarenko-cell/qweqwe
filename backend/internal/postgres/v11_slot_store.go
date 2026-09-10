@@ -133,11 +133,11 @@ func (s *V11SlotStore) Edit(ctx context.Context, actorID, slotID string, patch s
 		return out, nil
 	}
 
-	var hostID, state string
+	var hostID, state, currentAccessMode string
 	var version int64
 	var acceptedCount, currentCapacity int
-	err = tx.QueryRow(ctx, `SELECT host_id,state,version,accepted_count,capacity FROM slots WHERE id=$1 FOR UPDATE`, slotID).
-		Scan(&hostID, &state, &version, &acceptedCount, &currentCapacity)
+	err = tx.QueryRow(ctx, `SELECT host_id,state,version,accepted_count,capacity,access_mode FROM slots WHERE id=$1 FOR UPDATE`, slotID).
+		Scan(&hostID, &state, &version, &acceptedCount, &currentCapacity, &currentAccessMode)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return slot.Slot{}, slot.ErrNotFound
 	}
@@ -152,6 +152,9 @@ func (s *V11SlotStore) Edit(ctx context.Context, actorID, slotID string, patch s
 	}
 	if version != patch.ExpectedVersion {
 		return slot.Slot{}, slot.ErrConflict
+	}
+	if patch.AccessMode != nil && state != "DRAFT" {
+		return slot.Slot{}, slot.ErrInvalidState
 	}
 	if err := ensureCanonicalPlaceActiveTx(ctx, tx, patch.CanonicalPlaceID); err != nil {
 		return slot.Slot{}, err
@@ -184,6 +187,11 @@ func (s *V11SlotStore) Edit(ctx context.Context, actorID, slotID string, patch s
 	canonicalSet := patch.CanonicalPlaceID != nil || patch.ClearCanonicalPlaceID
 	startSet := patch.StartAt != nil || patch.ClearStartAt
 	capacitySet := patch.Capacity != nil
+	accessModeSet := patch.AccessMode != nil
+	newAccessMode := currentAccessMode
+	if patch.AccessMode != nil {
+		newAccessMode = string(*patch.AccessMode)
+	}
 	newState := state
 	if state == "FILLING" || state == "FULL" {
 		if acceptedCount >= newCapacity {
@@ -202,11 +210,12 @@ func (s *V11SlotStore) Edit(ctx context.Context, actorID, slotID string, patch s
 			canonical_place_id=CASE WHEN $10 THEN $11::uuid ELSE canonical_place_id END,
 			start_at=CASE WHEN $12 THEN $13 ELSE start_at END,
 			capacity=CASE WHEN $14 THEN $15 ELSE capacity END,
-			state=$16,version=version+1,updated_at=$17
+			access_mode=CASE WHEN $16 THEN $17 ELSE access_mode END,
+			state=$18,version=version+1,updated_at=$19
 		WHERE id=$1`,
 		slotID, titleSet, title, detailsSet, details, placeSet, place, zoneSet, zone,
 		canonicalSet, nullableString(patch.CanonicalPlaceID), startSet, patch.StartAt,
-		capacitySet, newCapacity, newState, now,
+		capacitySet, newCapacity, accessModeSet, newAccessMode, newState, now,
 	)
 	if err != nil {
 		return slot.Slot{}, err
