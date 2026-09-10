@@ -126,9 +126,9 @@ func (s *V11SlotStore) PublishDraft(
 	if acceptedCount != 0 || capacity < 2 {
 		return slot.Slot{}, slot.ErrInvalidState
 	}
-	// Instant and Waitlist require their own concurrency semantics before they
-	// can be published. Approval is the only active publish authority for now.
-	if accessMode != string(slot.AccessApproval) {
+	// WAITLIST remains fail-closed until its queue/promotion transaction is implemented.
+	// INSTANT is safe to publish because Join serializes admissions on this Slot row.
+	if accessMode != string(slot.AccessApproval) && accessMode != string(slot.AccessInstant) {
 		return slot.Slot{}, slot.ErrInvalidState
 	}
 	if startAt.Valid && startAt.Time.Before(now.Add(-30*time.Second)) {

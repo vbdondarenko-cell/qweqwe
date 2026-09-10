@@ -360,7 +360,7 @@ private fun SignedInRoot(
         if (slot.viewerState == SlotViewerState.NONE) {
             if (!slot.canJoin()) return
             scope.launch {
-                if (social.requestSlot(slot.id)) detailOpen = true
+                if (social.participate(slot)) detailOpen = true
             }
         } else {
             openDesignedSlot(slot)
@@ -517,7 +517,10 @@ private fun SignedInRoot(
                 },
                 onBack = { detailOpen = false; social.clearSelected() },
                 onRefresh = { id -> scope.launch { social.openSlot(id) } },
-                onRequest = { id -> scope.launch { social.requestSlot(id) } },
+                onRequest = { _ ->
+                    val current = (selected as? LoadState.Content)?.value ?: return@SlotDetailScreen
+                    scope.launch { social.participate(current) }
+                },
                 onLeave = { id -> scope.launch { social.leaveSlot(id) } },
                 onRefreshPending = { id -> scope.launch { social.refreshPending(id) } },
                 onApprove = { slotId, userId -> scope.launch { social.approveRequest(slotId, userId) } },

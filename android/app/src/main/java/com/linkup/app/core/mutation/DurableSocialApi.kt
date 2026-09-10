@@ -14,6 +14,7 @@ import com.linkup.app.core.network.SlotState
 import com.linkup.app.core.network.SlotViewerState
 import com.linkup.app.core.network.SlotVisibility
 import com.linkup.app.core.network.SocialApi
+import com.linkup.app.core.network.V11AccessApi
 import com.linkup.app.core.network.V11HostingApi
 import java.io.IOException
 import java.time.Instant
@@ -31,7 +32,7 @@ class DurableSocialApi(
     private val transport: DurableMutationTransport,
     private val onUnauthorized: () -> Unit = {},
     private val nowEpochMillis: () -> Long = System::currentTimeMillis,
-) : SocialApi, V11HostingApi {
+) : SocialApi, V11HostingApi, V11AccessApi {
     override suspend fun mySlots(view: MySlotsView): List<SlotModel> = delegate.mySlots(view)
     override suspend fun pulse(): List<SlotModel> = delegate.pulse()
     override suspend fun getSlot(slotId: String): SlotModel = delegate.getSlot(slotId)
@@ -80,6 +81,9 @@ class DurableSocialApi(
             JSONObject().put("expectedVersion", expectedVersion),
         )
     }
+
+    override suspend fun joinSlot(slotId: String): SlotModel =
+        executeSlot("POST", "/v1/slots/${uuid(slotId)}/join", null)
 
     override suspend fun requestSlot(slotId: String): SlotModel =
         executeSlot("POST", "/v1/slots/${uuid(slotId)}/request", null)

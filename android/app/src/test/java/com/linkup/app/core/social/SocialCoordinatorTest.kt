@@ -13,6 +13,7 @@ import com.linkup.app.core.network.SlotOrganizer
 import com.linkup.app.core.network.SlotState
 import com.linkup.app.core.network.SlotViewerState
 import com.linkup.app.core.network.SlotVisibility
+import com.linkup.app.core.network.V11AccessApi
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
@@ -36,6 +37,25 @@ class SocialCoordinatorTest {
         coordinator.refreshPulse()
         val content = assertIs<LoadState.Content<List<SlotModel>>>(coordinator.pulse.value)
         assertEquals("slot-1", content.value.single().id)
+    }
+
+    @Test
+    fun participateRoutesInstantToJoinAndApprovalToRequest(): Unit = runBlocking {
+        val api = FakeSocialApi().apply {
+            mutationResult = slot(viewer = SlotViewerState.ACCEPTED, version = 2, accessMode = SlotAccessMode.INSTANT)
+        }
+        val coordinator = SocialCoordinator(api)
+
+        val instant = slot(viewer = SlotViewerState.NONE, accessMode = SlotAccessMode.INSTANT)
+        assertTrue(coordinator.participate(instant))
+        assertEquals(1, api.joinCalls)
+        assertEquals(0, api.requestCalls)
+
+        api.mutationResult = slot(viewer = SlotViewerState.PENDING, version = 3, accessMode = SlotAccessMode.APPROVAL)
+        val approval = slot(viewer = SlotViewerState.NONE, accessMode = SlotAccessMode.APPROVAL)
+        assertTrue(coordinator.participate(approval))
+        assertEquals(1, api.joinCalls)
+        assertEquals(1, api.requestCalls)
     }
 
     @Test
@@ -241,7 +261,7 @@ class SocialCoordinatorTest {
         assertEquals(ChatRefreshResult.RETRY, coordinator.refreshChat("slot-1"))
     }
 
-    private class FakeSocialApi : SocialApi {
+    private class FakeSocialApi : SocialApi, V11AccessApi {
         var chatError: Exception? = null
         override suspend fun removeParticipant(slotId: String, userId: String, expectedVersion: Long) = mutationResult
         var acceptedResponse: CompletableDeferred<List<SlotOrganizer>>? = null
@@ -251,6 +271,7 @@ class SocialCoordinatorTest {
         var chatResponse: CompletableDeferred<List<ChatMessage>>? = null
         var requestResponse: CompletableDeferred<SlotModel>? = null
         var requestCalls = 0
+        var joinCalls = 0
         var pulseItems: List<SlotModel> = emptyList()
         var mutationResult: SlotModel = slot(viewer = SlotViewerState.HOST)
         var messages: List<ChatMessage> = emptyList()
@@ -267,6 +288,10 @@ class SocialCoordinatorTest {
         override suspend fun getSlot(slotId: String) = mutationResult
         override suspend fun editSlot(slotId: String, input: EditSlotInput) = mutationResult
         override suspend fun cancelSlot(slotId: String, expectedVersion: Long) = mutationResult
+        override suspend fun joinSlot(slotId: String): SlotModel {
+            joinCalls++
+            return mutationResult
+        }
         override suspend fun requestSlot(slotId: String): SlotModel {
             requestCalls++
             return requestResponse?.await() ?: mutationResult
@@ -291,6 +316,7 @@ class SocialCoordinatorTest {
             viewer: SlotViewerState,
             state: SlotState = SlotState.FILLING,
             version: Long = 1,
+            accessMode: SlotAccessMode = SlotAccessMode.APPROVAL,
         ) = SlotModel(
             id = "slot-1",
             organizer = SlotOrganizer("host", "host", "Host", null),
@@ -303,7 +329,7 @@ class SocialCoordinatorTest {
             capacity = 4,
             acceptedCount = if (viewer == SlotViewerState.ACCEPTED) 1 else 0,
             state = state,
-            accessMode = SlotAccessMode.APPROVAL,
+            accessMode = accessMode,
             visibility = SlotVisibility.PUBLIC,
             viewerState = viewer,
             version = version,

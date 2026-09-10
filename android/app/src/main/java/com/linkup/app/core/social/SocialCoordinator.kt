@@ -6,11 +6,13 @@ import com.linkup.app.core.network.CreateSlotInput
 import com.linkup.app.core.network.EditSlotInput
 import com.linkup.app.core.network.MySlotsView
 import com.linkup.app.core.network.PendingSlotRequest
+import com.linkup.app.core.network.SlotAccessMode
 import com.linkup.app.core.network.SlotModel
 import com.linkup.app.core.network.SlotOrganizer
 import com.linkup.app.core.network.SlotState
 import com.linkup.app.core.network.SlotViewerState
 import com.linkup.app.core.network.SocialApi
+import com.linkup.app.core.network.V11AccessApi
 import java.io.IOException
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -133,6 +135,15 @@ class SocialCoordinator(
     suspend fun editSlot(slotId: String, input: EditSlotInput) = mutateSlot { api.editSlot(slotId, input) }
     suspend fun cancelSlot(slotId: String, expectedVersion: Long) = mutateSlot { api.cancelSlot(slotId, expectedVersion) }
     suspend fun requestSlot(slotId: String) = mutateSlot { api.requestSlot(slotId) }
+
+    suspend fun participate(slot: SlotModel): Boolean = when (slot.accessMode) {
+        SlotAccessMode.INSTANT -> {
+            val accessApi = api as? V11AccessApi ?: return false
+            mutateSlot { accessApi.joinSlot(slot.id) }
+        }
+        SlotAccessMode.APPROVAL, SlotAccessMode.WAITLIST -> requestSlot(slot.id)
+    }
+
     suspend fun leaveSlot(slotId: String) = mutateSlot { api.leaveSlot(slotId) }
 
     suspend fun approveRequest(slotId: String, userId: String) {

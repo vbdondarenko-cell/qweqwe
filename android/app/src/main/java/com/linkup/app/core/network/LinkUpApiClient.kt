@@ -50,7 +50,7 @@ internal fun shouldRetryGet(method: String, error: Exception): Boolean {
 class LinkUpApiClient(
     baseUrl: String,
     private val sessions: SecureSessionStore,
-) : SocialApi, CityNetworkApi, CapabilityApi {
+) : SocialApi, CityNetworkApi, CapabilityApi, V11AccessApi {
     private val root = validatedApiRoot(baseUrl)
 
     @Volatile
@@ -292,6 +292,9 @@ class LinkUpApiClient(
             mutationHeaders(),
         )!!)
     }
+
+    override suspend fun joinSlot(slotId: String): SlotModel =
+        parseSlot(request("POST", "/v1/slots/${uuid(slotId)}/join", null, true, mutationHeaders())!!)
 
     override suspend fun requestSlot(slotId: String): SlotModel =
         parseSlot(request("POST", "/v1/slots/${uuid(slotId)}/request", null, true, mutationHeaders())!!)

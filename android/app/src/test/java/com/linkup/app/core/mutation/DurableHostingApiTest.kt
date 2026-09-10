@@ -47,6 +47,35 @@ class DurableHostingApiTest {
     }
 
     @Test
+    fun `instant join uses dedicated durable endpoint`() = runTest {
+        val outbox = MemoryOutbox()
+        var observed: DurableMutationCommand? = null
+        val api = DurableSocialApi(
+            delegate = UnusedSocial,
+            currentBearerToken = { TOKEN },
+            runner = DurableMutationRunner(outbox) { 2_500L },
+            transport = DurableMutationTransport { command ->
+                observed = command
+                DurableAttemptResult(
+                    disposition = DurableAttemptDisposition.ACKNOWLEDGED,
+                    responseJson = slotJson("FILLING", 2)
+                        .replace("\"APPROVAL\"", "\"INSTANT\"")
+                        .replace("\"HOST\"", "\"ACCEPTED\""),
+                    httpStatus = 200,
+                )
+            },
+        )
+
+        val out = api.joinSlot(SLOT_ID)
+
+        assertEquals("/v1/slots/$SLOT_ID/join", observed?.path)
+        assertEquals("POST", observed?.method)
+        assertEquals(SlotAccessMode.INSTANT, out.accessMode)
+        assertEquals("ACCEPTED", out.viewerState.name)
+        assertTrue(outbox.items.isEmpty())
+    }
+
+    @Test
     fun `publish carries optimistic version through same durable write path`() = runTest {
         val outbox = MemoryOutbox()
         var observed: DurableMutationCommand? = null

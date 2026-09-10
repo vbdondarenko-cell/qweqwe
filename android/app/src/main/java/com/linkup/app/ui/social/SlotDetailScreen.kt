@@ -34,6 +34,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.linkup.app.R
 import com.linkup.app.core.network.PendingSlotRequest
+import com.linkup.app.core.network.SlotAccessMode
 import com.linkup.app.core.network.SlotModel
 import com.linkup.app.core.network.SlotOrganizer
 import com.linkup.app.core.network.SlotState
@@ -133,7 +134,11 @@ fun SlotDetailScreen(
 
                     when (slot.viewerState) {
                         SlotViewerState.NONE -> if (slot.state in setOf(SlotState.PUBLISHED, SlotState.FILLING) && slot.acceptedCount < slot.capacity) {
-                            ActionButton(stringResource(R.string.slot_request_to_join), LinkUpWarning, mutation !is MutationState.Running) { onRequest(slot.id) }
+                            ActionButton(
+                                stringResource(if (slot.accessMode == SlotAccessMode.INSTANT) R.string.slot_join_now else R.string.slot_request_to_join),
+                                LinkUpWarning,
+                                mutation !is MutationState.Running,
+                            ) { onRequest(slot.id) }
                         }
                         SlotViewerState.PENDING -> if (slot.state !in setOf(SlotState.COMPLETED, SlotState.CANCELLED, SlotState.EXPIRED, SlotState.MODERATED, SlotState.ACTIVE)) {
                             ActionButton(stringResource(R.string.slot_cancel_request), LinkUpWarning, mutation !is MutationState.Running) { onLeave(slot.id) }

@@ -116,6 +116,7 @@ func New(deps Dependencies) *Server {
 	mux.Handle("GET /v1/slots/{slotID}/accepted", s.requireAuth(http.HandlerFunc(s.listAccepted)))
 	mux.Handle("GET /v1/me/slots", s.requireAuth(http.HandlerFunc(s.listMySlots)))
 	mux.Handle("GET /v1/pulse", s.requireAuth(http.HandlerFunc(s.listPulse)))
+	mux.Handle("POST /v1/slots/{slotID}/join", s.requireAuth(http.HandlerFunc(s.joinSlot)))
 	mux.Handle("POST /v1/slots/{slotID}/request", s.requireAuth(http.HandlerFunc(s.requestSlot)))
 	mux.Handle("POST /v1/slots/{slotID}/leave", s.requireAuth(http.HandlerFunc(s.leaveSlot)))
 	mux.Handle("GET /v1/slots/{slotID}/requests", s.requireAuth(http.HandlerFunc(s.listPendingRequests)))
@@ -207,13 +208,17 @@ func writeRetryAfter(w http.ResponseWriter, retry time.Duration) {
 }
 
 func remoteIP(remoteAddr string) string {
-	if host, _, err := net.SplitHostPort(strings.TrimSpace(remoteAddr)); err == nil && host != "" { return host }
+	if host, _, err := net.SplitHostPort(strings.TrimSpace(remoteAddr)); err == nil && host != "" {
+		return host
+	}
 	return strings.TrimSpace(remoteAddr)
 }
 
 func bearerToken(v string) (string, bool) {
 	parts := strings.Fields(v)
-	if len(parts) == 2 && strings.EqualFold(parts[0], "Bearer") && parts[1] != "" { return parts[1], true }
+	if len(parts) == 2 && strings.EqualFold(parts[0], "Bearer") && parts[1] != "" {
+		return parts[1], true
+	}
 	return "", false
 }
 
@@ -224,7 +229,10 @@ func authFrom(r *http.Request) (authContext, bool) {
 
 func (s *Server) requestMeta(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		id, err := identifier.NewUUID(); if err != nil { id = "unavailable" }
+		id, err := identifier.NewUUID()
+		if err != nil {
+			id = "unavailable"
+		}
 		w.Header().Set("X-Request-ID", id)
 		ctx := context.WithValue(r.Context(), requestIDKey, id)
 		start := time.Now()
@@ -234,7 +242,11 @@ func (s *Server) requestMeta(next http.Handler) http.Handler {
 	})
 }
 
-type statusWriter struct { http.ResponseWriter; status int }
+type statusWriter struct {
+	http.ResponseWriter
+	status int
+}
+
 func (w *statusWriter) WriteHeader(code int) { w.status = code; w.ResponseWriter.WriteHeader(code) }
 
 func decodeJSON(w http.ResponseWriter, r *http.Request, dst any) error {
@@ -246,7 +258,9 @@ func decodeJSON(w http.ResponseWriter, r *http.Request, dst any) error {
 	}
 	var extra any
 	if err := dec.Decode(&extra); !errors.Is(err, io.EOF) {
-		if err != nil { return err }
+		if err != nil {
+			return err
+		}
 		return errors.New("expected one JSON value")
 	}
 	return nil
@@ -255,7 +269,9 @@ func decodeJSON(w http.ResponseWriter, r *http.Request, dst any) error {
 func writeJSON(w http.ResponseWriter, status int, body any) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(status)
-	if body != nil { _ = json.NewEncoder(w).Encode(body) }
+	if body != nil {
+		_ = json.NewEncoder(w).Encode(body)
+	}
 }
 
 func writeProblem(w http.ResponseWriter, r *http.Request, status int, code, message string) {

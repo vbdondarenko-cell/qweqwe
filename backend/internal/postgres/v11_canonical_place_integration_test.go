@@ -171,8 +171,22 @@ func TestV11CanonicalPlaceSlotAndMapIntegration(t *testing.T) {
 	if editedDraft.AccessMode != slot.AccessInstant || editedDraft.Version != draft.Version+1 {
 		t.Fatalf("draft access mode edit failed: %#v", editedDraft)
 	}
-	if _, err := slotService.PublishDraft(ctx, viewer.User.ID, draft.ID, editedDraft.Version, "v11-hosting-publish-future-mode-0001"); err != slot.ErrInvalidState {
-		t.Fatalf("future access mode published before concurrency semantics: %v", err)
+	publishedInstant, err := slotService.PublishDraft(ctx, viewer.User.ID, draft.ID, editedDraft.Version, "v11-hosting-publish-instant-mode-0001")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if publishedInstant.AccessMode != slot.AccessInstant || publishedInstant.State != slot.StateFilling {
+		t.Fatalf("instant draft did not publish after join semantics became available: %#v", publishedInstant)
+	}
+
+	waitlistOnlyDraft, err := slotService.CreateDraft(ctx, viewer.User.ID, slot.CreateInput{
+		Title: "Waitlist still gated", Activity: "coffee", PlaceText: "Integration Place", Capacity: 3, AccessMode: &waitlistMode,
+	}, "v11-hosting-draft-waitlist-gated-0001")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := slotService.PublishDraft(ctx, viewer.User.ID, waitlistOnlyDraft.ID, waitlistOnlyDraft.Version, "v11-hosting-publish-waitlist-gated-0001"); err != slot.ErrInvalidState {
+		t.Fatalf("waitlist published before queue/promotion semantics: %v", err)
 	}
 
 	start := time.Now().UTC().Add(2 * time.Hour).Truncate(time.Second)
