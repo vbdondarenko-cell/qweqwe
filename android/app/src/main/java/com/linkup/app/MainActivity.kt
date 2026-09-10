@@ -24,20 +24,29 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.repeatOnLifecycle
 import com.linkup.app.core.capability.CapabilityCoordinator
+import com.linkup.app.core.city.CityContextCoordinator
+import com.linkup.app.core.city.CityNetworkCoordinator
+import com.linkup.app.core.location.AndroidLocationObservationSource
 import com.linkup.app.core.hosting.V11HostingCoordinator
 import com.linkup.app.core.mutation.DurableMutationHttpTransport
 import com.linkup.app.core.mutation.DurableMutationRunner
 import com.linkup.app.core.mutation.DurableSocialApi
 import com.linkup.app.core.mutation.SecureMutationOutbox
+import com.linkup.app.core.network.ApiException
 import com.linkup.app.core.network.CapabilityKey
+import com.linkup.app.core.network.CityContextApiClient
+import com.linkup.app.core.network.CityRealtimeApiClient
 import com.linkup.app.core.network.LinkUpApiClient
 import com.linkup.app.core.network.PushApiClient
 import com.linkup.app.core.network.RealtimeApiClient
 import com.linkup.app.core.network.SlotViewerState
 import com.linkup.app.core.network.passwordResetToken
 import com.linkup.app.core.push.PushCoordinator
+import com.linkup.app.core.realtime.CityRealtimeCoordinator
+import com.linkup.app.core.realtime.CityRealtimePull
 import com.linkup.app.core.realtime.RealtimeCoordinator
 import com.linkup.app.core.realtime.RealtimePull
+import com.linkup.app.core.realtime.SharedPreferencesCityRealtimeCursorStore
 import com.linkup.app.core.realtime.SharedPreferencesRealtimeCursorStore
 import com.linkup.app.core.session.SecureOnboardingStore
 import com.linkup.app.core.session.SecureSessionStore
@@ -112,9 +121,18 @@ class MainActivity : ComponentActivity() {
         val hostingCoordinator = V11HostingCoordinator(durableSocialApi)
         val socialCoordinator = SocialCoordinator(durableSocialApi)
         val capabilityCoordinator = CapabilityCoordinator(api)
+        val cityNetworkCoordinator = CityNetworkCoordinator(api)
+        val cityContextCoordinator = CityContextCoordinator(
+            CityContextApiClient(apiBaseUrl, sessionStore),
+            AndroidLocationObservationSource(applicationContext),
+        )
         val realtimeCoordinator = RealtimeCoordinator(
             RealtimeApiClient(apiBaseUrl, sessionStore),
             SharedPreferencesRealtimeCursorStore(applicationContext),
+        )
+        val cityRealtimeCoordinator = CityRealtimeCoordinator(
+            CityRealtimeApiClient(apiBaseUrl, sessionStore),
+            SharedPreferencesCityRealtimeCursorStore(applicationContext),
         )
         val pushCoordinator = PushCoordinator(applicationContext, PushApiClient(apiBaseUrl, sessionStore))
         val pushConfigured = pushCoordinator.configure()
@@ -128,6 +146,25 @@ class MainActivity : ComponentActivity() {
                         capabilityCoordinator.reset()
                     }
                 }
+            }
+        }
+
+        activityScope.launch {
+            lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+                combine(sessionCoordinator.state, capabilityCoordinator.snapshot) { state, capabilities ->
+                    state is SessionState.SignedIn && capabilities.enabled(CapabilityKey.CITY_CONTEXT)
+                }
+                    .distinctUntilChanged()
+                    .collectLatest { enabled ->
+                        if (enabled) {
+                            if (refreshCityContextIfPermitted(cityContextCoordinator, sessionCoordinator)) {
+                                socialCoordinator.refreshPulse()
+                                cityNetworkCoordinator.refreshCurrentMapIfLoaded()
+                            }
+                        } else {
+                            cityContextCoordinator.clear()
+                        }
+                    }
             }
         }
 
@@ -163,6 +200,8 @@ class MainActivity : ComponentActivity() {
                 if (state is SessionState.SignedOut) {
                     mutationOutbox.clearAll()
                     hostingCoordinator.clear()
+                    cityContextCoordinator.clear()
+                    cityNetworkCoordinator.clearAll()
                     capabilityCoordinator.reset()
                 }
             }
@@ -189,6 +228,37 @@ class MainActivity : ComponentActivity() {
             }
         }
 
+        activityScope.launch {
+            lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+                combine(
+                    sessionCoordinator.state,
+                    capabilityCoordinator.snapshot,
+                    cityContextCoordinator.context,
+                ) { state, capabilities, cityContext ->
+                    val userId = (state as? SessionState.SignedIn)?.user?.id
+                    if (
+                        userId != null &&
+                        capabilities.enabled(CapabilityKey.REALTIME) &&
+                        capabilities.enabled(CapabilityKey.CITY_CONTEXT) &&
+                        cityContext is LoadState.Content<*>
+                    ) userId else null
+                }
+                    .distinctUntilChanged()
+                    .collectLatest { userId ->
+                        if (userId != null) {
+                            runCityRealtimeLoop(
+                                userId = userId,
+                                realtime = cityRealtimeCoordinator,
+                                cityContext = cityContextCoordinator,
+                                sessions = sessionCoordinator,
+                                social = socialCoordinator,
+                                city = cityNetworkCoordinator,
+                            )
+                        }
+                    }
+            }
+        }
+
         setContent {
             LinkUpTheme {
                 LinkUpApp(
@@ -198,11 +268,83 @@ class MainActivity : ComponentActivity() {
                     social = socialCoordinator,
                     hosting = hostingCoordinator,
                     capabilities = capabilityCoordinator,
+                    city = cityNetworkCoordinator,
                     resetToken = pendingResetToken,
                     onResetTokenConsumed = { pendingResetToken = null },
                 )
             }
         }
+    }
+
+    private suspend fun refreshCityContextIfPermitted(
+        cityContext: CityContextCoordinator,
+        sessions: SessionCoordinator,
+    ): Boolean {
+        cityContext.loadCurrent()
+        val loaded = cityContext.context.value
+        if (loaded is LoadState.Failure && loaded.error.code == "unauthorized") {
+            sessions.clearLocalSession()
+            return false
+        }
+        if (loaded is LoadState.Content) return true
+        if (loaded != LoadState.Empty || cityContext.permissionClass() == null) return false
+
+        cityContext.resolveFromDevice()
+        val resolved = cityContext.context.value
+        if (resolved is LoadState.Failure && resolved.error.code == "unauthorized") {
+            sessions.clearLocalSession()
+            return false
+        }
+        return resolved is LoadState.Content
+    }
+
+    private suspend fun runCityRealtimeLoop(
+        userId: String,
+        realtime: CityRealtimeCoordinator,
+        cityContext: CityContextCoordinator,
+        sessions: SessionCoordinator,
+        social: SocialCoordinator,
+        city: CityNetworkCoordinator,
+    ) {
+        while (currentCoroutineContext().isActive) {
+            val nextDelay = try {
+                val pull = realtime.pull(userId, CITY_REALTIME_BATCH_SIZE)
+                if (pull.nextCursor <= pull.fromCursor) {
+                    CITY_REALTIME_POLL_MS
+                } else {
+                    val reconciled = !pull.hasChanges || reconcileCityRealtime(pull, social, city)
+                    if (reconciled) realtime.acknowledge(userId, pull.nextCursor)
+                    when {
+                        !reconciled -> CITY_REALTIME_RETRY_MS
+                        pull.invalidations.size >= CITY_REALTIME_BATCH_SIZE -> CITY_REALTIME_DRAIN_MS
+                        else -> CITY_REALTIME_POLL_MS
+                    }
+                }
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: ApiException) {
+                when {
+                    error.status == 401 -> sessions.clearLocalSession()
+                    error.status == 404 && error.code == "city_context_unavailable" ->
+                        refreshCityContextIfPermitted(cityContext, sessions)
+                }
+                CITY_REALTIME_RETRY_MS
+            } catch (_: Exception) {
+                CITY_REALTIME_RETRY_MS
+            }
+            delay(nextDelay)
+        }
+    }
+
+    private suspend fun reconcileCityRealtime(
+        pull: CityRealtimePull,
+        social: SocialCoordinator,
+        city: CityNetworkCoordinator,
+    ): Boolean {
+        if (!pull.hasChanges) return true
+        social.refreshPulse()
+        if (!social.pulse.value.refreshSucceeded()) return false
+        return city.refreshCurrentMapIfLoaded()
     }
 
     private suspend fun runRealtimeLoop(
@@ -249,6 +391,9 @@ class MainActivity : ComponentActivity() {
                 }
             } catch (error: CancellationException) {
                 throw error
+            } catch (error: ApiException) {
+                if (error.status == 401) sessions.clearLocalSession()
+                REALTIME_RETRY_MS
             } catch (_: Exception) {
                 REALTIME_RETRY_MS
             }
@@ -369,6 +514,10 @@ class MainActivity : ComponentActivity() {
 
     private companion object {
         const val REQUEST_NOTIFICATIONS = 1001
+        const val CITY_REALTIME_BATCH_SIZE = 100
+        const val CITY_REALTIME_DRAIN_MS = 250L
+        const val CITY_REALTIME_POLL_MS = 4_000L
+        const val CITY_REALTIME_RETRY_MS = 5_000L
         const val REALTIME_BATCH_SIZE = 100
         const val REALTIME_DRAIN_MS = 250L
         const val REALTIME_POLL_MS = 4_000L

@@ -98,6 +98,7 @@ fun LinkUpApp(
     social: SocialCoordinator,
     hosting: V11HostingCoordinator,
     capabilities: CapabilityCoordinator,
+    city: CityNetworkCoordinator,
     resetToken: String? = null,
     onResetTokenConsumed: () -> Unit,
 ) {
@@ -225,7 +226,7 @@ fun LinkUpApp(
                 },
             )
             is SessionState.SignedIn -> key(state.user.id) {
-                SignedInRoot(state.user, api, sessions, social, hosting, capabilities, lifecycle)
+                SignedInRoot(state.user, api, sessions, social, hosting, capabilities, city, lifecycle)
             }
             is SessionState.OfflineSession -> OfflineSessionSurface(
                 expiresAt = state.expiresAtEpochMillis,
@@ -250,10 +251,10 @@ private fun SignedInRoot(
     social: SocialCoordinator,
     hosting: V11HostingCoordinator,
     capabilities: CapabilityCoordinator,
+    city: CityNetworkCoordinator,
     lifecycle: Lifecycle,
 ) {
     val scope = rememberCoroutineScope()
-    val city = remember(api) { CityNetworkCoordinator(api) }
     val capabilitySnapshot by capabilities.snapshot.collectAsState()
     val mapEnabled = capabilitySnapshot.enabled(CapabilityKey.MAP)
     val pulse by social.pulse.collectAsState()

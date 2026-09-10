@@ -20,6 +20,7 @@ class CityNetworkCoordinator(
     private var placeRequest = 0L
     private var mapRequest = 0L
     private var mapSlotsRequest = 0L
+    private var lastMapQuery: MapViewportQuery? = null
 
     private val mutablePlaces = MutableStateFlow<LoadState<List<CanonicalPlace>>>(LoadState.Idle)
     val places: StateFlow<LoadState<List<CanonicalPlace>>> = mutablePlaces.asStateFlow()
@@ -52,6 +53,7 @@ class CityNetworkCoordinator(
     }
 
     suspend fun refreshMap(query: MapViewportQuery) {
+        lastMapQuery = query
         val request = ++mapRequest
         val previous = mutableMap.value
         mutableMap.value = previous.asRefreshingOrLoading()
@@ -65,6 +67,16 @@ class CityNetworkCoordinator(
             throw error
         } catch (error: Exception) {
             if (request == mapRequest) mutableMap.value = previous.afterRefreshFailure(error)
+        }
+    }
+
+    suspend fun refreshCurrentMapIfLoaded(): Boolean {
+        val query = lastMapQuery ?: return true
+        refreshMap(query)
+        return when (val state = mutableMap.value) {
+            is LoadState.Content -> state.refreshError == null
+            LoadState.Empty -> true
+            else -> false
         }
     }
 
@@ -100,6 +112,7 @@ class CityNetworkCoordinator(
 
     fun clearMap() {
         ++mapRequest
+        lastMapQuery = null
         mutableMap.value = LoadState.Idle
         clearMapSlots()
     }
