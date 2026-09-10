@@ -268,6 +268,7 @@ class MainActivity : ComponentActivity() {
                     social = socialCoordinator,
                     hosting = hostingCoordinator,
                     capabilities = capabilityCoordinator,
+                    cityContext = cityContextCoordinator,
                     city = cityNetworkCoordinator,
                     resetToken = pendingResetToken,
                     onResetTokenConsumed = { pendingResetToken = null },

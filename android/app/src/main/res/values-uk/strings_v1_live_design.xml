@@ -27,6 +27,16 @@
 
     <string name="map_title">Map</string>
     <string name="map_subtitle">Пошук із урахуванням локації</string>
+    <string name="map_city_context_disabled">Контекст міста ще не увімкнено для цієї збірки.</string>
+    <string name="map_city_context_title">Контекст міста</string>
+    <string name="map_city_context_body">Використайте одне спостереження локації пристрою, щоб визначити ваше місто. LinkUp не зберігає сирі GPS-координати: сервер зберігає лише контекст на рівні міста та грубу якість спостереження.</string>
+    <string name="map_city_context_active">Місто: %1$s</string>
+    <string name="map_city_context_switch_pending">Зміна міста підтверджується перед перемиканням контексту LinkUp.</string>
+    <string name="map_city_context_resolving">Визначаємо ваше місто…</string>
+    <string name="map_city_context_unavailable">Контекст міста поки недоступний.</string>
+    <string name="map_city_context_denied">Дозвіл на локацію не надано. Ви можете спробувати ще раз у будь-який момент.</string>
+    <string name="map_city_context_use">Використовувати моє місто</string>
+    <string name="map_city_context_refresh">Оновити місто</string>
     <string name="map_v11_label">MAP · v1.1</string>
     <string name="map_v11_body">Реальна Map потребує канонічних ідентифікаторів місць, серверних viewport-запитів, privacy-safe координат і кластеризації. У v1.0 є лише текст місця/зони, тому ця збірка не вигадує мап-піни чи локації користувачів.</string>
     <string name="map_use_pulse">Для поточного server-backed пошуку використовуйте Pulse.</string>
@@ -51,7 +61,7 @@
     <string name="map_zoom_out">Зменшити</string>
     <string name="map_refresh">Оновити viewport</string>
     <string name="map_center_result_meta">%1$s · ±%2$d м</string>
-    <string name="map_partial_provider_notice">Server-backed Map канонічних місць уже активна. Basemap-провайдер і device city-context ще потрібні для повного gate Map v1.1.</string>
+    <string name="map_partial_provider_notice">Server-backed Map канонічних місць уже активна. City Context керується серверним capability gate і явним дозволом користувача; basemap-провайдер ще потрібен для повного gate Map v1.1.</string>
 
     <string name="fly_title">Fly Now</string>
     <string name="fly_subtitle">Пошук за рухом і близькістю</string>

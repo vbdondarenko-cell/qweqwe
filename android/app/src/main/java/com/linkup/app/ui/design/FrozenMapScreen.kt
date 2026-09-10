@@ -46,6 +46,7 @@ import com.linkup.app.R
 import com.linkup.app.core.city.latitudeFraction
 import com.linkup.app.core.city.longitudeFraction
 import com.linkup.app.core.network.CanonicalPlace
+import com.linkup.app.core.network.CityContextModel
 import com.linkup.app.core.network.MapCluster
 import com.linkup.app.core.network.MapViewportQuery
 import com.linkup.app.core.network.SlotModel
@@ -62,6 +63,11 @@ import com.linkup.app.ui.theme.LinkUpZone
 
 @Composable
 fun FrozenMapScreen(
+    cityContextEnabled: Boolean,
+    cityContext: LoadState<CityContextModel>,
+    cityPermissionGranted: Boolean,
+    cityPermissionDenied: Boolean,
+    onRequestCityContext: () -> Unit,
     placeSearch: LoadState<List<CanonicalPlace>>,
     center: CanonicalPlace?,
     viewport: MapViewportQuery?,
@@ -86,6 +92,16 @@ fun FrozenMapScreen(
     ) {
         item(key = "map-header") {
             MapHeader()
+        }
+        item(key = "map-city-context") {
+            MapCityContextCard(
+                cityContextEnabled = cityContextEnabled,
+                cityContext = cityContext,
+                cityPermissionGranted = cityPermissionGranted,
+                cityPermissionDenied = cityPermissionDenied,
+                onRequestCityContext = onRequestCityContext,
+                modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp),
+            )
         }
         item(key = "map-search") {
             MapCenterSearch(

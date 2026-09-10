@@ -27,6 +27,16 @@
 
     <string name="map_title">Map</string>
     <string name="map_subtitle">Location-aware discovery</string>
+    <string name="map_city_context_disabled">City Context is not enabled for this build yet.</string>
+    <string name="map_city_context_title">City Context</string>
+    <string name="map_city_context_body">Use one device location observation to resolve your city. LinkUp does not store raw GPS; the server keeps only locality-level City Context and coarse observation quality.</string>
+    <string name="map_city_context_active">City: %1$s</string>
+    <string name="map_city_context_switch_pending">A city change is being confirmed before LinkUp switches context.</string>
+    <string name="map_city_context_resolving">Resolving your city…</string>
+    <string name="map_city_context_unavailable">City Context is not available yet.</string>
+    <string name="map_city_context_denied">Location permission was not granted. You can try again whenever you want.</string>
+    <string name="map_city_context_use">Use my city</string>
+    <string name="map_city_context_refresh">Refresh city</string>
     <string name="map_v11_label">MAP · v1.1</string>
     <string name="map_v11_body">A real Map requires canonical place identities, server viewport queries, privacy-safe coordinates and clustering. v1.0 has place/zone text only, so this build does not invent map pins or user locations.</string>
     <string name="map_use_pulse">Use Pulse for the current server-backed discovery flow.</string>
@@ -51,7 +61,7 @@
     <string name="map_zoom_out">Zoom out</string>
     <string name="map_refresh">Refresh viewport</string>
     <string name="map_center_result_meta">%1$s · ±%2$d m</string>
-    <string name="map_partial_provider_notice">Server-backed canonical-place Map is active. A provider basemap and device city-context layer are still pending the full v1.1 Map gate.</string>
+    <string name="map_partial_provider_notice">Server-backed canonical-place Map is active. City Context is server-gated and user-permission driven; a provider basemap is still pending the full v1.1 Map gate.</string>
 
     <string name="fly_title">Fly Now</string>
     <string name="fly_subtitle">Motion and proximity discovery</string>

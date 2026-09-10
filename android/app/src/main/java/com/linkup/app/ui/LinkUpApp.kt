@@ -1,6 +1,9 @@
 package com.linkup.app.ui
 
+import android.Manifest
 import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -37,8 +40,12 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
 import com.linkup.app.R
 import com.linkup.app.core.capability.CapabilityCoordinator
+import com.linkup.app.core.city.CityContextCoordinator
 import com.linkup.app.core.city.CityNetworkCoordinator
 import com.linkup.app.core.hosting.V11HostingCoordinator
+import com.linkup.app.core.location.CityContextPermissionAction
+import com.linkup.app.core.location.cityContextPermissionAction
+import com.linkup.app.core.location.cityLocationPermissionGranted
 import com.linkup.app.core.city.mapViewportAround
 import com.linkup.app.core.network.ApiException
 import com.linkup.app.core.network.BlockedUser
@@ -98,6 +105,7 @@ fun LinkUpApp(
     social: SocialCoordinator,
     hosting: V11HostingCoordinator,
     capabilities: CapabilityCoordinator,
+    cityContext: CityContextCoordinator,
     city: CityNetworkCoordinator,
     resetToken: String? = null,
     onResetTokenConsumed: () -> Unit,
@@ -226,7 +234,7 @@ fun LinkUpApp(
                 },
             )
             is SessionState.SignedIn -> key(state.user.id) {
-                SignedInRoot(state.user, api, sessions, social, hosting, capabilities, city, lifecycle)
+                SignedInRoot(state.user, api, sessions, social, hosting, capabilities, cityContext, city, lifecycle)
             }
             is SessionState.OfflineSession -> OfflineSessionSurface(
                 expiresAt = state.expiresAtEpochMillis,
@@ -251,12 +259,15 @@ private fun SignedInRoot(
     social: SocialCoordinator,
     hosting: V11HostingCoordinator,
     capabilities: CapabilityCoordinator,
+    cityContext: CityContextCoordinator,
     city: CityNetworkCoordinator,
     lifecycle: Lifecycle,
 ) {
     val scope = rememberCoroutineScope()
     val capabilitySnapshot by capabilities.snapshot.collectAsState()
     val mapEnabled = capabilitySnapshot.enabled(CapabilityKey.MAP)
+    val cityContextEnabled = capabilitySnapshot.enabled(CapabilityKey.CITY_CONTEXT)
+    val cityContextState by cityContext.context.collectAsState()
     val pulse by social.pulse.collectAsState()
     val mySlots by social.mySlots.collectAsState()
     val selected by social.selectedSlot.collectAsState()
@@ -297,6 +308,48 @@ private fun SignedInRoot(
     var mapCenter by remember { mutableStateOf<CanonicalPlace?>(null) }
     var mapViewport by remember { mutableStateOf<MapViewportQuery?>(null) }
     var selectedMapCluster by remember { mutableStateOf<MapCluster?>(null) }
+    var cityPermissionDenied by remember(user.id) { mutableStateOf(false) }
+
+    fun resolveCityContextFromDevice() {
+        scope.launch {
+            cityPermissionDenied = false
+            cityContext.resolveFromDevice()
+            when (val state = cityContext.context.value) {
+                is LoadState.Failure -> if (state.error.code == "unauthorized") sessions.clearLocalSession()
+                is LoadState.Content -> {
+                    social.refreshPulse()
+                    city.refreshCurrentMapIfLoaded()
+                }
+                else -> Unit
+            }
+        }
+    }
+
+    val cityPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestMultiplePermissions(),
+    ) { grants ->
+        val granted = cityLocationPermissionGranted(
+            fineGranted = grants[Manifest.permission.ACCESS_FINE_LOCATION] == true,
+            coarseGranted = grants[Manifest.permission.ACCESS_COARSE_LOCATION] == true,
+            observedPermissionClass = cityContext.permissionClass(),
+        )
+        cityPermissionDenied = !granted
+        if (granted) resolveCityContextFromDevice()
+    }
+
+    fun requestCityContext() {
+        cityPermissionDenied = false
+        when (cityContextPermissionAction(cityContextEnabled, cityContext.permissionClass())) {
+            CityContextPermissionAction.UNAVAILABLE -> Unit
+            CityContextPermissionAction.RESOLVE_FROM_DEVICE -> resolveCityContextFromDevice()
+            CityContextPermissionAction.REQUEST_PERMISSION -> cityPermissionLauncher.launch(
+                arrayOf(
+                    Manifest.permission.ACCESS_FINE_LOCATION,
+                    Manifest.permission.ACCESS_COARSE_LOCATION,
+                ),
+            )
+        }
+    }
 
     fun openDesignedSlot(slot: SlotModel) {
         detailOpen = true
@@ -538,6 +591,10 @@ private fun SignedInRoot(
                             )
                             MainTab.MAP -> CapabilityMapScreen(
                                 enabled = mapEnabled,
+                                cityContextEnabled = cityContextEnabled,
+                                cityContext = cityContextState,
+                                cityPermissionGranted = cityContext.permissionClass() != null,
+                                cityPermissionDenied = cityPermissionDenied,
                                 placeSearch = placeSearch,
                                 center = mapCenter,
                                 viewport = mapViewport,
@@ -551,6 +608,7 @@ private fun SignedInRoot(
                                 onZoomOut = { changeMapZoom(-1) },
                                 onClusterClick = ::openMapCluster,
                                 onSlotClick = ::openDesignedSlot,
+                                onRequestCityContext = ::requestCityContext,
                                 onOpenPulse = {
                                     tab = MainTab.PULSE
                                     scope.launch { social.refreshPulse() }
