@@ -4,7 +4,7 @@
 
 Поточний release train: **v1.0 → v1.1**.
 
-Поточна активна версія для розробки: **LinkUp v1.0**.
+Поточна активна версія для розробки: **LinkUp v1.1** (пряма команда користувача від 2026-09-10). Це не означає завершення production gates v1.0.
 
 `PROJECT_RULES.md` має найвищий пріоритет. `README.md` визначає product scope, architecture, version scope, invariants, test/release contract і Definition of Done. `IMPLEMENTATION_STATUS.md` є єдиним фактичним журналом того, **що реально вже зроблено, перевірено або ще не зроблено**.
 
@@ -26,7 +26,7 @@ LinkUp Version 1 складається з двох реальних послі�
 ## 0.1. Release boundary rule
 
 - **v1.0 не блокується вимогами v1.1.**
-- **v1.1 починається тільки поверх стабільного v1.0 foundation.**
+- **v1.1 починається тільки поверх стабільного v1.0 foundation, якщо користувач прямо не змінить порядок згідно PROJECT_RULES RULE 8.** Незакриті gates v1.0 залишаються обов'язковими для production-релізу.
 - Функція, що належить v1.1, може мати ранній foundation у коді, але це не переносить її release requirement назад у v1.0.
 - Не можна оголошувати feature готовою через scaffold, mock, decorative UI або документацію.
 - Якщо capability вже реально реалізована раніше свого release, її не видаляють: вона просто проходить свій повний DoD у відповідному release gate.
@@ -1476,9 +1476,9 @@ README навмисно **не дублює** implementation status.
 
 # 17. CURRENT TARGET
 
-**Active release target: LinkUp v1.0 — Android + Go.**
+**Active development target: LinkUp v1.1 — Android + Go.**
 
-Поточний priority до переходу на v1.1:
+Користувач прямо активував розробку v1.1 2026-09-10. Робота йде в dependency order §15; поточні capability flags не вмикаються автоматично. Обов'язкові regression/release залежності:
 
 1. не змінювати frozen design;
 2. завершити й перевірити v1.0 account/social/chat/lifecycle flow;
@@ -1486,6 +1486,6 @@ README навмисно **не дублює** implementation status.
 4. виконати PostgreSQL migrations/integration/race tests у дозволеному environment;
 5. виконати реальний two-user Android ↔ Go ↔ PostgreSQL smoke;
 6. закрити v1.0 security/privacy/accessibility/localization/recovery/rollback gates;
-7. лише після green v1.0 перейти до v1.1 transactional outbox/realtime/City Context dependency chain.
+7. розвивати v1.1 transactional outbox/realtime/City Context dependency chain; не оголошувати production release до закриття gates обох releases.
 
 **iOS не чіпати до прямої команди користувача.**

@@ -126,7 +126,7 @@
 
 ## RULE 8 — RELEASE TRAIN v1.0 → v1.1; DELIVER BY DEPENDENCY-SAFE BLOCKS
 
-Поточний активний product release: **LinkUp v1.0**.
+Поточний активний development release: **LinkUp v1.1**, за прямою командою користувача «роби v1.1» від 2026-09-10. Незакриті production gates v1.0 залишаються обов'язковим regression/release baseline; активація розробки не означає їх проходження.
 
 Canonical README визначає два послідовні Version 1 releases: **v1.0 → v1.1**.
 

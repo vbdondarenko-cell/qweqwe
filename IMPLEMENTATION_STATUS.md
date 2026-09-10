@@ -730,3 +730,26 @@ Executed evidence for this work block:
 - PostgreSQL integration proves default-off state, allowlist isolation and revision advancement on both enable and disable transitions.
 
 No v1.1 capability is enabled by this foundation. Enabling any individual capability remains a later explicit gate after that feature's own implementation and real verification. FCM/push remains v1.1 §6.8 foundation and is not part of the v1.0 Definition of Done.
+
+
+## 33. 2026-09-10 — v1.1 activation and Android City Context revocation safety
+
+The user's direct “роби v1.1” instruction activates v1.1 development under RULE 8's explicit-order exception. README and PROJECT_RULES now reflect that instruction. This does not close any outstanding v1.0 release gates or enable production capabilities.
+
+Current block starts from main `8372797` (which already contains city realtime and permission UX beyond the historical §32 inventory).
+
+Changed:
+
+- `CityContextCoordinator.kt`: discard cached city on HTTP 401/403, unavailable server City-Lock and revoked local location permission; auth failures now reach the existing session handlers as Failure instead of being hidden inside cached Content.
+- After obtaining GPS, check coroutine cancellation and request generation before sending any observation; clear/sign-out or a newer request prevents the obsolete observation from reaching the resolver.
+- Recheck location permission before submission; a PRECISE observation cannot be submitted after permission is downgraded to APPROXIMATE or removed.
+- Temporary service failures continue to expose cached city with explicit refreshError; canonical city/access authority remains on Go.
+- `CityContextCoordinatorTest.kt`: eight additional regression cases cover cached auth denial, resolver expiry, temporary outage, clear during GPS, a superseding request, permission loss/downgrade, a late server response and local permission failure.
+
+Verification actually obtained:
+
+- `git diff --check` passed; inspected coordinator call sites in MainActivity and LinkUpApp, including session invalidation and city realtime's Content gate.
+- Attempted `./gradlew :app:testDebugUnitTest --tests com.linkup.app.core.city.CityContextCoordinatorTest`; wrapper download failed with `java.net.SocketException: Network is unreachable` for the pinned Gradle distribution. Tests were NOT executed and Android compilation is NOT verified in this environment.
+- No Go/SQL changes, database writes, capability enablement, server deployment, design-reference or iOS modifications in this block.
+
+Remaining: execute the targeted Android tests and full Android regression in a provisioned environment, then verify permission downgrade/sign-out/reconnect on device and two-client city convergence. Continue the README §15 dependency chain against current source, retaining all v1.0 release gates. No defensible numeric production-readiness estimate was obtained from this source-only block; v1.1 is NOT production-complete.
