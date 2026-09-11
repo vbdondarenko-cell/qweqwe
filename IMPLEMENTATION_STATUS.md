@@ -847,3 +847,29 @@ Executed evidence:
 - no DB migration, iOS, production capability, production DB/runtime deployment or frozen design-reference change is part of this block.
 
 Remaining: request-expiry/withdrawal hardening, expiry-during-mutation tests, complete optimistic-version conflict UX and two-client/device WAITLIST verification. Then continue README §6.7 Chat V2.
+
+## 38. 2026-09-11 — verification pass finds and fixes a real Block/WAITLIST regression
+
+This block audited "що є / чого не має" against §§37 and 11 before doing any new feature work, per RULE 5. Toolchains not previously available in-session (Go 1.24→toolchain 1.27.1, PostgreSQL 16 + `postgresql-16-postgis-3`) were available this session, so this block executes real backend gates rather than only reading source. Android SDK/Gradle network access and macOS/Xcode remain unavailable in this environment, so no Android/iOS claim is made or attempted here; no Kotlin/Swift/React/TS/design files were touched.
+
+Found by running the full disposable-PostgreSQL integration suite (previously blocked in most prior sessions by unavailable toolchains):
+
+- **Real production bug** in `internal/postgres/block_store.go`: the WAITLIST seat-promotion query added by the §37 concurrency-safe-waitlist block used `SELECT DISTINCT s.id::text … ORDER BY s.id` — the `ORDER BY` expression did not match the `SELECT DISTINCT` list (`uuid` vs `::text`), so PostgreSQL rejected the statement (`42P10`). Every `Block()` call reaches this query unconditionally, so this broke the core Block/unblock path repository-wide, not only WAITLIST-adjacent flows. Fixed by ordering on `s.id::text` to match the selected expression exactly.
+- **Stale test fixture** in `block_store_test.go`: the hand-rolled `TEMP TABLE slots` fixture predated the `access_mode` column the new query reads, so `TestBlockPairTxRevokesRelationshipsAndAdvancesAffectedVersions` failed with `column s.access_mode does not exist` independently of the production bug above. Fixed by adding `access_mode` to the fixture and giving existing rows a non-WAITLIST value.
+- **Stale test fixture** in `catalog_import_store_integration_test.go`: the locality centroid (`lat 49.44`) fell outside the test's own boundary polygon (`lat 49.0–49.1`), so the `validateLocalityGeometry` `ST_Covers` check added in `fa61832` correctly rejected it and `TestCatalogImportIsIdempotentAndAtomic` failed at the first import with `invalid canonical catalog`. Fixed by moving the centroid inside the polygon.
+- **Stale assertion** in `v11_canonical_place_integration_test.go`: `TestV11CanonicalPlaceSlotAndMapIntegration` still asserted that publishing a WAITLIST draft returns `ErrInvalidState` ("queue/promotion semantics not available yet"). That gate no longer exists at the domain layer now that WAITLIST FIFO promotion is fully implemented (§37); the `waitlist` capability gate lives at the HTTP layer, not `slot.Service`, so calling the service directly now succeeds. Updated the assertion to expect a successful publish into `FILLING`, matching the already-covered WAITLIST FIFO integration tests.
+
+No domain/product behavior was added or removed in this block; RULE 9 preserved. `go.mod`/`go.sum` were confirmed already tidy (`go mod tidy` produced no diff).
+
+Executed evidence, this session, this host:
+
+- `go build ./...`, `go vet ./...` — clean;
+- `go test -count=1 ./...` — all packages pass;
+- `go test -race -count=1 ./...` — all packages pass;
+- fresh disposable PostgreSQL 16 + PostGIS 3.4, all canonical migrations `000001..000024` applied cleanly via `cmd/migrate`;
+- `go test -race -count=1 ./internal/postgres/...` against that disposable database with `LINKUP_TEST_DATABASE_DESTRUCTIVE=1` — every test passes, including the previously-failing four above; the two subtests requiring the production-only `linkup_api` role correctly self-skip on a disposable database (expected, not a defect: that role is provisioned out-of-band on managed Supabase, not by these migrations);
+- disposable database dropped after the run.
+
+Not executed in this block: Android Gradle/SDK build (`ANDROID_HOME` unset, no SDK installed in this environment), Xcode/Swift compilation, live Supabase migration, any deployment. This block does not change Android/iOS/production-readiness claims; it closes a real backend regression discovered only because full PostgreSQL+PostGIS execution was possible this session, and leaves the Go backend regression baseline (v1.0 + v1.1-to-date) demonstrably green end-to-end on this host.
+
+Next: continue README §15/§37 dependency chain — request-expiry/withdrawal hardening and optimistic-version conflict UX for WAITLIST, then §6.7 Chat V2 — only once an environment with Android SDK/Gradle network access is available to keep client-side work honestly verifiable per RULE 2/3.

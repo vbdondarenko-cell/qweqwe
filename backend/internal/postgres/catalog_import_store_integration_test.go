@@ -47,13 +47,13 @@ func TestCatalogImportIsIdempotentAndAtomic(t *testing.T) {
 	doc := catalog.Document{
 		Localities: []catalog.LocalityRecord{{
 			Source: source, SourceLocalityID: localityKey, Name: "Test Locality", CountryCode: "UA", Timezone: "Europe/Kyiv",
-			CentroidLatitudeE6: 49_440_000, CentroidLongitudeE6: 32_060_000,
+			CentroidLatitudeE6: 49_050_000, CentroidLongitudeE6: 32_050_000,
 			BoundaryWKT: "POLYGON((32 49,32.1 49,32.1 49.1,32 49.1,32 49))", Active: &active,
 		}},
 		Places: []catalog.PlaceRecord{{
 			Source: source, SourcePlaceID: placeKey, Name: "Test Place", Category: "park",
 			LocalitySource: source, LocalitySourceID: localityKey, CountryCode: "UA",
-			LatitudeE6: 49_440_000, LongitudeE6: 32_060_000, PrecisionM: 50, Active: &active,
+			LatitudeE6: 49_050_000, LongitudeE6: 32_050_000, PrecisionM: 50, Active: &active,
 		}},
 	}
 	if _, err := store.Import(ctx, doc); err != nil {

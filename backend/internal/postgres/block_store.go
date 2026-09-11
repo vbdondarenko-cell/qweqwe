@@ -54,7 +54,7 @@ func blockPairTx(ctx context.Context, tx pgx.Tx, blockerID, blockedID string, no
 		WHERE s.access_mode='WAITLIST'
 		  AND s.state IN ('PUBLISHED','FILLING','FULL')
 		  AND ((s.host_id=$1 AND m.user_id=$2) OR (s.host_id=$2 AND m.user_id=$1))
-		ORDER BY s.id`, blockerID, blockedID)
+		ORDER BY s.id::text`, blockerID, blockedID)
 	if err != nil {
 		return err
 	}

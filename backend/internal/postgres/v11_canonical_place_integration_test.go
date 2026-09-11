@@ -179,14 +179,22 @@ func TestV11CanonicalPlaceSlotAndMapIntegration(t *testing.T) {
 		t.Fatalf("instant draft did not publish after join semantics became available: %#v", publishedInstant)
 	}
 
+	// WAITLIST FIFO queue/promotion semantics are now implemented (see
+	// v11_waitlist_integration_test.go); domain-level publish succeeds here.
+	// The `waitlist` capability gate is enforced at the HTTP layer, not the
+	// domain service used directly by this test.
 	waitlistOnlyDraft, err := slotService.CreateDraft(ctx, viewer.User.ID, slot.CreateInput{
-		Title: "Waitlist still gated", Activity: "coffee", PlaceText: "Integration Place", Capacity: 3, AccessMode: &waitlistMode,
+		Title: "Waitlist now supported", Activity: "coffee", PlaceText: "Integration Place", Capacity: 3, AccessMode: &waitlistMode,
 	}, "v11-hosting-draft-waitlist-gated-0001")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := slotService.PublishDraft(ctx, viewer.User.ID, waitlistOnlyDraft.ID, waitlistOnlyDraft.Version, "v11-hosting-publish-waitlist-gated-0001"); err != slot.ErrInvalidState {
-		t.Fatalf("waitlist published before queue/promotion semantics: %v", err)
+	publishedWaitlist, err := slotService.PublishDraft(ctx, viewer.User.ID, waitlistOnlyDraft.ID, waitlistOnlyDraft.Version, "v11-hosting-publish-waitlist-gated-0001")
+	if err != nil {
+		t.Fatalf("waitlist draft failed to publish after queue/promotion semantics landed: %v", err)
+	}
+	if publishedWaitlist.AccessMode != slot.AccessWaitlist || publishedWaitlist.State != slot.StateFilling {
+		t.Fatalf("waitlist draft did not publish into FILLING: %#v", publishedWaitlist)
 	}
 
 	start := time.Now().UTC().Add(2 * time.Hour).Truncate(time.Second)

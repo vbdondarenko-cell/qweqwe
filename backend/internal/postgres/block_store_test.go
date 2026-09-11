@@ -31,14 +31,14 @@ func TestBlockPairTxRevokesRelationshipsAndAdvancesAffectedVersions(t *testing.T
 	_, err = tx.Exec(ctx, `
 CREATE TEMP TABLE app_users(id text PRIMARY KEY) ON COMMIT DROP;
 CREATE TEMP TABLE user_blocks(blocker_id text, blocked_id text, created_at timestamptz, PRIMARY KEY(blocker_id,blocked_id)) ON COMMIT DROP;
-CREATE TEMP TABLE slots(id text PRIMARY KEY, host_id text, state text, accepted_count integer, version bigint, updated_at timestamptz) ON COMMIT DROP;
+CREATE TEMP TABLE slots(id text PRIMARY KEY, host_id text, state text, access_mode text, accepted_count integer, version bigint, updated_at timestamptz) ON COMMIT DROP;
 CREATE TEMP TABLE slot_requests(slot_id text, user_id text) ON COMMIT DROP;
 CREATE TEMP TABLE slot_memberships(slot_id text, user_id text) ON COMMIT DROP;
 INSERT INTO pg_temp.app_users(id) VALUES ('host'),('member'),('other');
-INSERT INTO pg_temp.slots(id,host_id,state,accepted_count,version) VALUES
-  ('pending-slot','host','FILLING',0,1),
-  ('accepted-slot','host','FULL',1,7),
-  ('unrelated-slot','other','FILLING',0,3);
+INSERT INTO pg_temp.slots(id,host_id,state,access_mode,accepted_count,version) VALUES
+  ('pending-slot','host','FILLING','APPROVAL',0,1),
+  ('accepted-slot','host','FULL','APPROVAL',1,7),
+  ('unrelated-slot','other','FILLING','APPROVAL',0,3);
 INSERT INTO pg_temp.slot_requests(slot_id,user_id) VALUES ('pending-slot','member');
 INSERT INTO pg_temp.slot_memberships(slot_id,user_id) VALUES ('accepted-slot','member');`)
 	if err != nil {
@@ -115,7 +115,7 @@ func TestBlockPairTxRejectsMissingTarget(t *testing.T) {
 	_, err = tx.Exec(ctx, `
 CREATE TEMP TABLE app_users(id text PRIMARY KEY) ON COMMIT DROP;
 CREATE TEMP TABLE user_blocks(blocker_id text, blocked_id text, created_at timestamptz, PRIMARY KEY(blocker_id,blocked_id)) ON COMMIT DROP;
-CREATE TEMP TABLE slots(id text PRIMARY KEY, host_id text, state text, accepted_count integer, version bigint, updated_at timestamptz) ON COMMIT DROP;
+CREATE TEMP TABLE slots(id text PRIMARY KEY, host_id text, state text, access_mode text, accepted_count integer, version bigint, updated_at timestamptz) ON COMMIT DROP;
 CREATE TEMP TABLE slot_requests(slot_id text, user_id text) ON COMMIT DROP;
 CREATE TEMP TABLE slot_memberships(slot_id text, user_id text) ON COMMIT DROP;
 INSERT INTO pg_temp.app_users(id) VALUES ('host');`)
