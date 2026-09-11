@@ -104,6 +104,79 @@ func TestCreateDraftPreservesConfiguredLinksVisibility(t *testing.T) {
 	}
 }
 
+func TestCreateDraftPreservesSelectedVisibilityAndAllowList(t *testing.T) {
+	store := &hostingStoreStub{}
+	service, err := NewService(store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	visibility := VisibilitySelected
+	selected := []string{"00000000-0000-0000-0000-0000000000aa", "00000000-0000-0000-0000-0000000000bb"}
+	out, err := service.CreateDraft(context.Background(), "host-id", CreateInput{
+		Title: "Coffee later", Activity: "coffee", PlaceText: "Central Cafe", Capacity: 4,
+		Visibility: &visibility, SelectedUserIDs: selected,
+	}, "00000000-0000-0000-0000-000000000007")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out.Visibility != VisibilitySelected || store.created.Visibility != VisibilitySelected {
+		t.Fatalf("draft visibility lost: out=%s stored=%s", out.Visibility, store.created.Visibility)
+	}
+	if len(out.SelectedUserIDs) != 2 || len(store.created.SelectedUserIDs) != 2 {
+		t.Fatalf("draft allow-list lost: out=%v stored=%v", out.SelectedUserIDs, store.created.SelectedUserIDs)
+	}
+}
+
+func TestCreateDraftRejectsSelectedVisibilityWithoutAllowList(t *testing.T) {
+	store := &hostingStoreStub{}
+	service, err := NewService(store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	visibility := VisibilitySelected
+	if _, err := service.CreateDraft(context.Background(), "host-id", CreateInput{
+		Title: "Coffee later", Activity: "coffee", PlaceText: "Central Cafe", Capacity: 4, Visibility: &visibility,
+	}, "00000000-0000-0000-0000-000000000008"); !errors.Is(err, ErrInvalidInput) {
+		t.Fatalf("expected ErrInvalidInput for SELECTED with no allow-list, got %v", err)
+	}
+}
+
+func TestCreateDraftRejectsSelectedVisibilityWithInvalidUserID(t *testing.T) {
+	store := &hostingStoreStub{}
+	service, err := NewService(store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	visibility := VisibilitySelected
+	if _, err := service.CreateDraft(context.Background(), "host-id", CreateInput{
+		Title: "Coffee later", Activity: "coffee", PlaceText: "Central Cafe", Capacity: 4,
+		Visibility: &visibility, SelectedUserIDs: []string{"not-a-uuid"},
+	}, "00000000-0000-0000-0000-000000000009"); !errors.Is(err, ErrInvalidInput) {
+		t.Fatalf("expected ErrInvalidInput for a malformed selected user id, got %v", err)
+	}
+}
+
+func TestCreateDraftIgnoresSelectedUserIDsForOtherVisibilities(t *testing.T) {
+	store := &hostingStoreStub{}
+	service, err := NewService(store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	out, err := service.CreateDraft(context.Background(), "host-id", CreateInput{
+		Title: "Coffee later", Activity: "coffee", PlaceText: "Central Cafe", Capacity: 4,
+		SelectedUserIDs: []string{"00000000-0000-0000-0000-0000000000aa"},
+	}, "00000000-0000-0000-0000-00000000000a")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out.Visibility != VisibilityPublic {
+		t.Fatalf("expected default PUBLIC visibility, got %s", out.Visibility)
+	}
+	if len(out.SelectedUserIDs) != 0 {
+		t.Fatalf("expected SelectedUserIDs to be ignored for PUBLIC visibility, got %v", out.SelectedUserIDs)
+	}
+}
+
 func TestCreateDraftRejectsUnknownVisibility(t *testing.T) {
 	store := &hostingStoreStub{}
 	service, err := NewService(store)

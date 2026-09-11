@@ -456,12 +456,22 @@ WHERE s.id=$1 AND (
 			   OR (b.blocker_id=s.host_id AND b.blocked_id=$2)
 		)
 	)
+	OR (
+		s.visibility='SELECTED'
+		AND s.state IN ('PUBLISHED','FILLING','FULL')
+		AND EXISTS(SELECT 1 FROM slot_selected_viewers v WHERE v.slot_id=s.id AND v.user_id=$2)
+		AND NOT EXISTS(
+			SELECT 1 FROM user_blocks b
+			WHERE (b.blocker_id=$2 AND b.blocked_id=s.host_id)
+			   OR (b.blocker_id=s.host_id AND b.blocked_id=$2)
+		)
+	)
 )`
 
-// listV11PulseSQL's visibility gate is the OR of two branches — s.visibility
-// IN ('PUBLIC','LINKS') would be simpler text but cannot express "and, for
-// LINKS only, require a friendship" without a CASE, so this stays two
-// explicit branches like getV11SlotSQL above it.
+// listV11PulseSQL's visibility gate is the OR of three branches — s.visibility
+// IN ('PUBLIC','LINKS','SELECTED') would be simpler text but cannot express
+// "and, for LINKS/SELECTED, require a friendship/allow-list membership"
+// without a CASE, so this stays explicit branches like getV11SlotSQL above it.
 const listV11PulseSQL = `SELECT ` + v11SlotColumns + `,
 	CASE
 		WHEN s.host_id=$1 THEN 'HOST'
@@ -480,6 +490,10 @@ WHERE (
 			SELECT 1 FROM friendships f
 			WHERE f.user_lo_id=LEAST(s.host_id,$1) AND f.user_hi_id=GREATEST(s.host_id,$1)
 		)
+	)
+	OR (
+		s.visibility='SELECTED'
+		AND EXISTS(SELECT 1 FROM slot_selected_viewers v WHERE v.slot_id=s.id AND v.user_id=$1)
 	)
   )
   AND s.state IN ('PUBLISHED','FILLING','FULL')

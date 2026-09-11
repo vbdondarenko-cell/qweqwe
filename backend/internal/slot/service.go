@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/json"
+	"sort"
 	"strings"
 	"time"
 
@@ -289,7 +290,49 @@ func normalizeCreate(in *CreateInput) error {
 		}
 		in.Visibility = &visibility
 	}
+	if effectiveVisibility(in.Visibility) == VisibilitySelected {
+		ids, err := normalizeSelectedUserIDs(in.SelectedUserIDs)
+		if err != nil {
+			return err
+		}
+		in.SelectedUserIDs = ids
+	} else {
+		// Ignore any accidentally-provided list rather than silently storing
+		// it against a Slot whose visibility never actually reads it.
+		in.SelectedUserIDs = nil
+	}
 	return nil
+}
+
+// normalizeSelectedUserIDs validates the VisibilitySelected allow-list: at
+// least one entry, each a well-formed UUID, deduplicated, capped at
+// MaxPendingRequests (reusing the same limit README gives no specific
+// number for, but which already exists as a reasonable per-Slot people-list
+// ceiling elsewhere in this package).
+func normalizeSelectedUserIDs(raw []string) ([]string, error) {
+	if len(raw) == 0 {
+		return nil, ErrInvalidInput
+	}
+	seen := make(map[string]bool, len(raw))
+	out := make([]string, 0, len(raw))
+	for _, id := range raw {
+		v := strings.ToLower(strings.TrimSpace(id))
+		if !validUUID(v) {
+			return nil, ErrInvalidInput
+		}
+		if seen[v] {
+			continue
+		}
+		seen[v] = true
+		out = append(out, v)
+	}
+	if len(out) > MaxPendingRequests {
+		return nil, ErrInvalidInput
+	}
+	// Sorted so the idempotency fingerprint (hashRequest) is stable
+	// regardless of the order the caller listed the same set of IDs in.
+	sort.Strings(out)
+	return out, nil
 }
 
 func normalizeEdit(in *EditInput) error {
@@ -353,6 +396,14 @@ func normalizeEdit(in *EditInput) error {
 		if !validVisibility(visibility) {
 			return ErrInvalidInput
 		}
+		// EditInput has no field to update the SELECTED allow-list, so
+		// accepting it here would let a host switch a Slot to SELECTED with
+		// no way to say who is actually selected — silently undiscoverable
+		// rather than a clear error. Deferred, not unimplemented; see
+		// EditInput.Visibility's doc comment.
+		if visibility == VisibilitySelected {
+			return ErrInvalidInput
+		}
 		in.Visibility = &visibility
 	}
 	return nil
@@ -377,13 +428,14 @@ func effectiveVisibility(visibility *Visibility) Visibility {
 }
 
 // validVisibility is the closed set this API actually accepts today:
-// PUBLIC (v1.0 mandatory), PRIVATE, and LINKS (the first two of README
-// §4.3's additional v1.1 modes — see VisibilityPrivate's and
-// VisibilityLinks's doc comments). The other four
-// (SELECTED/CITY/LASSO/TRAVEL_CORRIDOR) are rejected as invalid input
-// rather than silently accepted and ignored.
+// PUBLIC (v1.0 mandatory), PRIVATE, LINKS, and SELECTED (the first three of
+// README §4.3's additional v1.1 modes — see VisibilityPrivate's,
+// VisibilityLinks's and VisibilitySelected's doc comments). The other three
+// (CITY/LASSO/TRAVEL_CORRIDOR) are rejected as invalid input rather than
+// silently accepted and ignored.
 func validVisibility(visibility Visibility) bool {
-	return visibility == VisibilityPublic || visibility == VisibilityPrivate || visibility == VisibilityLinks
+	return visibility == VisibilityPublic || visibility == VisibilityPrivate ||
+		visibility == VisibilityLinks || visibility == VisibilitySelected
 }
 
 func validUUID(value string) bool {

@@ -19,6 +19,10 @@ type createSlotRequest struct {
 	Capacity         int              `json:"capacity"`
 	AccessMode       *slot.AccessMode `json:"accessMode"`
 	Visibility       *slot.Visibility `json:"visibility"`
+	// SelectedUserIDs is required when Visibility is "SELECTED"; ignored
+	// otherwise. Only the v1.1 draft endpoint (createDraftSlot) actually
+	// accepts a non-PUBLIC Visibility — see slot.Service.Create's guard.
+	SelectedUserIDs []string `json:"selectedUserIds"`
 }
 
 type editSlotRequest struct {
@@ -70,6 +74,7 @@ func (s *Server) createSlot(w http.ResponseWriter, r *http.Request) {
 		Capacity:         in.Capacity,
 		AccessMode:       in.AccessMode,
 		Visibility:       in.Visibility,
+		SelectedUserIDs:  in.SelectedUserIDs,
 	}, r.Header.Get("Idempotency-Key"))
 	if err != nil {
 		s.writeSlotError(w, r, err)

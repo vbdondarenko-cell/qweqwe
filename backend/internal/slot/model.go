@@ -37,9 +37,11 @@ const (
 	// accepted member, or a live pending request) or who knows the Slot ID
 	// and calls Request/Join directly — Request/Join never check
 	// visibility, matching an "invite by sharing the ID" model. The other
-	// six modes README §4.3 lists (LINKS/SELECTED/CITY/LASSO/
-	// TRAVEL_CORRIDOR) remain unimplemented; see internal/slot's own
-	// validation for the closed set this API actually accepts.
+	// five modes README §4.3 lists (LINKS/SELECTED/CITY/LASSO/
+	// TRAVEL_CORRIDOR) — LINKS and SELECTED are now also implemented, see
+	// their own constants below; CITY/LASSO/TRAVEL_CORRIDOR remain
+	// unimplemented; see internal/slot's own validation for the closed set
+	// this API actually accepts.
 	VisibilityPrivate Visibility = "PRIVATE"
 	// VisibilityLinks is README §4.3's "Friends/Links" mode: discoverable
 	// only to the host's accepted friends (internal/friend.Store.AreFriends),
@@ -50,6 +52,16 @@ const (
 	// since the Slot domain has no dependency on internal/friend and this
 	// block does not introduce one; see internal/postgres/v11_slot_store.go.
 	VisibilityLinks Visibility = "LINKS"
+	// VisibilitySelected is README §4.3's "Selected people" mode: the host
+	// picks a specific, explicit allow-list of individual users at creation
+	// time (CreateInput.SelectedUserIDs), distinct from LINKS's "anyone who
+	// is a real mutual friend" rule. Same discoverability-gate contract as
+	// every other mode: Request/Join never check it, so a stranger handed
+	// the Slot ID directly can still reach it regardless of the allow-list.
+	// The allow-list itself lives in postgres (slot_selected_viewers,
+	// migration 000032); editing it after creation is deliberately not
+	// supported yet — see EditInput.Visibility's doc comment.
+	VisibilitySelected Visibility = "SELECTED"
 
 	ViewerNone     ViewerState = "NONE"
 	ViewerPending  ViewerState = "PENDING"
@@ -82,24 +94,29 @@ type Organizer struct {
 }
 
 type Slot struct {
-	ID               string      `json:"id"`
-	Organizer        Organizer   `json:"organizer"`
-	Title            string      `json:"title"`
-	Activity         string      `json:"activity"`
-	Details          *string     `json:"details,omitempty"`
-	PlaceText        string      `json:"placeText"`
-	ZoneText         *string     `json:"zoneText,omitempty"`
-	CanonicalPlaceID *string     `json:"canonicalPlaceId,omitempty"`
-	StartAt          *time.Time  `json:"startAt,omitempty"`
-	Capacity         int         `json:"capacity"`
-	AcceptedCount    int         `json:"acceptedCount"`
-	State            State       `json:"state"`
-	AccessMode       AccessMode  `json:"accessMode"`
-	Visibility       Visibility  `json:"visibility"`
-	ViewerState      ViewerState `json:"viewerState"`
-	Version          int64       `json:"version"`
-	CreatedAt        time.Time   `json:"createdAt"`
-	UpdatedAt        time.Time   `json:"updatedAt"`
+	ID               string     `json:"id"`
+	Organizer        Organizer  `json:"organizer"`
+	Title            string     `json:"title"`
+	Activity         string     `json:"activity"`
+	Details          *string    `json:"details,omitempty"`
+	PlaceText        string     `json:"placeText"`
+	ZoneText         *string    `json:"zoneText,omitempty"`
+	CanonicalPlaceID *string    `json:"canonicalPlaceId,omitempty"`
+	StartAt          *time.Time `json:"startAt,omitempty"`
+	Capacity         int        `json:"capacity"`
+	AcceptedCount    int        `json:"acceptedCount"`
+	State            State      `json:"state"`
+	AccessMode       AccessMode `json:"accessMode"`
+	Visibility       Visibility `json:"visibility"`
+	// SelectedUserIDs is populated only immediately after a VisibilitySelected
+	// Slot is created (CreateDraft echoes back what it just validated and
+	// stored) — Get/ListPulse/ListMine do not yet re-populate it on every
+	// read (an explicitly deferred gap, not silently incomplete).
+	SelectedUserIDs []string    `json:"selectedUserIds,omitempty"`
+	ViewerState     ViewerState `json:"viewerState"`
+	Version         int64       `json:"version"`
+	CreatedAt       time.Time   `json:"createdAt"`
+	UpdatedAt       time.Time   `json:"updatedAt"`
 }
 
 type PendingRequest struct {
@@ -137,6 +154,10 @@ type CreateInput struct {
 	// later via EditInput.Visibility, but (again matching AccessMode) only
 	// while the Slot is still DRAFT — see EditInput.Visibility's comment.
 	Visibility *Visibility
+	// SelectedUserIDs is required (non-empty) when Visibility is
+	// VisibilitySelected, ignored otherwise. Each entry must be a valid
+	// UUID; duplicates are silently deduplicated by normalizeCreate.
+	SelectedUserIDs []string
 }
 
 type EditInput struct {
@@ -157,6 +178,10 @@ type EditInput struct {
 	// silently move already-visible strangers into an "invite only by
 	// shared ID" state) than this block takes on; a host who needs to
 	// change visibility after publishing must cancel and recreate.
+	// VisibilitySelected is additionally rejected here at any state
+	// (normalizeEdit) — EditInput has no field to update the allow-list, so
+	// letting an Edit switch a Slot to SELECTED with no way to populate who
+	// is actually selected would silently create an undiscoverable Slot.
 	Visibility *Visibility
 }
 

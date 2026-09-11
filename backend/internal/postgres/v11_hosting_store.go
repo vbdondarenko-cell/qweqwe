@@ -37,6 +37,9 @@ func (s *V11SlotStore) CreateDraft(
 		if err != nil {
 			return slot.Slot{}, err
 		}
+		if err := attachSelectedUserIDsTx(ctx, tx, &out); err != nil {
+			return slot.Slot{}, err
+		}
 		if err := tx.Commit(ctx); err != nil {
 			return slot.Slot{}, err
 		}
@@ -58,14 +61,60 @@ func (s *V11SlotStore) CreateDraft(
 	if err != nil {
 		return slot.Slot{}, err
 	}
+	if len(candidate.SelectedUserIDs) > 0 {
+		rows := make([][]any, len(candidate.SelectedUserIDs))
+		for i, userID := range candidate.SelectedUserIDs {
+			rows[i] = []any{candidate.ID, userID}
+		}
+		if _, err := tx.CopyFrom(ctx,
+			pgx.Identifier{"slot_selected_viewers"},
+			[]string{"slot_id", "user_id"},
+			pgx.CopyFromRows(rows),
+		); err != nil {
+			return slot.Slot{}, err
+		}
+	}
 	out, err := getV11SlotInternalTx(ctx, tx, candidate.ID, actorID)
 	if err != nil {
+		return slot.Slot{}, err
+	}
+	if err := attachSelectedUserIDsTx(ctx, tx, &out); err != nil {
 		return slot.Slot{}, err
 	}
 	if err := tx.Commit(ctx); err != nil {
 		return slot.Slot{}, err
 	}
 	return out, nil
+}
+
+// attachSelectedUserIDsTx populates out.SelectedUserIDs from the persisted
+// slot_selected_viewers table (never from a possibly-stale in-memory
+// candidate) whenever out is a VisibilitySelected Slot; a no-op for every
+// other visibility, matching Slot.SelectedUserIDs's own doc comment that
+// this is currently only echoed back right after creation, not on every
+// discovery read.
+func attachSelectedUserIDsTx(ctx context.Context, tx pgx.Tx, out *slot.Slot) error {
+	if out.Visibility != slot.VisibilitySelected {
+		return nil
+	}
+	rows, err := tx.Query(ctx, `SELECT user_id::text FROM slot_selected_viewers WHERE slot_id=$1 ORDER BY user_id`, out.ID)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	ids := make([]string, 0)
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return err
+		}
+		ids = append(ids, id)
+	}
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	out.SelectedUserIDs = ids
+	return nil
 }
 
 func (s *V11SlotStore) PublishDraft(

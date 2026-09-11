@@ -395,9 +395,23 @@ func TestEditPassesVisibilityThroughToStore(t *testing.T) {
 func TestEditRejectsUnknownVisibility(t *testing.T) {
 	store := &memoryStore{created: Slot{ID: "slot-id", Organizer: Organizer{ID: "host-id"}, Version: 3, Capacity: 6}}
 	svc, _ := NewService(store)
-	bogus := Visibility("SELECTED")
+	bogus := Visibility("CITY")
 	if _, err := svc.Edit(context.Background(), "host-id", "slot-id", EditInput{ExpectedVersion: 3, Visibility: &bogus}, "edit-slot-visibility-02"); !errors.Is(err, ErrInvalidInput) {
 		t.Fatalf("expected ErrInvalidInput for an unimplemented visibility mode, got %v", err)
+	}
+}
+
+// TestEditRejectsSelectedVisibility is distinct from
+// TestEditRejectsUnknownVisibility: SELECTED is a real, implemented mode
+// (validVisibility accepts it), but EditInput has no field to update its
+// allow-list, so normalizeEdit explicitly rejects it as an edit target —
+// see EditInput.Visibility's doc comment.
+func TestEditRejectsSelectedVisibility(t *testing.T) {
+	store := &memoryStore{created: Slot{ID: "slot-id", Organizer: Organizer{ID: "host-id"}, Version: 3, Capacity: 6}}
+	svc, _ := NewService(store)
+	selected := VisibilitySelected
+	if _, err := svc.Edit(context.Background(), "host-id", "slot-id", EditInput{ExpectedVersion: 3, Visibility: &selected}, "edit-slot-visibility-03"); !errors.Is(err, ErrInvalidInput) {
+		t.Fatalf("expected ErrInvalidInput editing visibility to SELECTED, got %v", err)
 	}
 }
 
