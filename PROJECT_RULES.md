@@ -78,6 +78,15 @@
 - Не будувати WebView-first, web-first або desktop-first production product замість Android застосунку. Існуючий React/TypeScript design layer може залишатися design reference, але новий production functionality не реалізується там як окрема authority.
 - **Не використовувати Render.com ні для backend hosting, ні для deployment, ні як приховане припущення в документації чи коді.**
 
+### RULE 4.1 — 2026-09-11: iOS повторно заморожений прямою командою користувача
+
+Пряма команда користувача від 2026-09-11 повторно **заморожує iOS**, незалежно від активації 2026-09-08, зафіксованої в `IMPLEMENTATION_STATUS.md` §29–§31. Ці секції залишаються історичним audit trail і **не є поточним дозволом працювати над iOS**.
+
+- Починаючи з 2026-09-11, до нової прямої команди користувача: жодних змін Swift/SwiftUI/Xcode/iOS resources/signing/iOS tests/iOS build, включно з build-fix, compile-fix, XcodeGen, тестами чи parity-роботою над уже існуючим iOS кодом із §29–§31.
+- Існуючий iOS код (`ios/`) **не видаляється і не модифікується** — RULE 9 (preserve existing scope) застосовується: код залишається в репозиторії as-is до наступного прямого розблокування.
+- Уся активна робота — тільки **Android (Kotlin/Compose) + Go backend**, як і до 2026-09-08.
+- Наступне пряме розблокування iOS користувачем скасовує цей запис так само, як 2026-09-08 скасувало базовий freeze.
+
 ## RULE 5 — README MUST BE RE-READ BEFORE EVERY MAJOR WORK BLOCK
 
 `README.md` є головним product/engineering contract LinkUp після цих NON-NEGOTIABLE PROJECT RULES.

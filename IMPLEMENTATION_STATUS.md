@@ -873,3 +873,7 @@ Executed evidence, this session, this host:
 Not executed in this block: Android Gradle/SDK build (`ANDROID_HOME` unset, no SDK installed in this environment), Xcode/Swift compilation, live Supabase migration, any deployment. This block does not change Android/iOS/production-readiness claims; it closes a real backend regression discovered only because full PostgreSQL+PostGIS execution was possible this session, and leaves the Go backend regression baseline (v1.0 + v1.1-to-date) demonstrably green end-to-end on this host.
 
 Next: continue README §15/§37 dependency chain — request-expiry/withdrawal hardening and optimistic-version conflict UX for WAITLIST, then §6.7 Chat V2 — only once an environment with Android SDK/Gradle network access is available to keep client-side work honestly verifiable per RULE 2/3.
+
+## 39. 2026-09-11 — iOS re-frozen by direct user command
+
+The user's direct instruction this session ("на айфон ми поки нічого не пишемо, пишемо тільки на андроїд") re-freezes iOS, overriding the 2026-09-08 activation recorded in §§29–31. Recorded as `PROJECT_RULES.md` RULE 4.1. No iOS files were read, changed, built or deleted in this or the preceding block; `ios/` is preserved as-is per RULE 9. All continuing work in this and future blocks, until the user unlocks iOS again, targets Android (Kotlin/Compose) and Go backend only.
