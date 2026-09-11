@@ -1358,3 +1358,31 @@ Executed evidence (backend only — see above for why Android has none):
 Not done or claimed in this block: `LINKS` on Map/realtime/city-realtime/idempotency-replay (stated above as a real, known gap, not swept under "future work" vaguely); Android Friends UI (no screen exists to extend); Android build/compile/run verification of any kind (no SDK); production deployment or verification.
 
 Next: extend `LINKS` visibility to Map/realtime (the concrete gap this block leaves open), or `EVENT_RECOMMENDATION`, or README §6.9's "after-check flow" given a real specification. Go-backend-first until Android SDK/Gradle network access is available in this environment.
+
+## 57. 2026-09-11 — closes §56's own explicitly stated gap: `LINKS` visibility now covers Map, realtime viewer, city realtime channel, and idempotency-replay
+
+**Every surface §56 named as an open, known gap is closed in this block, not partially.** All four: `citymap_store.go` (`Viewport` + `PlaceSlots`), `realtime_viewer_store.go` (`viewerRealtimeSQL`), `realtime_city_store.go` (`cityRealtimeSQL`), and `idempotency_replay.go` (`slot.leave`'s PUBLIC-visibility fallback branch) now gain the identical `LINKS` sibling branch `v11_slot_store.go` got in §56: `s.visibility='LINKS' AND s.state IN ('PUBLISHED','FILLING','FULL') AND EXISTS(friendships row, LEAST/GREATEST-canonicalized) AND NOT EXISTS(blocked)`.
+
+- `citymap_store.go`: `Viewport`'s `visible_places` CTE and `PlaceSlots`'s `WHERE` clause each gain the branch, both keyed on the query's own `viewerID` parameter.
+- `realtime_viewer_store.go`: `viewerRealtimeSQL`'s lifecycle-event branch (`slot.created`/`slot.updated`/`slot.state_changed`) gains a sibling `OR` branch alongside its existing `PUBLIC` one.
+- `realtime_city_store.go`: `cityRealtimeSQL` operates on the outbox event's JSON *payload* (`e.payload->>'visibility'`), not the live `slots` row, since it is a per-viewer coarse "something changed here, go re-fetch" signal, not a full Slot read — but it still joins the live `slots` row (`s.host_id`) for the friendship `EXISTS` check, and the existing `NOT EXISTS(user_blocks)` at the outer level already applies to the new branch too without needing to be duplicated (confirmed by reading the surrounding `AND`/`OR` structure and SQL operator precedence carefully before editing, not assumed).
+- `idempotency_replay.go`: the `slot.leave` case's fallback ("no current relationship, but the Slot is still generally visible, so a replay may still read it back") gains the same `LINKS` branch. This is the one path that is a real, live risk if skipped: a `LEAVE` idempotency replay for a `LINKS` Slot from a real friend would otherwise incorrectly `ErrForbidden` instead of returning the current state.
+
+**A real bug in this block's own first draft, caught and fixed, not glossed over:** the very first version of the new `idempotency_replay_test.go` case (`TestIdempotencyReplayAuthorizationSQL`, the *existing* test, not the new one) started failing with `ERROR: operator does not exist: uuid = text` the moment the new `LINKS`-branch SQL was added to `idempotency_replay.go`. Root cause: that test's temp-table fixture never declared a `pg_temp.friendships` table, so the new query's unqualified `FROM friendships` resolved to the *real*, already-migrated `public.friendships` (`uuid` columns) from earlier tests run against the same disposable database in this session, colliding with the temp fixture's `text`-typed `slots.host_id`. Not a production bug (real `slots.host_id` and real `friendships` columns are both genuinely `uuid`) — a test-fixture gap, exposed by the new code, fixed by adding `CREATE TEMP TABLE friendships(...) ON COMMIT DROP` to that test's setup so it shadows the real table exactly like its sibling `slots`/`slot_requests`/etc. declarations already do.
+
+New tests, all end-to-end against real PostgreSQL:
+
+- `internal/postgres/v11_links_visibility_integration_test.go`: `TestV11LinksVisibilityMap` (Viewport cluster counts and PlaceSlots both exclude a LINKS Slot from a non-friend and include it — via a real `internal/friend.Service` friendship, not a shortcut — for a friend) and `TestV11LinksVisibilityRealtimeViewer` (a stranger's `PullViewer` never surfaces a LINKS Slot's `slot.created`; a real friend's does).
+- `internal/postgres/idempotency_replay_test.go`: `TestIdempotencyReplayAuthorizationSQLLinksVisibility` — a stranger is denied `slot.leave` replay on a LINKS Slot even though PUBLIC would have allowed it (LINKS is not a weaker PUBLIC, it requires a real friendship row); a real friendship allows it; a block between the two still wins; leaving the `PUBLISHED/FILLING/FULL` state range removes the fallback entirely, same as the pre-existing PUBLIC case.
+
+Executed evidence, this session:
+
+- `go build ./...`, `go vet ./...` — clean; `gofmt -l` on every new/touched file — clean;
+- fresh disposable PostgreSQL 16 + PostGIS, migrations `000001..000031` applied cleanly (no new migration — this block only changed application-layer SQL, no schema);
+- the full `go test -count=1 ./...` suite run three consecutive times against the same, non-recreated, accumulating disposable database (with the `linkup_api` role present) — all three green;
+- `go test -race -count=1 ./...` against a freshly rebuilt disposable database — green;
+- `go mod tidy` — no diff.
+
+Not done or claimed in this block: `LINKS` visibility (README §4.3) is now fully wired across every discovery/replay surface this codebase has, but the remaining four modes (`SELECTED`/`CITY`/`LASSO`/`TRAVEL_CORRIDOR`) remain entirely unimplemented; no Android work this block (no new client-visible contract — Map/realtime/replay are all server-internal correctness, nothing a client calls differently); Android UI/real build (no SDK in this environment); no production deployment or verification of any kind.
+
+Next: `EVENT_RECOMMENDATION` (still needs a real recommendation-candidate design), or README §6.9's "after-check flow" given a real specification, or one of the remaining four README §4.3 visibility modes if the user wants to prioritize that over other backlog. Go-backend-first until Android SDK/Gradle network access is available in this environment.

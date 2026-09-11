@@ -44,7 +44,16 @@ func (s *CityMapStore) Viewport(ctx context.Context, viewerID, localityID string
 			JOIN slots s ON s.canonical_place_id=p.id
 			WHERE p.active
 			  AND p.locality_id=$10::uuid
-			  AND s.visibility='PUBLIC'
+			  AND (
+				s.visibility='PUBLIC'
+				OR (
+					s.visibility='LINKS'
+					AND EXISTS(
+						SELECT 1 FROM friendships f
+						WHERE f.user_lo_id=LEAST(s.host_id,$6::uuid) AND f.user_hi_id=GREATEST(s.host_id,$6::uuid)
+					)
+				)
+			  )
 			  AND s.state IN ('PUBLISHED','FILLING','FULL')
 			  AND s.start_at IS NOT NULL
 			  AND s.start_at >= $7::timestamptz AND s.start_at < $8::timestamptz
@@ -125,7 +134,16 @@ func (s *CityMapStore) PlaceSlots(ctx context.Context, viewerID, localityID stri
 	WHERE p.id=$2::uuid
 	  AND p.active
 	  AND p.locality_id=$6::uuid
-	  AND s.visibility='PUBLIC'
+	  AND (
+		s.visibility='PUBLIC'
+		OR (
+			s.visibility='LINKS'
+			AND EXISTS(
+				SELECT 1 FROM friendships f
+				WHERE f.user_lo_id=LEAST(s.host_id,$1::uuid) AND f.user_hi_id=GREATEST(s.host_id,$1::uuid)
+			)
+		)
+	  )
 	  AND s.state IN ('PUBLISHED','FILLING','FULL')
 	  AND s.start_at IS NOT NULL
 	  AND s.start_at >= $3::timestamptz AND s.start_at < $4::timestamptz

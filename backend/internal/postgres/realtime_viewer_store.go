@@ -132,6 +132,19 @@ const viewerRealtimeSQL = `
 						   OR (b.blocker_id=s.host_id AND b.blocked_id=$1::uuid)
 					)
 				)
+				OR (
+					s.visibility='LINKS'
+					AND s.state IN ('PUBLISHED','FILLING','FULL')
+					AND EXISTS (
+						SELECT 1 FROM friendships f
+						WHERE f.user_lo_id=LEAST(s.host_id,$1::uuid) AND f.user_hi_id=GREATEST(s.host_id,$1::uuid)
+					)
+					AND NOT EXISTS (
+						SELECT 1 FROM user_blocks b
+						WHERE (b.blocker_id=$1::uuid AND b.blocked_id=s.host_id)
+						   OR (b.blocker_id=s.host_id AND b.blocked_id=$1::uuid)
+					)
+				)
 			)
 		)
 		OR (

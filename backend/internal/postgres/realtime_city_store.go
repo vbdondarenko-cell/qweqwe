@@ -103,6 +103,16 @@ const cityRealtimeSQL = `
 			AND (
 				(e.payload->>'visibility'='PUBLIC' AND e.payload->>'state' IN ('PUBLISHED','FILLING','FULL'))
 				OR (e.payload->>'previousVisibility'='PUBLIC' AND e.payload->>'previousState' IN ('PUBLISHED','FILLING','FULL'))
+				OR (
+					(
+						(e.payload->>'visibility'='LINKS' AND e.payload->>'state' IN ('PUBLISHED','FILLING','FULL'))
+						OR (e.payload->>'previousVisibility'='LINKS' AND e.payload->>'previousState' IN ('PUBLISHED','FILLING','FULL'))
+					)
+					AND EXISTS (
+						SELECT 1 FROM friendships f
+						WHERE f.user_lo_id=LEAST(s.host_id,$1::uuid) AND f.user_hi_id=GREATEST(s.host_id,$1::uuid)
+					)
+				)
 			)
 			AND NOT EXISTS (
 				SELECT 1 FROM user_blocks b
