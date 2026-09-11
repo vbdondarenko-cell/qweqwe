@@ -254,3 +254,60 @@ func TestV11PrivateVisibilityRejectedForLegacyCreate(t *testing.T) {
 		t.Fatalf("expected ErrInvalidState rejecting PRIVATE on the v1.0 create endpoint, got %v", err)
 	}
 }
+
+// TestV11EditVisibilityAllowedOnlyWhileDraft closes the Edit-time gap §52
+// deliberately left open: a host can now flip a draft between PUBLIC and
+// PRIVATE before publishing, but once a Slot is PUBLISHED/FILLING/FULL,
+// changing who can discover it is a bigger decision than a plain Edit
+// should silently make (it could yank visibility out from under strangers
+// who already found it, or reveal a Slot from under a shared-ID-only
+// arrangement) — so V11SlotStore.Edit rejects a Visibility patch there,
+// exactly mirroring the existing AccessMode-after-DRAFT restriction.
+func TestV11EditVisibilityAllowedOnlyWhileDraft(t *testing.T) {
+	ctx, _, service, host, _ := newV11WaitlistFixture(t)
+
+	draft, err := service.CreateDraft(ctx, host.User.ID, slot.CreateInput{
+		Title: "Edit Visibility Draft", Activity: "coffee", PlaceText: "Center", Capacity: 3,
+	}, "v11-edit-visibility-draft-0001")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if draft.Visibility != slot.VisibilityPublic {
+		t.Fatalf("expected default PUBLIC draft: %#v", draft)
+	}
+
+	private := slot.VisibilityPrivate
+	edited, err := service.Edit(ctx, host.User.ID, draft.ID, slot.EditInput{
+		ExpectedVersion: draft.Version, Visibility: &private,
+	}, "v11-edit-visibility-draft-edit-0001")
+	if err != nil {
+		t.Fatalf("expected DRAFT to allow a visibility edit: %v", err)
+	}
+	if edited.Visibility != slot.VisibilityPrivate {
+		t.Fatalf("expected edited draft to be PRIVATE: %#v", edited)
+	}
+
+	published, err := service.PublishDraft(ctx, host.User.ID, edited.ID, edited.Version, "v11-edit-visibility-publish-0001")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if published.Visibility != slot.VisibilityPrivate {
+		t.Fatalf("expected published slot to keep the edited PRIVATE visibility: %#v", published)
+	}
+
+	public := slot.VisibilityPublic
+	if _, err := service.Edit(ctx, host.User.ID, published.ID, slot.EditInput{
+		ExpectedVersion: published.Version, Visibility: &public,
+	}, "v11-edit-visibility-published-edit-0001"); !errors.Is(err, slot.ErrInvalidState) {
+		t.Fatalf("expected ErrInvalidState editing visibility after publish, got %v", err)
+	}
+
+	// The rejected edit must not have silently applied anyway.
+	unchanged, err := service.Get(ctx, host.User.ID, published.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if unchanged.Visibility != slot.VisibilityPrivate {
+		t.Fatalf("visibility must remain unchanged after a rejected post-publish edit: %#v", unchanged)
+	}
+}

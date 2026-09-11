@@ -293,7 +293,7 @@ func normalizeCreate(in *CreateInput) error {
 }
 
 func normalizeEdit(in *EditInput) error {
-	if in.Title == nil && in.Details == nil && in.PlaceText == nil && in.ZoneText == nil && in.CanonicalPlaceID == nil && !in.ClearCanonicalPlaceID && in.StartAt == nil && !in.ClearStartAt && in.Capacity == nil && in.AccessMode == nil {
+	if in.Title == nil && in.Details == nil && in.PlaceText == nil && in.ZoneText == nil && in.CanonicalPlaceID == nil && !in.ClearCanonicalPlaceID && in.StartAt == nil && !in.ClearStartAt && in.Capacity == nil && in.AccessMode == nil && in.Visibility == nil {
 		return ErrInvalidInput
 	}
 	if (in.StartAt != nil && in.ClearStartAt) || (in.CanonicalPlaceID != nil && in.ClearCanonicalPlaceID) {
@@ -347,6 +347,13 @@ func normalizeEdit(in *EditInput) error {
 			return ErrInvalidInput
 		}
 		in.AccessMode = &mode
+	}
+	if in.Visibility != nil {
+		visibility := Visibility(strings.ToUpper(strings.TrimSpace(string(*in.Visibility))))
+		if !validVisibility(visibility) {
+			return ErrInvalidInput
+		}
+		in.Visibility = &visibility
 	}
 	return nil
 }

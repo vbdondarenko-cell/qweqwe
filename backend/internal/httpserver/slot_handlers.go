@@ -33,6 +33,7 @@ type editSlotRequest struct {
 	ClearStartAt          bool             `json:"clearStartAt"`
 	Capacity              *int             `json:"capacity"`
 	AccessMode            *slot.AccessMode `json:"accessMode"`
+	Visibility            *slot.Visibility `json:"visibility"`
 }
 
 type cancelSlotRequest struct {
@@ -128,6 +129,7 @@ func (s *Server) editSlot(w http.ResponseWriter, r *http.Request) {
 		ClearStartAt:          in.ClearStartAt,
 		Capacity:              in.Capacity,
 		AccessMode:            in.AccessMode,
+		Visibility:            in.Visibility,
 	}, r.Header.Get("Idempotency-Key"))
 	if err != nil {
 		s.writeSlotError(w, r, err)

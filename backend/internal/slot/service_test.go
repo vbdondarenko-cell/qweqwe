@@ -380,6 +380,27 @@ func TestEditRequiresExpectedVersion(t *testing.T) {
 	}
 }
 
+func TestEditPassesVisibilityThroughToStore(t *testing.T) {
+	store := &memoryStore{created: Slot{ID: "slot-id", Organizer: Organizer{ID: "host-id"}, Version: 3, Capacity: 6}}
+	svc, _ := NewService(store)
+	visibility := VisibilityPrivate
+	if _, err := svc.Edit(context.Background(), "host-id", "slot-id", EditInput{ExpectedVersion: 3, Visibility: &visibility}, "edit-slot-visibility-01"); err != nil {
+		t.Fatal(err)
+	}
+	if store.lastEdit.Visibility == nil || *store.lastEdit.Visibility != VisibilityPrivate {
+		t.Fatalf("expected VisibilityPrivate to reach the store patch, got %#v", store.lastEdit.Visibility)
+	}
+}
+
+func TestEditRejectsUnknownVisibility(t *testing.T) {
+	store := &memoryStore{created: Slot{ID: "slot-id", Organizer: Organizer{ID: "host-id"}, Version: 3, Capacity: 6}}
+	svc, _ := NewService(store)
+	bogus := Visibility("SELECTED")
+	if _, err := svc.Edit(context.Background(), "host-id", "slot-id", EditInput{ExpectedVersion: 3, Visibility: &bogus}, "edit-slot-visibility-02"); !errors.Is(err, ErrInvalidInput) {
+		t.Fatalf("expected ErrInvalidInput for an unimplemented visibility mode, got %v", err)
+	}
+}
+
 func (m *memoryStore) ListMine(_ context.Context, actorID, view string, _ int) ([]Slot, error) {
 	m.ensure()
 	out := m.created

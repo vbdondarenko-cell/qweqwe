@@ -124,10 +124,9 @@ type CreateInput struct {
 	AccessMode       *AccessMode
 	// Visibility is nil-safe (defaults to VisibilityPublic, v1.0's only
 	// supported value); the v1.1 hosting draft/publish path additionally
-	// accepts VisibilityPrivate. Changing visibility after creation is
-	// deliberately not supported by this block (not in EditInput) — a host
-	// who needs to switch must cancel and recreate; stated as an explicit
-	// scope limit, not silently assumed away.
+	// accepts VisibilityPrivate. Like AccessMode, it can also be changed
+	// later via EditInput.Visibility, but (again matching AccessMode) only
+	// while the Slot is still DRAFT — see EditInput.Visibility's comment.
 	Visibility *Visibility
 }
 
@@ -143,6 +142,13 @@ type EditInput struct {
 	ClearStartAt          bool
 	Capacity              *int
 	AccessMode            *AccessMode
+	// Visibility, like AccessMode, is only honored by the v1.1 store while
+	// the Slot is still DRAFT (ErrInvalidState otherwise) — once a Slot is
+	// published, changing who can discover it is a bigger decision (it can
+	// silently move already-visible strangers into an "invite only by
+	// shared ID" state) than this block takes on; a host who needs to
+	// change visibility after publishing must cancel and recreate.
+	Visibility *Visibility
 }
 
 type Store interface {

@@ -234,6 +234,9 @@ func (s *V11SlotStore) Edit(ctx context.Context, actorID, slotID string, patch s
 	if patch.AccessMode != nil && state != "DRAFT" {
 		return slot.Slot{}, slot.ErrInvalidState
 	}
+	if patch.Visibility != nil && state != "DRAFT" {
+		return slot.Slot{}, slot.ErrInvalidState
+	}
 	if err := ensureCanonicalPlaceActiveTx(ctx, tx, patch.CanonicalPlaceID); err != nil {
 		return slot.Slot{}, err
 	}
@@ -270,6 +273,11 @@ func (s *V11SlotStore) Edit(ctx context.Context, actorID, slotID string, patch s
 	if patch.AccessMode != nil {
 		newAccessMode = string(*patch.AccessMode)
 	}
+	visibilitySet := patch.Visibility != nil
+	newVisibility := ""
+	if patch.Visibility != nil {
+		newVisibility = string(*patch.Visibility)
+	}
 	newState := state
 	if state == "FILLING" || state == "FULL" {
 		if acceptedCount >= newCapacity {
@@ -289,11 +297,13 @@ func (s *V11SlotStore) Edit(ctx context.Context, actorID, slotID string, patch s
 			start_at=CASE WHEN $12 THEN $13 ELSE start_at END,
 			capacity=CASE WHEN $14 THEN $15 ELSE capacity END,
 			access_mode=CASE WHEN $16 THEN $17 ELSE access_mode END,
+			visibility=CASE WHEN $20 THEN $21 ELSE visibility END,
 			state=$18,version=version+1,updated_at=$19
 		WHERE id=$1`,
 		slotID, titleSet, title, detailsSet, details, placeSet, place, zoneSet, zone,
 		canonicalSet, nullableString(patch.CanonicalPlaceID), startSet, patch.StartAt,
 		capacitySet, newCapacity, accessModeSet, newAccessMode, newState, now,
+		visibilitySet, newVisibility,
 	)
 	if err != nil {
 		return slot.Slot{}, err
