@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/vbdondarenko-cell/qweqwe/backend/internal/chat"
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/slot"
 )
 
@@ -75,6 +76,9 @@ func (s *V11SlotStore) Join(ctx context.Context, actorID, slotID, key string, re
 	}
 
 	if _, err := tx.Exec(ctx, `INSERT INTO slot_memberships (slot_id,user_id,accepted_at) VALUES ($1,$2,$3)`, slotID, actorID, now); err != nil {
+		return slot.Slot{}, err
+	}
+	if err := emitSystemChatMessageTx(ctx, tx, slotID, string(chat.SystemEventMemberJoined), &actorID); err != nil {
 		return slot.Slot{}, err
 	}
 	newCount := acceptedCount + 1

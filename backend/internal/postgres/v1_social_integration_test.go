@@ -167,7 +167,11 @@ func TestV1SocialCorePostgresIntegration(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if len(messages) != 2 || messages[0].ID != hostMessage.ID || messages[1].ID != memberMessage.ID {
+		// Approve() now also emits a SYSTEM MEMBER_JOINED notice (README §6.7),
+		// ordered before the two user messages that were sent after approval.
+		if len(messages) != 3 ||
+			messages[0].Kind != chat.KindSystem || messages[0].SystemEventType == nil || *messages[0].SystemEventType != chat.SystemEventMemberJoined || messages[0].Subject == nil || messages[0].Subject.ID != memberA.User.ID ||
+			messages[1].ID != hostMessage.ID || messages[2].ID != memberMessage.ID {
 			t.Fatalf("chat thread mismatch: %#v", messages)
 		}
 
@@ -274,7 +278,8 @@ func TestV1SocialCorePostgresIntegration(t *testing.T) {
 		if _, err := chatService.Send(ctx, host.User.ID, cancelSlot.ID, "v1-chat-cancel-host-001", "Will cancel"); err != nil {
 			t.Fatal(err)
 		}
-		assertChatRows(t, ctx, pool, cancelSlot.ID, 1)
+		// Approve() also emitted a SYSTEM MEMBER_JOINED row (README §6.7).
+		assertChatRows(t, ctx, pool, cancelSlot.ID, 2)
 		cancelled, err := slotService.Cancel(ctx, host.User.ID, cancelSlot.ID, approved.Version, nextKey("cancel-slot"))
 		if err != nil {
 			t.Fatal(err)

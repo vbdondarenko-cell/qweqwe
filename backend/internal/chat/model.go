@@ -45,7 +45,9 @@ const (
 type SystemEventType string
 
 const (
-	SystemEventSlotStarted SystemEventType = "SLOT_STARTED"
+	SystemEventSlotStarted  SystemEventType = "SLOT_STARTED"
+	SystemEventMemberJoined SystemEventType = "MEMBER_JOINED"
+	SystemEventMemberLeft   SystemEventType = "MEMBER_LEFT"
 )
 
 type Message struct {

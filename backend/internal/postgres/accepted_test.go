@@ -36,6 +36,7 @@ CREATE TEMP TABLE slots(id text PRIMARY KEY, host_id text, state text, accepted_
 CREATE TEMP TABLE app_users(id text PRIMARY KEY, username text, display_name text, avatar_url text) ON COMMIT DROP;
 CREATE TEMP TABLE slot_memberships(slot_id text, user_id text) ON COMMIT DROP;
 CREATE TEMP TABLE user_blocks(blocker_id text, blocked_id text) ON COMMIT DROP;
+CREATE TEMP TABLE slot_messages(id uuid PRIMARY KEY, slot_id text, kind text, author_id text, body text, idempotency_key text, system_event_type text, subject_user_id text, created_at timestamptz DEFAULT now()) ON COMMIT DROP;
 INSERT INTO pg_temp.slots(id,host_id,state) VALUES ('link','host','ACTIVE'),('empty','host','PUBLISHED');
 INSERT INTO pg_temp.app_users VALUES ('member','member','Member',NULL),('host','host','Host',NULL);
 INSERT INTO pg_temp.slot_memberships VALUES ('link','member');`)

@@ -411,6 +411,9 @@ func (s *SlotStore) Leave(ctx context.Context, actorID, slotID, key string, requ
 	if tag.RowsAffected() == 0 {
 		return slot.Slot{}, slot.ErrNotFound
 	}
+	if err := emitSystemChatMessageTx(ctx, tx, slotID, string(chat.SystemEventMemberLeft), &actorID); err != nil {
+		return slot.Slot{}, err
+	}
 	if acceptedCount <= 0 {
 		return slot.Slot{}, errors.New("slot accepted_count invariant violated")
 	}
@@ -538,6 +541,9 @@ func (s *SlotStore) Approve(ctx context.Context, actorID, slotID, requesterID, k
 		return slot.Slot{}, err
 	}
 	if _, err := tx.Exec(ctx, `DELETE FROM slot_requests WHERE slot_id=$1 AND user_id=$2`, slotID, requesterID); err != nil {
+		return slot.Slot{}, err
+	}
+	if err := emitSystemChatMessageTx(ctx, tx, slotID, string(chat.SystemEventMemberJoined), &requesterID); err != nil {
 		return slot.Slot{}, err
 	}
 	newCount := acceptedCount + 1
@@ -670,7 +676,7 @@ func (s *SlotStore) hostLifecycle(ctx context.Context, actorID, slotID, key stri
 		if _, err := tx.Exec(ctx, `UPDATE slots SET state='ACTIVE',started_at=$2,version=version+1,updated_at=$2 WHERE id=$1`, slotID, now); err != nil {
 			return slot.Slot{}, err
 		}
-		if err := emitSystemChatMessageTx(ctx, tx, slotID, string(chat.SystemEventSlotStarted), &hostID, now); err != nil {
+		if err := emitSystemChatMessageTx(ctx, tx, slotID, string(chat.SystemEventSlotStarted), &hostID); err != nil {
 			return slot.Slot{}, err
 		}
 	} else {

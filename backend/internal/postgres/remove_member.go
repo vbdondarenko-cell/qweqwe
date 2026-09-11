@@ -6,6 +6,7 @@ import (
     "time"
 
     "github.com/jackc/pgx/v5"
+    "github.com/vbdondarenko-cell/qweqwe/backend/internal/chat"
     "github.com/vbdondarenko-cell/qweqwe/backend/internal/slot"
 )
 
@@ -41,6 +42,7 @@ func removeMemberTx(ctx context.Context, tx pgx.Tx, actorID, slotID, memberID st
         tag, err := tx.Exec(ctx, `DELETE FROM slot_memberships WHERE slot_id=$1 AND user_id=$2`, slotID, memberID)
         if err != nil { return err }
         if tag.RowsAffected() == 0 { return slot.ErrNotFound }
+        if err := emitSystemChatMessageTx(ctx, tx, slotID, string(chat.SystemEventMemberLeft), &memberID); err != nil { return err }
         if count <= 0 { return errors.New("slot accepted_count invariant violated") }
         if state == "FULL" { state = "FILLING" }
         if _, err := tx.Exec(ctx, `UPDATE slots SET accepted_count=accepted_count-1,state=$2,version=version+1,updated_at=$3 WHERE id=$1`, slotID, state, now); err != nil { return err }

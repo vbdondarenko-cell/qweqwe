@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/vbdondarenko-cell/qweqwe/backend/internal/chat"
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/slot"
 )
 
@@ -98,6 +99,9 @@ func (s *V11SlotStore) waitlistRequest(ctx context.Context, actorID, slotID, key
 
 	if acceptedCount < capacity {
 		if _, err := tx.Exec(ctx, `INSERT INTO slot_memberships (slot_id,user_id,accepted_at) VALUES ($1,$2,$3)`, slotID, actorID, now); err != nil {
+			return slot.Slot{}, err
+		}
+		if err := emitSystemChatMessageTx(ctx, tx, slotID, string(chat.SystemEventMemberJoined), &actorID); err != nil {
 			return slot.Slot{}, err
 		}
 		acceptedCount++
@@ -198,6 +202,9 @@ func (s *V11SlotStore) waitlistLeave(ctx context.Context, actorID, slotID, key s
 		if tag.RowsAffected() == 0 {
 			return slot.Slot{}, slot.ErrNotFound
 		}
+		if err := emitSystemChatMessageTx(ctx, tx, slotID, string(chat.SystemEventMemberLeft), &actorID); err != nil {
+			return slot.Slot{}, err
+		}
 		if acceptedCount <= 0 {
 			return slot.Slot{}, errors.New("slot accepted_count invariant violated")
 		}
@@ -280,6 +287,9 @@ func (s *V11SlotStore) waitlistRemoveMember(ctx context.Context, actorID, slotID
 	}
 	if tag.RowsAffected() == 0 {
 		return slot.Slot{}, slot.ErrNotFound
+	}
+	if err := emitSystemChatMessageTx(ctx, tx, slotID, string(chat.SystemEventMemberLeft), &memberID); err != nil {
+		return slot.Slot{}, err
 	}
 	if acceptedCount <= 0 {
 		return slot.Slot{}, errors.New("slot accepted_count invariant violated")
@@ -380,6 +390,9 @@ func promoteOldestWaitlistTx(ctx context.Context, tx pgx.Tx, slotID, hostID stri
 			return acceptedCount, "", err
 		}
 		if _, err := tx.Exec(ctx, `DELETE FROM slot_requests WHERE slot_id=$1 AND user_id=$2`, slotID, candidateID); err != nil {
+			return acceptedCount, "", err
+		}
+		if err := emitSystemChatMessageTx(ctx, tx, slotID, string(chat.SystemEventMemberJoined), &candidateID); err != nil {
 			return acceptedCount, "", err
 		}
 		return acceptedCount + 1, candidateID, nil
