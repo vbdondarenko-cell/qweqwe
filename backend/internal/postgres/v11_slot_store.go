@@ -78,11 +78,11 @@ func (s *V11SlotStore) Create(ctx context.Context, actorID string, candidate slo
 }
 
 func (s *V11SlotStore) Get(ctx context.Context, actorID, slotID string) (slot.Slot, error) {
-	return scanV11Slot(s.pool.QueryRow(ctx, getV11SlotSQL, slotID, actorID))
+	return scanV11Slot(s.pool.QueryRow(ctx, getV11SlotSQL, slotID, actorID, s.waitlistExpiryCutoff()))
 }
 
 func (s *V11SlotStore) ListPulse(ctx context.Context, actorID string, limit int) ([]slot.Slot, error) {
-	rows, err := s.pool.Query(ctx, listV11PulseSQL, actorID, limit)
+	rows, err := s.pool.Query(ctx, listV11PulseSQL, actorID, limit, s.waitlistExpiryCutoff())
 	if err != nil {
 		return nil, err
 	}
@@ -98,8 +98,23 @@ func (s *V11SlotStore) ListPulse(ctx context.Context, actorID string, limit int)
 	return items, rows.Err()
 }
 
+// waitlistExpiryCutoff bounds how far back a WAITLIST slot_requests row can
+// still read as the viewer's PENDING relationship. A row older than this is
+// display-only stale: mutations (promoteOldestWaitlistTx, waitlistRequest)
+// already treat it as expired and lazily purge it, but nothing forced a read
+// to agree until now, so a viewer could see themselves as PENDING on a queue
+// position that will never promote and that they were already free to
+// request again. This only changes what CASE...WHEN computes as the
+// viewer's relationship; it never removes a Slot's visibility grant, so a
+// viewer who can already see the Slot keeps seeing it, now correctly as NONE
+// instead of a stale PENDING. Every other access mode (host/accepted/PUBLIC
+// visibility) and the WHERE-clause access grant itself are unaffected.
+func (s *V11SlotStore) waitlistExpiryCutoff() time.Time {
+	return time.Now().UTC().Add(-s.waitlistRequestTTL)
+}
+
 func (s *V11SlotStore) ListMine(ctx context.Context, actorID, view string, limit int) ([]slot.Slot, error) {
-	rows, err := s.pool.Query(ctx, listV11MySlotsSQL, actorID, view, limit)
+	rows, err := s.pool.Query(ctx, listV11MySlotsSQL, actorID, view, limit, s.waitlistExpiryCutoff())
 	if err != nil {
 		return nil, err
 	}
@@ -340,7 +355,8 @@ const getV11SlotSQL = `SELECT ` + v11SlotColumns + `,
 	CASE
 		WHEN s.host_id=$2 THEN 'HOST'
 		WHEN EXISTS(SELECT 1 FROM slot_memberships m WHERE m.slot_id=s.id AND m.user_id=$2) THEN 'ACCEPTED'
-		WHEN EXISTS(SELECT 1 FROM slot_requests r WHERE r.slot_id=s.id AND r.user_id=$2) THEN 'PENDING'
+		WHEN EXISTS(SELECT 1 FROM slot_requests r WHERE r.slot_id=s.id AND r.user_id=$2
+			AND (s.access_mode<>'WAITLIST' OR r.created_at>$3)) THEN 'PENDING'
 		ELSE 'NONE'
 	END
 FROM slots s
@@ -364,7 +380,8 @@ const listV11PulseSQL = `SELECT ` + v11SlotColumns + `,
 	CASE
 		WHEN s.host_id=$1 THEN 'HOST'
 		WHEN EXISTS(SELECT 1 FROM slot_memberships m WHERE m.slot_id=s.id AND m.user_id=$1) THEN 'ACCEPTED'
-		WHEN EXISTS(SELECT 1 FROM slot_requests r WHERE r.slot_id=s.id AND r.user_id=$1) THEN 'PENDING'
+		WHEN EXISTS(SELECT 1 FROM slot_requests r WHERE r.slot_id=s.id AND r.user_id=$1
+			AND (s.access_mode<>'WAITLIST' OR r.created_at>$3)) THEN 'PENDING'
 		ELSE 'NONE'
 	END
 FROM slots s
@@ -400,7 +417,8 @@ WHERE s.state IN ('PUBLISHED','FILLING','FULL','ACTIVE')
     ($2='HOSTING' AND s.host_id=$1)
     OR ($2='JOINED' AND s.host_id<>$1 AND EXISTS(SELECT 1 FROM slot_memberships m WHERE m.slot_id=s.id AND m.user_id=$1))
     OR ($2='REQUESTED' AND s.host_id<>$1 AND s.state<>'ACTIVE'
-        AND EXISTS(SELECT 1 FROM slot_requests r WHERE r.slot_id=s.id AND r.user_id=$1))
+        AND EXISTS(SELECT 1 FROM slot_requests r WHERE r.slot_id=s.id AND r.user_id=$1
+              AND (s.access_mode<>'WAITLIST' OR r.created_at>$4)))
   )
   AND NOT EXISTS(SELECT 1 FROM user_blocks b
     WHERE (b.blocker_id=$1 AND b.blocked_id=s.host_id)

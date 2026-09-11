@@ -982,3 +982,28 @@ Executed evidence, this session:
 This closes every `MEMBER_JOINED`/`MEMBER_LEFT` call site identified across §41-§43: `Approve`, `Leave`, `removeMemberTx`, `Join` (INSTANT), `waitlistRequest`, `waitlistLeave`, `waitlistRemoveMember`, `promoteOldestWaitlistTx` (covering leave/removal/capacity-expansion/block-triggered promotion), and now block-triggered removal itself. Not done or claimed: Android UI for any `SYSTEM` message kind (no Android SDK in this environment, per RULE 2/3).
 
 Next: the read-side WAITLIST-expiry gap from §40, or README §6.8 Notifications, or the remaining §6.7 bullets (reconnect thread convergence, activation/retention rules beyond existing purge). Go-backend-first until Android SDK/Gradle network access is available in this environment.
+
+## 44. 2026-09-11 — closes the §40 read-side WAITLIST-expiry gap
+
+Closes the gap §40 explicitly deferred: `Get`/`Pulse`/`ListMine` still read an expired WAITLIST queue position as `PENDING` until some other mutation on the Slot happened to touch the queue, even though `promoteOldestWaitlistTx`/`waitlistRequest` already treat it as gone for mutation purposes.
+
+**Scope decision:** touched only the three `V11SlotStore` read methods actually reachable from the production HTTP surface (`Get`, `ListPulse`, `ListMine` — all wired via `cmd/api/main.go`'s `V11SlotStore`, which overrides the v1.0 `SlotStore` equivalents that remain unused in production). Left untouched: `getV11SlotInternalSQL` (only ever read immediately after the caller's own fresh mutation inside the same transaction, so it cannot observe someone else's stale expiry); the v1.0-only queries in `slot_store.go`/`my_slots.go` (dead code in the current v1.1-wired production path, and touching v1.0's frozen baseline for a v1.1-only concept was avoided in §40 for the same reason); `citymap_store.go` and `realtime_viewer_store.go` (Map and realtime-feed viewer-state surfaces — same class of gap, deliberately left for a follow-up rather than folded in here).
+
+Implemented, in `v11_slot_store.go`:
+
+- `getV11SlotSQL`/`listV11PulseSQL`: the `CASE...WHEN...THEN 'PENDING'` computation now requires `s.access_mode<>'WAITLIST' OR r.created_at>$cutoff` — an expired WAITLIST row reads as `NONE`, not `PENDING`. The `WHERE`-clause visibility grant (can the viewer see the Slot at all) is deliberately untouched: losing display accuracy on relationship state is a small, safe display fix; losing row visibility outright is a different and larger change this block does not make;
+- `listV11MySlotsSQL`'s `REQUESTED` view: the row-selection predicate itself gets the same `OR r.created_at>$cutoff` condition, so an expired position drops out of "My Requests" entirely — unlike `Get`/`Pulse`, this list's entire reason to include the row was "you are pending here", so once that is no longer true the row should not appear at all;
+- `waitlistExpiryCutoff()` computes `time.Now().UTC().Add(-s.waitlistRequestTTL)` once per call, reusing the same `waitlistRequestTTL` field the write-side (§40) already carries.
+
+Executed evidence, this session:
+
+- `go build ./...`, `go vet ./...` — clean;
+- `go test -count=1 ./...` and `go test -race -count=1 ./...` — all packages pass, no assertion needed updating (a live, non-expired request always satisfies `created_at>cutoff`, and non-WAITLIST slots bypass the condition entirely, so this is additive for every existing scenario);
+- fresh disposable PostgreSQL 16 + PostGIS, migrations `000001..000026` applied;
+- new `TestV11WaitlistExpiredRequestReadsAsNone`: a queued WAITLIST request backdated past the TTL reads as `NONE` on `Get` and in `Pulse`, disappears from `ListMine("REQUESTED")`, while a live request from a different user on the same Slot is unaffected throughout;
+- the full pre-existing `internal/postgres` suite remains green under `-race` against the rebuilt database;
+- `go mod tidy` — no diff.
+
+Not done or claimed in this block: Map (`citymap_store.go`) and realtime-feed (`realtime_viewer_store.go`) viewer-state expiry-awareness (same class of gap, explicitly deferred, not silently assumed fixed); Android UI (no SDK in this environment, per RULE 2/3).
+
+Next: README §6.8 Notifications, or the Map/realtime-feed expiry-awareness deferred above, or remaining §6.7 bullets. Go-backend-first until Android SDK/Gradle network access is available in this environment.
