@@ -62,11 +62,45 @@ class CityRealtimeCoordinatorTest {
         assertEquals(25, pulled.nextCursor)
     }
 
-    private class FakeCityRealtimeApi(private val batch: CityRealtimeBatchModel) : CityRealtimeApi {
+    @Test
+    fun `bootstrapIfNeeded adopts server cursor for a never-synced user without pulling history`() = runTest {
+        val cursors = MemoryCityCursorStore()
+        val api = FakeCityRealtimeApi(batch(0, emptyList()), cursor = 500)
+        val coordinator = CityRealtimeCoordinator(api, cursors)
+
+        coordinator.bootstrapIfNeeded(USER_ID)
+
+        assertEquals(500, cursors.load(USER_ID))
+        assertEquals(1, api.cursorCalls)
+        assertTrue(api.afters.isEmpty())
+    }
+
+    @Test
+    fun `bootstrapIfNeeded is a no-op once a city cursor already exists`() = runTest {
+        val cursors = MemoryCityCursorStore().apply { save(USER_ID, 5) }
+        val api = FakeCityRealtimeApi(batch(0, emptyList()), cursor = 999)
+        val coordinator = CityRealtimeCoordinator(api, cursors)
+
+        coordinator.bootstrapIfNeeded(USER_ID)
+
+        assertEquals(5, cursors.load(USER_ID))
+        assertEquals(0, api.cursorCalls)
+    }
+
+    private class FakeCityRealtimeApi(
+        private val batch: CityRealtimeBatchModel,
+        private val cursor: Long = 0,
+    ) : CityRealtimeApi {
         val afters = mutableListOf<Long>()
+        var cursorCalls = 0
+            private set
         override suspend fun pullCityRealtime(after: Long, limit: Int): CityRealtimeBatchModel {
             afters += after
             return batch
+        }
+        override suspend fun currentCursor(): Long {
+            cursorCalls++
+            return cursor
         }
     }
 
@@ -79,6 +113,7 @@ class CityRealtimeCoordinatorTest {
         override fun clear(userId: String) {
             values.remove(userId)
         }
+        override fun hasSynced(userId: String): Boolean = values.containsKey(userId)
     }
 
     private fun batch(cursor: Long, invalidations: List<CityRealtimeInvalidationModel>) =

@@ -38,6 +38,11 @@ func (b CityBatch) ValidAfter(after int64) bool {
 
 type CityFeedStore interface {
 	PullCity(ctx context.Context, viewerID string, after int64, limit int) (CityBatch, error)
+	// CurrentCursor mirrors ViewerFeedStore.CurrentCursor (see its doc
+	// comment): a bootstrap fast-forward point for a client with no prior
+	// city-channel position, so a fresh/reconnecting client does not pull
+	// forward through the entire city outbox history it will never use.
+	CurrentCursor(ctx context.Context) (int64, error)
 }
 
 type CityFeedService struct{ store CityFeedStore }
@@ -68,4 +73,12 @@ func (s *CityFeedService) Pull(ctx context.Context, viewerID string, after int64
 		return CityBatch{}, ErrCursorOutOfOrder
 	}
 	return batch, nil
+}
+
+// CurrentCursor mirrors FeedService.CurrentCursor for the city channel.
+func (s *CityFeedService) CurrentCursor(ctx context.Context, viewerID string) (int64, error) {
+	if strings.TrimSpace(viewerID) == "" {
+		return 0, ErrInvalidInput
+	}
+	return s.store.CurrentCursor(ctx)
 }

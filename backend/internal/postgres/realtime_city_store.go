@@ -122,6 +122,18 @@ const cityRealtimeSQL = `
 						SELECT 1 FROM slot_selected_viewers v WHERE v.slot_id=s.id AND v.user_id=$1::uuid
 					)
 				)
+				OR (
+					(
+						(e.payload->>'visibility'='CITY' AND e.payload->>'state' IN ('PUBLISHED','FILLING','FULL'))
+						OR (e.payload->>'previousVisibility'='CITY' AND e.payload->>'previousState' IN ('PUBLISHED','FILLING','FULL'))
+					)
+					AND EXISTS (
+						SELECT 1 FROM city_context_locks vcl
+						JOIN city_context_locks hcl ON hcl.locality_id=vcl.locality_id
+						WHERE vcl.user_id=$1::uuid AND vcl.expires_at>now()
+						  AND hcl.user_id=s.host_id AND hcl.expires_at>now()
+					)
+				)
 			)
 			AND NOT EXISTS (
 				SELECT 1 FROM user_blocks b

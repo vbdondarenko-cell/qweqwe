@@ -7,6 +7,14 @@ interface RealtimeCursorStore {
     fun load(userId: String): Long
     fun save(userId: String, cursor: Long)
     fun clear(userId: String)
+
+    // hasSynced distinguishes "never persisted a cursor for this user"
+    // from "explicitly persisted at 0" — load() alone cannot, since its
+    // default and a genuine zero read the same. RealtimeCoordinator uses
+    // this to bootstrap a brand-new/cleared client straight to the
+    // channel's current position instead of starting from 0 (see
+    // RealtimeCoordinator.bootstrapIfNeeded).
+    fun hasSynced(userId: String): Boolean
 }
 
 class SharedPreferencesRealtimeCursorStore(context: Context) : RealtimeCursorStore {
@@ -16,6 +24,8 @@ class SharedPreferencesRealtimeCursorStore(context: Context) : RealtimeCursorSto
         val key = userKey(userId)
         return preferences.getLong(key, 0L).coerceAtLeast(0L)
     }
+
+    override fun hasSynced(userId: String): Boolean = preferences.contains(userKey(userId))
 
     override fun save(userId: String, cursor: Long) {
         require(cursor >= 0)

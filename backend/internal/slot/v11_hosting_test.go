@@ -104,6 +104,27 @@ func TestCreateDraftPreservesConfiguredLinksVisibility(t *testing.T) {
 	}
 }
 
+func TestCreateDraftPreservesConfiguredCityVisibility(t *testing.T) {
+	store := &hostingStoreStub{}
+	service, err := NewService(store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	visibility := VisibilityCity
+	out, err := service.CreateDraft(context.Background(), "host-id", CreateInput{
+		Title: "City meetup", Activity: "coffee", PlaceText: "Central Cafe", Capacity: 4, Visibility: &visibility,
+	}, "00000000-0000-0000-0000-000000000007")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out.Visibility != VisibilityCity || store.created.Visibility != VisibilityCity {
+		t.Fatalf("draft visibility lost: out=%s stored=%s", out.Visibility, store.created.Visibility)
+	}
+	if len(store.created.SelectedUserIDs) != 0 {
+		t.Fatalf("CITY visibility has no allow-list; expected none stored, got %v", store.created.SelectedUserIDs)
+	}
+}
+
 func TestCreateDraftPreservesSelectedVisibilityAndAllowList(t *testing.T) {
 	store := &hostingStoreStub{}
 	service, err := NewService(store)

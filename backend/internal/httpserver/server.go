@@ -121,7 +121,9 @@ func New(deps Dependencies) *Server {
 	mux.Handle("DELETE /v1/me/friends/{userID}", s.requireAuth(s.requireCapability(capability.Friends, http.HandlerFunc(s.removeFriend))))
 
 	mux.Handle("GET /v1/realtime/events", s.requireAuth(s.requireCapability(capability.Realtime, http.HandlerFunc(s.realtimeEvents))))
+	mux.Handle("GET /v1/realtime/cursor", s.requireAuth(s.requireCapability(capability.Realtime, http.HandlerFunc(s.realtimeCursor))))
 	mux.Handle("GET /v1/realtime/city", s.requireAuth(s.requireCapability(capability.Realtime, s.requireCapability(capability.CityContext, http.HandlerFunc(s.realtimeCity)))))
+	mux.Handle("GET /v1/realtime/city/cursor", s.requireAuth(s.requireCapability(capability.Realtime, s.requireCapability(capability.CityContext, http.HandlerFunc(s.realtimeCityCursor)))))
 	mux.Handle("GET /v1/city-context", s.requireAuth(s.requireCapability(capability.CityContext, http.HandlerFunc(s.getCityContext))))
 	mux.Handle("POST /v1/city-context/resolve", s.requireAuth(s.requireCapability(capability.CityContext, http.HandlerFunc(s.resolveCityContext))))
 	mux.Handle("GET /v1/places/search", s.requireAuth(http.HandlerFunc(s.searchPlaces)))

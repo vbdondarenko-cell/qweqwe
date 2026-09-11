@@ -98,6 +98,23 @@ func (s *RealtimeViewerStore) PullViewer(ctx context.Context, viewerID string, a
 	return finalizeViewerBatch(scannedCursor, items, limit), nil
 }
 
+// CurrentCursor satisfies both realtime.ViewerFeedStore and
+// realtime.CityFeedStore (both channels share the same
+// domain_outbox_events sequence space — PullCity's own scan query already
+// reads the identical table/column). It is a single, global MAX(sequence)
+// with no viewer-scoped filtering at all: unlike PullViewer/PullCity, the
+// cursor value carries no event content, so there is nothing here to
+// authorize per-viewer. A NULL max (an empty table — realistically only a
+// brand-new database with no domain activity at all yet) reads as cursor
+// 0, matching every other cursor default in this codebase.
+func (s *RealtimeViewerStore) CurrentCursor(ctx context.Context) (int64, error) {
+	var cursor int64
+	if err := s.pool.QueryRow(ctx, `SELECT COALESCE(max(sequence), 0) FROM domain_outbox_events`).Scan(&cursor); err != nil {
+		return 0, err
+	}
+	return cursor, nil
+}
+
 func finalizeViewerBatch(scannedCursor int64, events []realtime.Event, limit int) realtime.ViewerBatch {
 	if len(events) > limit {
 		return realtime.ViewerBatch{
@@ -149,6 +166,21 @@ const viewerRealtimeSQL = `
 					s.visibility='SELECTED'
 					AND s.state IN ('PUBLISHED','FILLING','FULL')
 					AND EXISTS (SELECT 1 FROM slot_selected_viewers v WHERE v.slot_id=s.id AND v.user_id=$1::uuid)
+					AND NOT EXISTS (
+						SELECT 1 FROM user_blocks b
+						WHERE (b.blocker_id=$1::uuid AND b.blocked_id=s.host_id)
+						   OR (b.blocker_id=s.host_id AND b.blocked_id=$1::uuid)
+					)
+				)
+				OR (
+					s.visibility='CITY'
+					AND s.state IN ('PUBLISHED','FILLING','FULL')
+					AND EXISTS (
+						SELECT 1 FROM city_context_locks vcl
+						JOIN city_context_locks hcl ON hcl.locality_id=vcl.locality_id
+						WHERE vcl.user_id=$1::uuid AND vcl.expires_at>now()
+						  AND hcl.user_id=s.host_id AND hcl.expires_at>now()
+					)
 					AND NOT EXISTS (
 						SELECT 1 FROM user_blocks b
 						WHERE (b.blocker_id=$1::uuid AND b.blocked_id=s.host_id)

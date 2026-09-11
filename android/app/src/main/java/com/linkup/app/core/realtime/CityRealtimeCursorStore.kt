@@ -7,12 +7,18 @@ interface CityRealtimeCursorStore {
     fun load(userId: String): Long
     fun save(userId: String, cursor: Long)
     fun clear(userId: String)
+
+    // hasSynced mirrors RealtimeCursorStore.hasSynced (see its doc
+    // comment) for the city channel.
+    fun hasSynced(userId: String): Boolean
 }
 
 class SharedPreferencesCityRealtimeCursorStore(context: Context) : CityRealtimeCursorStore {
     private val preferences = context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
     override fun load(userId: String): Long = preferences.getLong(userKey(userId), 0L).coerceAtLeast(0L)
+
+    override fun hasSynced(userId: String): Boolean = preferences.contains(userKey(userId))
 
     override fun save(userId: String, cursor: Long) {
         require(cursor >= 0)

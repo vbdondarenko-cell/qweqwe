@@ -62,6 +62,20 @@ const (
 	// migration 000032); it can be replaced wholesale after creation via
 	// EditInput.SelectedUserIDs while the Slot is still DRAFT.
 	VisibilitySelected Visibility = "SELECTED"
+	// VisibilityCity is README §4.3's "City-only" mode: discoverable only
+	// to a viewer who is currently locked (internal/citycontext's
+	// city_context_locks, README §6.3) to the same locality as the host's
+	// own current lock — both sides' City Context must be live right now,
+	// not "same city when the Slot was created." No CreateInput field of
+	// its own: unlike SELECTED, there is nothing to configure at creation
+	// time — the comparison is always "host's current locality vs
+	// viewer's current locality," evaluated fresh on every read. If either
+	// side has no live lock (never resolved, or their lock expired), the
+	// Slot is not discoverable to that viewer — same "fail closed, not
+	// open" default every other visibility mode here uses. The
+	// friendship/allow-list checks LINKS/SELECTED added needed new
+	// tables; this one needs none — city_context_locks already exists.
+	VisibilityCity Visibility = "CITY"
 
 	ViewerNone     ViewerState = "NONE"
 	ViewerPending  ViewerState = "PENDING"

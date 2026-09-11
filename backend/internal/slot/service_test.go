@@ -396,9 +396,34 @@ func TestEditPassesVisibilityThroughToStore(t *testing.T) {
 func TestEditRejectsUnknownVisibility(t *testing.T) {
 	store := &memoryStore{created: Slot{ID: "slot-id", Organizer: Organizer{ID: "host-id"}, Version: 3, Capacity: 6}}
 	svc, _ := NewService(store)
-	bogus := Visibility("CITY")
+	// CITY used to be this test's example of an unimplemented mode (its
+	// own comment history: SELECTED filled that role before it, then was
+	// swapped for CITY once SELECTED shipped) — now CITY is implemented
+	// too (TestEditPassesCityVisibilityThroughToStore), so this uses
+	// LASSO, one of the two genuinely still-unimplemented README §4.3
+	// modes (validVisibility's own doc comment).
+	bogus := Visibility("LASSO")
 	if _, err := svc.Edit(context.Background(), "host-id", "slot-id", EditInput{ExpectedVersion: 3, Visibility: &bogus}, "edit-slot-visibility-02"); !errors.Is(err, ErrInvalidInput) {
 		t.Fatalf("expected ErrInvalidInput for an unimplemented visibility mode, got %v", err)
+	}
+}
+
+// TestEditPassesCityVisibilityThroughToStore proves CITY (unlike SELECTED)
+// needs no allow-list at all to reach the store patch — the comparison is
+// always "host's current city lock vs viewer's current city lock,"
+// evaluated fresh by the store/postgres layer, not configured per-Slot.
+func TestEditPassesCityVisibilityThroughToStore(t *testing.T) {
+	store := &memoryStore{created: Slot{ID: "slot-id", Organizer: Organizer{ID: "host-id"}, Version: 3, Capacity: 6}}
+	svc, _ := NewService(store)
+	visibility := VisibilityCity
+	if _, err := svc.Edit(context.Background(), "host-id", "slot-id", EditInput{ExpectedVersion: 3, Visibility: &visibility}, "edit-slot-visibility-06"); err != nil {
+		t.Fatal(err)
+	}
+	if store.lastEdit.Visibility == nil || *store.lastEdit.Visibility != VisibilityCity {
+		t.Fatalf("expected VisibilityCity to reach the store patch, got %#v", store.lastEdit.Visibility)
+	}
+	if store.lastEdit.SelectedUserIDs != nil {
+		t.Fatalf("CITY has no allow-list; expected none in the store patch, got %v", store.lastEdit.SelectedUserIDs)
 	}
 }
 

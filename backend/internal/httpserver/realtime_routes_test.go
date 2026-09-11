@@ -14,9 +14,11 @@ import (
 )
 
 type fakeRealtimeFeed struct {
-	batch realtime.ViewerBatch
-	err   error
-	seen  struct {
+	batch     realtime.ViewerBatch
+	err       error
+	cursor    int64
+	cursorErr error
+	seen      struct {
 		viewer string
 		after  int64
 		limit  int
@@ -28,6 +30,10 @@ func (f *fakeRealtimeFeed) Pull(_ context.Context, viewerID string, after int64,
 	f.seen.after = after
 	f.seen.limit = limit
 	return f.batch, f.err
+}
+
+func (f *fakeRealtimeFeed) CurrentCursor(context.Context, string) (int64, error) {
+	return f.cursor, f.cursorErr
 }
 
 func TestRealtimeEventsRequiresAuthContext(t *testing.T) {
@@ -110,6 +116,59 @@ func TestRealtimeEventsMapsFeedErrors(t *testing.T) {
 		s := &Server{deps: Dependencies{Realtime: &fakeRealtimeFeed{err: tc.err}}}
 		rec := httptest.NewRecorder()
 		s.realtimeEvents(rec, authenticatedRealtimeRequest("/v1/realtime/events", "viewer-1"))
+		if rec.Code != tc.want {
+			t.Fatalf("err=%v status=%d want=%d body=%s", tc.err, rec.Code, tc.want, rec.Body.String())
+		}
+	}
+}
+
+func TestRealtimeCursorRequiresAuthContext(t *testing.T) {
+	s := &Server{deps: Dependencies{Realtime: &fakeRealtimeFeed{}}}
+	rec := httptest.NewRecorder()
+	s.realtimeCursor(rec, httptest.NewRequest(http.MethodGet, "/v1/realtime/cursor", nil))
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestRealtimeCursorFailsClosedWithoutService(t *testing.T) {
+	s := &Server{}
+	rec := httptest.NewRecorder()
+	s.realtimeCursor(rec, authenticatedRealtimeRequest("/v1/realtime/cursor", "viewer-1"))
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestRealtimeCursorReturnsCurrentCursor(t *testing.T) {
+	feed := &fakeRealtimeFeed{cursor: 77}
+	s := &Server{deps: Dependencies{Realtime: feed}}
+	rec := httptest.NewRecorder()
+	s.realtimeCursor(rec, authenticatedRealtimeRequest("/v1/realtime/cursor", "viewer-1"))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
+	}
+	var got realtimeCursorResponse
+	if err := json.NewDecoder(rec.Body).Decode(&got); err != nil {
+		t.Fatal(err)
+	}
+	if got.Cursor != 77 {
+		t.Fatalf("expected cursor 77, got %+v", got)
+	}
+}
+
+func TestRealtimeCursorMapsFeedErrors(t *testing.T) {
+	cases := []struct {
+		err  error
+		want int
+	}{
+		{realtime.ErrInvalidInput, http.StatusBadRequest},
+		{errors.New("db unavailable"), http.StatusInternalServerError},
+	}
+	for _, tc := range cases {
+		s := &Server{deps: Dependencies{Realtime: &fakeRealtimeFeed{cursorErr: tc.err}}}
+		rec := httptest.NewRecorder()
+		s.realtimeCursor(rec, authenticatedRealtimeRequest("/v1/realtime/cursor", "viewer-1"))
 		if rec.Code != tc.want {
 			t.Fatalf("err=%v status=%d want=%d body=%s", tc.err, rec.Code, tc.want, rec.Body.String())
 		}

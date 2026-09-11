@@ -13,4 +13,8 @@ data class CityRealtimeBatchModel(
 
 interface CityRealtimeApi {
     suspend fun pullCityRealtime(after: Long, limit: Int = 100): CityRealtimeBatchModel
+
+    // currentCursor mirrors RealtimeApi.currentCursor for the city
+    // channel (backend GET /v1/realtime/city/cursor).
+    suspend fun currentCursor(): Long
 }

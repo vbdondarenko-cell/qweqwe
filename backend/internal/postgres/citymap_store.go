@@ -57,6 +57,15 @@ func (s *CityMapStore) Viewport(ctx context.Context, viewerID, localityID string
 					s.visibility='SELECTED'
 					AND EXISTS(SELECT 1 FROM slot_selected_viewers v WHERE v.slot_id=s.id AND v.user_id=$6::uuid)
 				)
+				OR (
+					s.visibility='CITY'
+					AND EXISTS(
+						SELECT 1 FROM city_context_locks vcl
+						JOIN city_context_locks hcl ON hcl.locality_id=vcl.locality_id
+						WHERE vcl.user_id=$6::uuid AND vcl.expires_at>now()
+						  AND hcl.user_id=s.host_id AND hcl.expires_at>now()
+					)
+				)
 			  )
 			  AND s.state IN ('PUBLISHED','FILLING','FULL')
 			  AND s.start_at IS NOT NULL
@@ -150,6 +159,15 @@ func (s *CityMapStore) PlaceSlots(ctx context.Context, viewerID, localityID stri
 		OR (
 			s.visibility='SELECTED'
 			AND EXISTS(SELECT 1 FROM slot_selected_viewers v WHERE v.slot_id=s.id AND v.user_id=$1::uuid)
+		)
+		OR (
+			s.visibility='CITY'
+			AND EXISTS(
+				SELECT 1 FROM city_context_locks vcl
+				JOIN city_context_locks hcl ON hcl.locality_id=vcl.locality_id
+				WHERE vcl.user_id=$1::uuid AND vcl.expires_at>now()
+				  AND hcl.user_id=s.host_id AND hcl.expires_at>now()
+			)
 		)
 	  )
 	  AND s.state IN ('PUBLISHED','FILLING','FULL')

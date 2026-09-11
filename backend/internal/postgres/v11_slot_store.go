@@ -522,6 +522,21 @@ WHERE s.id=$1 AND (
 			   OR (b.blocker_id=s.host_id AND b.blocked_id=$2)
 		)
 	)
+	OR (
+		s.visibility='CITY'
+		AND s.state IN ('PUBLISHED','FILLING','FULL')
+		AND EXISTS(
+			SELECT 1 FROM city_context_locks vcl
+			JOIN city_context_locks hcl ON hcl.locality_id=vcl.locality_id
+			WHERE vcl.user_id=$2 AND vcl.expires_at>now()
+			  AND hcl.user_id=s.host_id AND hcl.expires_at>now()
+		)
+		AND NOT EXISTS(
+			SELECT 1 FROM user_blocks b
+			WHERE (b.blocker_id=$2 AND b.blocked_id=s.host_id)
+			   OR (b.blocker_id=s.host_id AND b.blocked_id=$2)
+		)
+	)
 )`
 
 // listV11PulseSQL's visibility gate is the OR of three branches — s.visibility
@@ -550,6 +565,15 @@ WHERE (
 	OR (
 		s.visibility='SELECTED'
 		AND EXISTS(SELECT 1 FROM slot_selected_viewers v WHERE v.slot_id=s.id AND v.user_id=$1)
+	)
+	OR (
+		s.visibility='CITY'
+		AND EXISTS(
+			SELECT 1 FROM city_context_locks vcl
+			JOIN city_context_locks hcl ON hcl.locality_id=vcl.locality_id
+			WHERE vcl.user_id=$1 AND vcl.expires_at>now()
+			  AND hcl.user_id=s.host_id AND hcl.expires_at>now()
+		)
 	)
   )
   AND s.state IN ('PUBLISHED','FILLING','FULL')

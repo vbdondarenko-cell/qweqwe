@@ -149,6 +149,101 @@ func TestV11RealtimeViewerFeedIntegration(t *testing.T) {
 	}
 }
 
+// TestV11RealtimeCurrentCursorBootstrap proves the reconnect/first-run
+// bootstrap path (README §6.2's "obtain authoritative snapshot/cursor"
+// step): CurrentCursor reports the outbox's live position with no events
+// attached, a fresh client that adopts it as its starting `after` value
+// sees nothing already-known on its very next pull, and a subsequently
+// created event is still reachable going forward from that bootstrapped
+// position — proving it is a real "start from now" fast-forward, not an
+// off-by-one that silently drops the next real event.
+func TestV11RealtimeCurrentCursorBootstrap(t *testing.T) {
+	dsn := os.Getenv("LINKUP_TEST_DATABASE_URL")
+	if dsn == "" || os.Getenv("LINKUP_TEST_DATABASE_DESTRUCTIVE") != "1" {
+		t.Skip("disposable PostgreSQL requires LINKUP_TEST_DATABASE_URL and LINKUP_TEST_DATABASE_DESTRUCTIVE=1")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+
+	pool, err := pgxpool.New(ctx, dsn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer pool.Close()
+	if err := migrate.Apply(ctx, pool, migrationDir(t)); err != nil {
+		t.Fatal(err)
+	}
+
+	accounts, err := account.NewService(NewAccountStore(pool), password.OWASPMinimum(), time.Hour)
+	if err != nil {
+		t.Fatal(err)
+	}
+	slotStore, err := NewSlotStore(pool, time.Hour)
+	if err != nil {
+		t.Fatal(err)
+	}
+	slots, err := slot.NewService(slotStore)
+	if err != nil {
+		t.Fatal(err)
+	}
+	viewerStore, err := NewRealtimeViewerStore(pool, time.Hour)
+	if err != nil {
+		t.Fatal(err)
+	}
+	feed, err := realtime.NewFeedService(viewerStore)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	suffix := fmt.Sprintf("%x", time.Now().UnixNano())
+	host := registerIntegrationUser(t, ctx, accounts, "rcb", suffix)
+	t.Cleanup(func() { cleanupIntegrationRows(pool, []string{host.User.ID}) })
+
+	// Some pre-existing history a fresh client must never be made to
+	// replay: create+edit a Slot before bootstrapping at all.
+	preexisting, err := slots.Create(ctx, host.User.ID, slot.CreateInput{
+		Title: "Pre-existing", Activity: "coffee", PlaceText: "Zone", Capacity: 3,
+	}, "realtime-cursor-bootstrap-preexisting-"+suffix)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	bootstrapCursor, err := feed.CurrentCursor(ctx, host.User.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bootstrapCursor < realtimeMaxSequence(t, ctx, pool) {
+		t.Fatalf("bootstrap cursor %d is behind the live outbox max %d", bootstrapCursor, realtimeMaxSequence(t, ctx, pool))
+	}
+
+	// A fresh client adopting the bootstrap cursor sees nothing yet —
+	// the pre-existing Slot's own creation event is correctly behind it.
+	immediate, err := feed.Pull(ctx, host.User.ID, bootstrapCursor, realtime.MaxViewerBatch)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(immediate.Events) != 0 {
+		t.Fatalf("expected no events immediately after bootstrap, got %#v", immediate.Events)
+	}
+
+	// A genuinely new event after bootstrapping is still reached going
+	// forward from the bootstrapped cursor — proving this is a real
+	// fast-forward-to-now, not an off-by-one that would also hide it.
+	title := "Renamed after bootstrap"
+	if _, err := slots.Edit(ctx, host.User.ID, preexisting.ID, slot.EditInput{
+		ExpectedVersion: preexisting.Version, Title: &title,
+	}, "realtime-cursor-bootstrap-edit-"+suffix); err != nil {
+		t.Fatal(err)
+	}
+	after, err := feed.Pull(ctx, host.User.ID, bootstrapCursor, realtime.MaxViewerBatch)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !hasRealtimeType(after.Events, "slot.updated") {
+		t.Fatalf("expected the post-bootstrap edit to be visible going forward, got %#v", after.Events)
+	}
+}
+
 func realtimeMaxSequence(t *testing.T, ctx context.Context, pool *pgxpool.Pool) int64 {
 	t.Helper()
 	var sequence int64

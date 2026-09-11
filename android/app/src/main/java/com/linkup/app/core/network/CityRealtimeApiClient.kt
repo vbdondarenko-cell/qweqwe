@@ -46,6 +46,70 @@ class CityRealtimeApiClient(
         throw lastError ?: IOException("city realtime request failed")
     }
 
+    override suspend fun currentCursor(): Long = withContext(Dispatchers.IO) {
+        var lastError: Exception? = null
+        repeat(CITY_REALTIME_GET_ATTEMPTS) { attempt ->
+            try {
+                return@withContext requestCursorOnce()
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Exception) {
+                lastError = error
+                val retryable = when (error) {
+                    is ApiException -> error.status in setOf(408, 429, 502, 503, 504)
+                    is IOException -> true
+                    else -> false
+                }
+                if (attempt == CITY_REALTIME_GET_ATTEMPTS - 1 || !retryable) throw error
+                delay(CITY_REALTIME_RETRY_DELAY_MS)
+            }
+        }
+        throw lastError ?: IOException("city realtime cursor request failed")
+    }
+
+    private fun requestCursorOnce(): Long {
+        val stored = sessions.load() ?: throw ApiException(401, "unauthorized", "authentication required")
+        val connection = (URL("$root/v1/realtime/city/cursor").openConnection() as HttpURLConnection).apply {
+            requestMethod = "GET"
+            connectTimeout = 10_000
+            readTimeout = 15_000
+            setRequestProperty("Accept", "application/json")
+            setRequestProperty("Authorization", "Bearer ${stored.token}")
+            instanceFollowRedirects = false
+            useCaches = false
+        }
+        try {
+            val status = connection.responseCode
+            val requestId = connection.getHeaderField("X-Request-ID")
+            val input = if (status in 200..299) connection.inputStream else connection.errorStream
+            val text = try {
+                input?.use { readUtf8Bounded(it) }.orEmpty()
+            } catch (_: ResponseTooLargeException) {
+                throw ApiException(status, "response_too_large", "server response exceeded the client safety limit", requestId)
+            }
+            if (status !in 200..299) {
+                if (status == HttpURLConnection.HTTP_UNAUTHORIZED) sessions.clear()
+                val problem = runCatching { JSONObject(text) }.getOrNull()
+                throw ApiException(
+                    status = status,
+                    code = problem?.optString("code")?.takeIf { it.isNotBlank() } ?: "request_failed",
+                    message = problem?.optString("message")?.takeIf { it.isNotBlank() } ?: "request failed",
+                    requestId = problem?.optString("requestId")?.takeIf { it.isNotBlank() } ?: requestId,
+                )
+            }
+            val json = try {
+                JSONObject(text)
+            } catch (_: JSONException) {
+                throw cityRealtimeProtocolError(requestId)
+            }
+            val cursor = json.optLong("cursor", -1L)
+            if (cursor < 0) throw cityRealtimeProtocolError(requestId)
+            return cursor
+        } finally {
+            connection.disconnect()
+        }
+    }
+
     private fun requestOnce(after: Long, limit: Int): CityRealtimeBatchModel {
         val stored = sessions.load() ?: throw ApiException(401, "unauthorized", "authentication required")
         val connection = (URL("$root/v1/realtime/city?after=$after&limit=$limit").openConnection() as HttpURLConnection).apply {

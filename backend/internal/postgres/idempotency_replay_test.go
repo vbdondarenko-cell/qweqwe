@@ -34,6 +34,7 @@ CREATE TEMP TABLE slot_memberships(slot_id text, user_id text) ON COMMIT DROP;
 CREATE TEMP TABLE user_blocks(blocker_id text, blocked_id text) ON COMMIT DROP;
 CREATE TEMP TABLE friendships(user_lo_id text, user_hi_id text) ON COMMIT DROP;
 CREATE TEMP TABLE slot_selected_viewers(slot_id text, user_id text) ON COMMIT DROP;
+CREATE TEMP TABLE city_context_locks(user_id text, locality_id text, expires_at timestamptz) ON COMMIT DROP;
 INSERT INTO pg_temp.slots(id,host_id,state,visibility) VALUES ('slot','host','FILLING','PUBLIC');`)
 	if err != nil {
 		t.Fatal(err)
@@ -122,6 +123,7 @@ CREATE TEMP TABLE slot_memberships(slot_id text, user_id text) ON COMMIT DROP;
 CREATE TEMP TABLE user_blocks(blocker_id text, blocked_id text) ON COMMIT DROP;
 CREATE TEMP TABLE friendships(user_lo_id text, user_hi_id text) ON COMMIT DROP;
 CREATE TEMP TABLE slot_selected_viewers(slot_id text, user_id text) ON COMMIT DROP;
+CREATE TEMP TABLE city_context_locks(user_id text, locality_id text, expires_at timestamptz) ON COMMIT DROP;
 INSERT INTO pg_temp.slots(id,host_id,state,visibility) VALUES ('slot','host','FILLING','LINKS');`)
 	if err != nil {
 		t.Fatal(err)
@@ -198,6 +200,7 @@ CREATE TEMP TABLE slot_memberships(slot_id text, user_id text) ON COMMIT DROP;
 CREATE TEMP TABLE user_blocks(blocker_id text, blocked_id text) ON COMMIT DROP;
 CREATE TEMP TABLE friendships(user_lo_id text, user_hi_id text) ON COMMIT DROP;
 CREATE TEMP TABLE slot_selected_viewers(slot_id text, user_id text) ON COMMIT DROP;
+CREATE TEMP TABLE city_context_locks(user_id text, locality_id text, expires_at timestamptz) ON COMMIT DROP;
 INSERT INTO pg_temp.slots(id,host_id,state,visibility) VALUES ('slot','host','FILLING','SELECTED');`)
 	if err != nil {
 		t.Fatal(err)
@@ -239,4 +242,84 @@ INSERT INTO pg_temp.slots(id,host_id,state,visibility) VALUES ('slot','host','FI
 	// entirely, exactly like the PUBLIC/LINKS branches already behave.
 	exec("UPDATE pg_temp.slots SET state='ACTIVE' WHERE id='slot'")
 	mustDeny("selected")
+}
+
+func TestIdempotencyReplayAuthorizationSQLCityVisibility(t *testing.T) {
+	dsn := os.Getenv("LINKUP_TEST_DATABASE_URL")
+	if dsn == "" {
+		t.Skip("LINKUP_TEST_DATABASE_URL is required for PostgreSQL query tests")
+	}
+	ctx := context.Background()
+	conn, err := pgx.Connect(ctx, dsn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close(ctx)
+	tx, err := conn.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tx.Rollback(ctx)
+
+	_, err = tx.Exec(ctx, `
+CREATE TEMP TABLE slots(id text PRIMARY KEY, host_id text, state text, visibility text) ON COMMIT DROP;
+CREATE TEMP TABLE slot_requests(slot_id text, user_id text) ON COMMIT DROP;
+CREATE TEMP TABLE slot_memberships(slot_id text, user_id text) ON COMMIT DROP;
+CREATE TEMP TABLE user_blocks(blocker_id text, blocked_id text) ON COMMIT DROP;
+CREATE TEMP TABLE friendships(user_lo_id text, user_hi_id text) ON COMMIT DROP;
+CREATE TEMP TABLE slot_selected_viewers(slot_id text, user_id text) ON COMMIT DROP;
+CREATE TEMP TABLE city_context_locks(user_id text, locality_id text, expires_at timestamptz) ON COMMIT DROP;
+INSERT INTO pg_temp.slots(id,host_id,state,visibility) VALUES ('slot','host','FILLING','CITY');
+INSERT INTO pg_temp.city_context_locks VALUES ('host','city-a', now() + interval '1 hour');`)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	mustAllow := func(actor string) {
+		t.Helper()
+		if err := authorizeIdempotencyReplayTx(ctx, tx, actor, "slot", "slot.leave"); err != nil {
+			t.Fatalf("%s/slot.leave should be allowed: %v", actor, err)
+		}
+	}
+	mustDeny := func(actor string) {
+		t.Helper()
+		if err := authorizeIdempotencyReplayTx(ctx, tx, actor, "slot", "slot.leave"); !errors.Is(err, slot.ErrForbidden) {
+			t.Fatalf("%s/slot.leave should be forbidden: %v", actor, err)
+		}
+	}
+	exec := func(query string, args ...any) {
+		t.Helper()
+		if _, err := tx.Exec(ctx, query, args...); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	// A viewer with no city lock at all must not fall back to CITY visibility.
+	mustDeny("nolock")
+
+	// A viewer locked to a different city must not fall back either.
+	exec("INSERT INTO pg_temp.city_context_locks VALUES ('otherCity','city-b', now() + interval '1 hour')")
+	mustDeny("otherCity")
+
+	// A viewer locked to the SAME current city as the host is allowed.
+	exec("INSERT INTO pg_temp.city_context_locks VALUES ('sameCity','city-a', now() + interval '1 hour')")
+	mustAllow("sameCity")
+
+	// A block between the two still wins over being in the same city.
+	exec("INSERT INTO pg_temp.user_blocks VALUES ('sameCity','host')")
+	mustDeny("sameCity")
+	exec("DELETE FROM pg_temp.user_blocks")
+	mustAllow("sameCity")
+
+	// An expired lock (either side) must not count as "currently" in the
+	// same city.
+	exec("UPDATE pg_temp.city_context_locks SET expires_at=now() - interval '1 minute' WHERE user_id='sameCity'")
+	mustDeny("sameCity")
+	exec("UPDATE pg_temp.city_context_locks SET expires_at=now() + interval '1 hour' WHERE user_id='sameCity'")
+	mustAllow("sameCity")
+
+	// Leaving the PUBLISHED/FILLING/FULL state range removes the fallback
+	// entirely, exactly like every other visibility branch already behaves.
+	exec("UPDATE pg_temp.slots SET state='ACTIVE' WHERE id='slot'")
+	mustDeny("sameCity")
 }

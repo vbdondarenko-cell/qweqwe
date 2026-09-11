@@ -15,9 +15,11 @@ import (
 )
 
 type fakeCityRealtimeFeed struct {
-	batch realtime.CityBatch
-	err   error
-	seen  struct {
+	batch     realtime.CityBatch
+	err       error
+	cursor    int64
+	cursorErr error
+	seen      struct {
 		viewer string
 		after  int64
 		limit  int
@@ -29,6 +31,10 @@ func (f *fakeCityRealtimeFeed) Pull(_ context.Context, viewerID string, after in
 	f.seen.after = after
 	f.seen.limit = limit
 	return f.batch, f.err
+}
+
+func (f *fakeCityRealtimeFeed) CurrentCursor(context.Context, string) (int64, error) {
+	return f.cursor, f.cursorErr
 }
 
 func TestRealtimeCityRequiresAuthContext(t *testing.T) {
@@ -128,4 +134,57 @@ func containsAny(value string, needles ...string) bool {
 		}
 	}
 	return false
+}
+
+func TestRealtimeCityCursorRequiresAuthContext(t *testing.T) {
+	s := &Server{deps: Dependencies{CityRealtime: &fakeCityRealtimeFeed{}}}
+	rec := httptest.NewRecorder()
+	s.realtimeCityCursor(rec, httptest.NewRequest(http.MethodGet, "/v1/realtime/city/cursor", nil))
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestRealtimeCityCursorFailsClosedWithoutService(t *testing.T) {
+	s := &Server{}
+	rec := httptest.NewRecorder()
+	s.realtimeCityCursor(rec, authenticatedRealtimeRequest("/v1/realtime/city/cursor", "viewer-1"))
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestRealtimeCityCursorReturnsCurrentCursor(t *testing.T) {
+	feed := &fakeCityRealtimeFeed{cursor: 55}
+	s := &Server{deps: Dependencies{CityRealtime: feed}}
+	rec := httptest.NewRecorder()
+	s.realtimeCityCursor(rec, authenticatedRealtimeRequest("/v1/realtime/city/cursor", "viewer-1"))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
+	}
+	var got realtimeCursorResponse
+	if err := json.NewDecoder(rec.Body).Decode(&got); err != nil {
+		t.Fatal(err)
+	}
+	if got.Cursor != 55 {
+		t.Fatalf("expected cursor 55, got %+v", got)
+	}
+}
+
+func TestRealtimeCityCursorMapsFeedErrors(t *testing.T) {
+	cases := []struct {
+		err  error
+		want int
+	}{
+		{realtime.ErrInvalidInput, http.StatusBadRequest},
+		{errors.New("db unavailable"), http.StatusInternalServerError},
+	}
+	for _, tc := range cases {
+		s := &Server{deps: Dependencies{CityRealtime: &fakeCityRealtimeFeed{cursorErr: tc.err}}}
+		rec := httptest.NewRecorder()
+		s.realtimeCityCursor(rec, authenticatedRealtimeRequest("/v1/realtime/city/cursor", "viewer-1"))
+		if rec.Code != tc.want {
+			t.Fatalf("err=%v status=%d want=%d body=%s", tc.err, rec.Code, tc.want, rec.Body.String())
+		}
+	}
 }

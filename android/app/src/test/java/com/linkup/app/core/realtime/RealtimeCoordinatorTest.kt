@@ -75,6 +75,45 @@ class RealtimeCoordinatorTest {
     }
 
     @Test
+    fun `bootstrapIfNeeded adopts server cursor for a never-synced user without pulling history`() = runSuspend {
+        val cursors = MemoryCursorStore()
+        val api = FakeRealtimeApi(RealtimeBatchModel(0, emptyList()), cursor = 500)
+        val coordinator = RealtimeCoordinator(api, cursors)
+
+        coordinator.bootstrapIfNeeded(USER_ID)
+
+        assertEquals(500, cursors.load(USER_ID))
+        assertEquals(1, api.cursorCalls)
+        assertTrue(api.afters.isEmpty())
+    }
+
+    @Test
+    fun `bootstrapIfNeeded is a no-op once a cursor already exists`() = runSuspend {
+        val cursors = MemoryCursorStore().apply { save(USER_ID, 7) }
+        val api = FakeRealtimeApi(RealtimeBatchModel(0, emptyList()), cursor = 999)
+        val coordinator = RealtimeCoordinator(api, cursors)
+
+        coordinator.bootstrapIfNeeded(USER_ID)
+
+        assertEquals(7, cursors.load(USER_ID))
+        assertEquals(0, api.cursorCalls)
+    }
+
+    @Test
+    fun `a real event after bootstrap is still reached going forward`() = runSuspend {
+        val cursors = MemoryCursorStore()
+        val api = FakeRealtimeApi(RealtimeBatchModel(51, listOf(event(51, "slot.updated", SLOT_ID))), cursor = 50)
+        val coordinator = RealtimeCoordinator(api, cursors)
+
+        coordinator.bootstrapIfNeeded(USER_ID)
+        val pulled = coordinator.pull(USER_ID)
+
+        assertEquals(50, pulled.fromCursor)
+        assertEquals(51, pulled.nextCursor)
+        assertEquals(listOf(50L), api.afters)
+    }
+
+    @Test
     fun `empty batch produces no invalidation work`() = runSuspend {
         val coordinator = RealtimeCoordinator(
             FakeRealtimeApi(RealtimeBatchModel(25, emptyList())),
@@ -87,11 +126,20 @@ class RealtimeCoordinatorTest {
         coordinator.acknowledge(USER_ID, 25)
     }
 
-    private class FakeRealtimeApi(private val batch: RealtimeBatchModel) : RealtimeApi {
+    private class FakeRealtimeApi(
+        private val batch: RealtimeBatchModel,
+        private val cursor: Long = 0,
+    ) : RealtimeApi {
         val afters = mutableListOf<Long>()
+        var cursorCalls = 0
+            private set
         override suspend fun pullRealtime(after: Long, limit: Int): RealtimeBatchModel {
             afters += after
             return batch
+        }
+        override suspend fun currentCursor(): Long {
+            cursorCalls++
+            return cursor
         }
     }
 
@@ -104,6 +152,7 @@ class RealtimeCoordinatorTest {
         override fun clear(userId: String) {
             values.remove(userId)
         }
+        override fun hasSynced(userId: String): Boolean = values.containsKey(userId)
     }
 
     private fun event(sequence: Long, type: String, slotId: String?) = RealtimeEventModel(

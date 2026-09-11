@@ -21,6 +21,16 @@ class CityRealtimeCoordinator(
     private val mutex = Mutex()
     private val offeredCursorByUser = mutableMapOf<String, Long>()
 
+    // bootstrapIfNeeded mirrors RealtimeCoordinator.bootstrapIfNeeded
+    // (see its doc comment) for the city channel.
+    suspend fun bootstrapIfNeeded(userId: String) = mutex.withLock {
+        val normalizedUserId = normalizedUserId(userId)
+        if (cursors.hasSynced(normalizedUserId)) return@withLock
+        val cursor = api.currentCursor()
+        require(cursor >= 0)
+        cursors.save(normalizedUserId, cursor)
+    }
+
     suspend fun pull(userId: String, limit: Int = 100): CityRealtimePull = mutex.withLock {
         val normalizedUserId = normalizedUserId(userId)
         require(limit in 1..200)

@@ -9,9 +9,11 @@ import (
 )
 
 type fakeViewerFeedStore struct {
-	batch ViewerBatch
-	err   error
-	seen  struct {
+	batch     ViewerBatch
+	err       error
+	cursor    int64
+	cursorErr error
+	seen      struct {
 		viewer string
 		after  int64
 		limit  int
@@ -23,6 +25,10 @@ func (f *fakeViewerFeedStore) PullViewer(_ context.Context, viewerID string, aft
 	f.seen.after = after
 	f.seen.limit = limit
 	return f.batch, f.err
+}
+
+func (f *fakeViewerFeedStore) CurrentCursor(context.Context) (int64, error) {
+	return f.cursor, f.cursorErr
 }
 
 func TestFeedServicePullDefaultsAndValidatesBatch(t *testing.T) {
@@ -86,6 +92,36 @@ func TestFeedServicePropagatesStoreFailure(t *testing.T) {
 	want := errors.New("db down")
 	service, _ := NewFeedService(&fakeViewerFeedStore{err: want})
 	if _, err := service.Pull(context.Background(), "viewer", 0, 10); !errors.Is(err, want) {
+		t.Fatalf("err=%v", err)
+	}
+}
+
+func TestFeedServiceCurrentCursor(t *testing.T) {
+	store := &fakeViewerFeedStore{cursor: 42}
+	service, err := NewFeedService(store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := service.CurrentCursor(context.Background(), " viewer ")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != 42 {
+		t.Fatalf("expected cursor 42, got %d", got)
+	}
+}
+
+func TestFeedServiceCurrentCursorRejectsEmptyViewer(t *testing.T) {
+	service, _ := NewFeedService(&fakeViewerFeedStore{})
+	if _, err := service.CurrentCursor(context.Background(), "  "); !errors.Is(err, ErrInvalidInput) {
+		t.Fatalf("expected ErrInvalidInput, got %v", err)
+	}
+}
+
+func TestFeedServiceCurrentCursorPropagatesStoreFailure(t *testing.T) {
+	want := errors.New("db down")
+	service, _ := NewFeedService(&fakeViewerFeedStore{cursorErr: want})
+	if _, err := service.CurrentCursor(context.Background(), "viewer"); !errors.Is(err, want) {
 		t.Fatalf("err=%v", err)
 	}
 }
