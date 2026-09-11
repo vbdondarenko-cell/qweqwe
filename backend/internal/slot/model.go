@@ -59,8 +59,8 @@ const (
 	// every other mode: Request/Join never check it, so a stranger handed
 	// the Slot ID directly can still reach it regardless of the allow-list.
 	// The allow-list itself lives in postgres (slot_selected_viewers,
-	// migration 000032); editing it after creation is deliberately not
-	// supported yet — see EditInput.Visibility's doc comment.
+	// migration 000032); it can be replaced wholesale after creation via
+	// EditInput.SelectedUserIDs while the Slot is still DRAFT.
 	VisibilitySelected Visibility = "SELECTED"
 
 	ViewerNone     ViewerState = "NONE"
@@ -108,10 +108,11 @@ type Slot struct {
 	State            State      `json:"state"`
 	AccessMode       AccessMode `json:"accessMode"`
 	Visibility       Visibility `json:"visibility"`
-	// SelectedUserIDs is populated only immediately after a VisibilitySelected
-	// Slot is created (CreateDraft echoes back what it just validated and
-	// stored) — Get/ListPulse/ListMine do not yet re-populate it on every
-	// read (an explicitly deferred gap, not silently incomplete).
+	// SelectedUserIDs is populated on Create/Edit/Get/ListPulse/ListMine for
+	// a VisibilitySelected Slot, but only for the Slot's own host — it is
+	// the host's private curation list, not a roster anyone selected (or
+	// anyone else who reaches the Slot) is shown. Always empty for every
+	// other viewer and every other visibility.
 	SelectedUserIDs []string    `json:"selectedUserIds,omitempty"`
 	ViewerState     ViewerState `json:"viewerState"`
 	Version         int64       `json:"version"`
@@ -178,11 +179,18 @@ type EditInput struct {
 	// silently move already-visible strangers into an "invite only by
 	// shared ID" state) than this block takes on; a host who needs to
 	// change visibility after publishing must cancel and recreate.
-	// VisibilitySelected is additionally rejected here at any state
-	// (normalizeEdit) — EditInput has no field to update the allow-list, so
-	// letting an Edit switch a Slot to SELECTED with no way to populate who
-	// is actually selected would silently create an undiscoverable Slot.
 	Visibility *Visibility
+	// SelectedUserIDs is read only when Visibility is non-nil and equal to
+	// VisibilitySelected (still DRAFT-only, same gate as Visibility
+	// itself). It always fully replaces any existing allow-list — there is
+	// no partial add/remove — and is validated the same way
+	// CreateInput.SelectedUserIDs is (non-empty, well-formed UUIDs,
+	// deduplicated). This closes the previous "cancel and recreate" gap
+	// for both switching a DRAFT Slot into SELECTED and re-picking an
+	// already-SELECTED DRAFT Slot's allow-list. Ignored for every other
+	// Visibility value, and ignored entirely when Visibility is nil (an
+	// Edit that only touches other fields never touches the allow-list).
+	SelectedUserIDs []string
 }
 
 type Store interface {

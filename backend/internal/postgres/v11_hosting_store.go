@@ -87,17 +87,24 @@ func (s *V11SlotStore) CreateDraft(
 	return out, nil
 }
 
+// rowQuerier is the common subset of *pgxpool.Pool and pgx.Tx this file
+// needs, so the same attach helper works whether or not a transaction is
+// already open.
+type rowQuerier interface {
+	Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error)
+}
+
 // attachSelectedUserIDsTx populates out.SelectedUserIDs from the persisted
 // slot_selected_viewers table (never from a possibly-stale in-memory
 // candidate) whenever out is a VisibilitySelected Slot; a no-op for every
-// other visibility, matching Slot.SelectedUserIDs's own doc comment that
-// this is currently only echoed back right after creation, not on every
-// discovery read.
-func attachSelectedUserIDsTx(ctx context.Context, tx pgx.Tx, out *slot.Slot) error {
+// other visibility. Callers decide who is allowed to see the populated
+// list (see attachSelectedUserIDsForHost for the read-path, host-only
+// gate); this function itself applies no viewer restriction.
+func attachSelectedUserIDsTx(ctx context.Context, q rowQuerier, out *slot.Slot) error {
 	if out.Visibility != slot.VisibilitySelected {
 		return nil
 	}
-	rows, err := tx.Query(ctx, `SELECT user_id::text FROM slot_selected_viewers WHERE slot_id=$1 ORDER BY user_id`, out.ID)
+	rows, err := q.Query(ctx, `SELECT user_id::text FROM slot_selected_viewers WHERE slot_id=$1 ORDER BY user_id`, out.ID)
 	if err != nil {
 		return err
 	}
@@ -115,6 +122,22 @@ func attachSelectedUserIDsTx(ctx context.Context, tx pgx.Tx, out *slot.Slot) err
 	}
 	out.SelectedUserIDs = ids
 	return nil
+}
+
+// attachSelectedUserIDsForHost is the read-path (Get/ListPulse/ListMine)
+// counterpart of attachSelectedUserIDsTx: it only populates
+// out.SelectedUserIDs when the requesting actor is the Slot's own host.
+// The allow-list is the host's private curation of who they picked; a
+// selected viewer (or anyone else who can otherwise see/reach the Slot)
+// still only ever gets the create-time echo documented on
+// Slot.SelectedUserIDs, never the full roster of who else was picked, on a
+// later read. This closes README §4.3's "not re-populated on every read"
+// gap (worklog §59/§60) without introducing a new information leak.
+func attachSelectedUserIDsForHost(ctx context.Context, q rowQuerier, out *slot.Slot, actorID string) error {
+	if out.Organizer.ID != actorID {
+		return nil
+	}
+	return attachSelectedUserIDsTx(ctx, q, out)
 }
 
 func (s *V11SlotStore) PublishDraft(

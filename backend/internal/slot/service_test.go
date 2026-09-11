@@ -3,6 +3,7 @@ package slot
 import (
 	"context"
 	"errors"
+	"reflect"
 	"testing"
 	"time"
 )
@@ -401,17 +402,55 @@ func TestEditRejectsUnknownVisibility(t *testing.T) {
 	}
 }
 
-// TestEditRejectsSelectedVisibility is distinct from
-// TestEditRejectsUnknownVisibility: SELECTED is a real, implemented mode
-// (validVisibility accepts it), but EditInput has no field to update its
-// allow-list, so normalizeEdit explicitly rejects it as an edit target —
-// see EditInput.Visibility's doc comment.
-func TestEditRejectsSelectedVisibility(t *testing.T) {
+// TestEditRejectsSelectedVisibilityWithoutAllowList: SELECTED is a real,
+// implemented edit target (EditInput.SelectedUserIDs), but — like Create —
+// it requires a non-empty allow-list; omitting one is a clear input error,
+// not a silent no-op or a categorical rejection of SELECTED as an edit
+// target.
+func TestEditRejectsSelectedVisibilityWithoutAllowList(t *testing.T) {
 	store := &memoryStore{created: Slot{ID: "slot-id", Organizer: Organizer{ID: "host-id"}, Version: 3, Capacity: 6}}
 	svc, _ := NewService(store)
 	selected := VisibilitySelected
 	if _, err := svc.Edit(context.Background(), "host-id", "slot-id", EditInput{ExpectedVersion: 3, Visibility: &selected}, "edit-slot-visibility-03"); !errors.Is(err, ErrInvalidInput) {
-		t.Fatalf("expected ErrInvalidInput editing visibility to SELECTED, got %v", err)
+		t.Fatalf("expected ErrInvalidInput editing visibility to SELECTED without an allow-list, got %v", err)
+	}
+}
+
+// TestEditPassesSelectedVisibilityAndAllowListThroughToStore proves the
+// counterpart works: a well-formed allow-list reaches the store patch
+// alongside the SELECTED visibility, deduplicated/sorted exactly like
+// CreateInput.SelectedUserIDs.
+func TestEditPassesSelectedVisibilityAndAllowListThroughToStore(t *testing.T) {
+	store := &memoryStore{created: Slot{ID: "slot-id", Organizer: Organizer{ID: "host-id"}, Version: 3, Capacity: 6}}
+	svc, _ := NewService(store)
+	selected := VisibilitySelected
+	ids := []string{"11111111-1111-1111-1111-111111111111", "22222222-2222-2222-2222-222222222222", "11111111-1111-1111-1111-111111111111"}
+	if _, err := svc.Edit(context.Background(), "host-id", "slot-id", EditInput{ExpectedVersion: 3, Visibility: &selected, SelectedUserIDs: ids}, "edit-slot-visibility-04"); err != nil {
+		t.Fatal(err)
+	}
+	if store.lastEdit.Visibility == nil || *store.lastEdit.Visibility != VisibilitySelected {
+		t.Fatalf("expected VisibilitySelected to reach the store patch, got %#v", store.lastEdit.Visibility)
+	}
+	want := []string{"11111111-1111-1111-1111-111111111111", "22222222-2222-2222-2222-222222222222"}
+	if !reflect.DeepEqual(store.lastEdit.SelectedUserIDs, want) {
+		t.Fatalf("expected deduplicated/sorted allow-list %v to reach the store patch, got %v", want, store.lastEdit.SelectedUserIDs)
+	}
+}
+
+// TestEditIgnoresSelectedUserIDsWhenVisibilityNotChanging proves the
+// allow-list is never touched implicitly: an edit that leaves Visibility
+// nil must not let a stray SelectedUserIDs value reach the store, even if
+// the caller accidentally supplied one.
+func TestEditIgnoresSelectedUserIDsWhenVisibilityNotChanging(t *testing.T) {
+	store := &memoryStore{created: Slot{ID: "slot-id", Organizer: Organizer{ID: "host-id"}, Version: 3, Capacity: 6}}
+	svc, _ := NewService(store)
+	title := "Updated title"
+	ids := []string{"11111111-1111-1111-1111-111111111111"}
+	if _, err := svc.Edit(context.Background(), "host-id", "slot-id", EditInput{ExpectedVersion: 3, Title: &title, SelectedUserIDs: ids}, "edit-slot-visibility-05"); err != nil {
+		t.Fatal(err)
+	}
+	if store.lastEdit.SelectedUserIDs != nil {
+		t.Fatalf("expected SelectedUserIDs to be dropped when Visibility is not changing, got %v", store.lastEdit.SelectedUserIDs)
 	}
 }
 

@@ -409,3 +409,137 @@ func TestV11SelectedVisibilityRealtimeViewer(t *testing.T) {
 		t.Fatalf("the selected user must see a SELECTED slot.created event: %#v", selectedBatch.Events)
 	}
 }
+
+// TestV11SelectedVisibilityAllowListEditableWhileDraft closes this
+// session's own gap over §59/§60: a DRAFT SELECTED Slot's allow-list can
+// be replaced wholesale via Edit (no more "cancel and recreate"), and
+// SelectedUserIDs is now re-populated on every read (Get/ListPulse), but
+// only for the Slot's own host — a selected viewer's own read never gets
+// the full roster of who else was picked.
+func TestV11SelectedVisibilityAllowListEditableWhileDraft(t *testing.T) {
+	dsn := os.Getenv("LINKUP_TEST_DATABASE_URL")
+	if dsn == "" || os.Getenv("LINKUP_TEST_DATABASE_DESTRUCTIVE") != "1" {
+		t.Skip("disposable PostgreSQL requires LINKUP_TEST_DATABASE_URL and LINKUP_TEST_DATABASE_DESTRUCTIVE=1")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+	pool, err := pgxpool.New(ctx, dsn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(pool.Close)
+	if err := migrate.Apply(ctx, pool, migrationDir(t)); err != nil {
+		t.Fatal(err)
+	}
+
+	accountService, err := account.NewService(NewAccountStore(pool), password.OWASPMinimum(), time.Hour)
+	if err != nil {
+		t.Fatal(err)
+	}
+	suffix := fmt.Sprintf("%x", time.Now().UnixNano())
+	host := registerIntegrationUser(t, ctx, accountService, "sve", suffix)
+	first := registerIntegrationUser(t, ctx, accountService, "svf", suffix)
+	second := registerIntegrationUser(t, ctx, accountService, "svg", suffix)
+	t.Cleanup(func() { cleanupIntegrationRows(pool, []string{host.User.ID, first.User.ID, second.User.ID}) })
+
+	baseStore, err := NewSlotStore(pool, time.Hour)
+	if err != nil {
+		t.Fatal(err)
+	}
+	v11Store, err := NewV11SlotStore(baseStore, time.Hour)
+	if err != nil {
+		t.Fatal(err)
+	}
+	slotService, err := slot.NewService(v11Store)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	visibility := slot.VisibilitySelected
+	draft, err := slotService.CreateDraft(ctx, host.User.ID, slot.CreateInput{
+		Title: "Editable Allow-List", Activity: "coffee", PlaceText: "Center", Capacity: 3,
+		Visibility: &visibility, SelectedUserIDs: []string{first.User.ID},
+	}, "v11-selected-edit-draft-0001")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// The host reading their own DRAFT sees the allow-list they just set.
+	hostRead, err := slotService.Get(ctx, host.User.ID, draft.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(hostRead.SelectedUserIDs) != 1 || hostRead.SelectedUserIDs[0] != first.User.ID {
+		t.Fatalf("expected host Get() to re-populate the allow-list, got %#v", hostRead.SelectedUserIDs)
+	}
+
+	// Replace the allow-list entirely: drop first, add second.
+	edited, err := slotService.Edit(ctx, host.User.ID, draft.ID, slot.EditInput{
+		ExpectedVersion: draft.Version, Visibility: &visibility, SelectedUserIDs: []string{second.User.ID},
+	}, "v11-selected-edit-replace-0001")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(edited.SelectedUserIDs) != 1 || edited.SelectedUserIDs[0] != second.User.ID {
+		t.Fatalf("expected Edit's own response to reflect the replaced allow-list, got %#v", edited.SelectedUserIDs)
+	}
+
+	published, err := slotService.PublishDraft(ctx, host.User.ID, edited.ID, edited.Version, "v11-selected-edit-publish-0001")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// first (dropped) can no longer see it; second (added) now can.
+	if _, err := slotService.Get(ctx, first.User.ID, published.ID); !errors.Is(err, slot.ErrNotFound) {
+		t.Fatalf("expected the dropped allow-list entry to lose visibility, got %v", err)
+	}
+	secondView, err := slotService.Get(ctx, second.User.ID, published.ID)
+	if err != nil {
+		t.Fatalf("expected the newly-added allow-list entry to gain visibility: %v", err)
+	}
+	// The selected viewer's own read never gets the host-only roster.
+	if len(secondView.SelectedUserIDs) != 0 {
+		t.Fatalf("a non-host selected viewer must never see the full allow-list, got %#v", secondView.SelectedUserIDs)
+	}
+
+	// The host's own read (and ListPulse) still sees the full, current
+	// roster after publish.
+	hostAfterPublish, err := slotService.Get(ctx, host.User.ID, published.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(hostAfterPublish.SelectedUserIDs) != 1 || hostAfterPublish.SelectedUserIDs[0] != second.User.ID {
+		t.Fatalf("expected the host's post-publish Get() to show the replaced allow-list, got %#v", hostAfterPublish.SelectedUserIDs)
+	}
+	// The host's own Pulse feed never lists a non-PUBLIC Slot they host
+	// (listV11PulseSQL's visibility branches never include "OR
+	// s.host_id=$1" — a host manages their own Slots via ListMine's
+	// HOSTING view, not Pulse; a pre-existing, unrelated design fact
+	// confirmed by reading the query before asserting against it here,
+	// not assumed). ListMine(HOSTING) is the correct host-management read
+	// path this re-population gap actually needed to close.
+	hostMine, err := slotService.ListMine(ctx, host.User.ID, "HOSTING")
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, item := range hostMine {
+		if item.ID == published.ID {
+			found = true
+			if len(item.SelectedUserIDs) != 1 || item.SelectedUserIDs[0] != second.User.ID {
+				t.Fatalf("expected host's own ListMine(HOSTING) row to show the replaced allow-list, got %#v", item.SelectedUserIDs)
+			}
+		}
+	}
+	if !found {
+		t.Fatalf("expected the SELECTED slot to appear in its own host's ListMine(HOSTING): %#v", hostMine)
+	}
+
+	// Editing to SELECTED with no allow-list at all is a clear input error,
+	// not a silent no-op that would leave the previous list dangling.
+	if _, err := slotService.Edit(ctx, host.User.ID, published.ID, slot.EditInput{
+		ExpectedVersion: hostAfterPublish.Version, Visibility: &visibility,
+	}, "v11-selected-edit-empty-0001"); !errors.Is(err, slot.ErrInvalidInput) {
+		t.Fatalf("expected ErrInvalidInput editing SELECTED with an empty allow-list, got %v", err)
+	}
+}

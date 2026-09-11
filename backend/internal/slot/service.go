@@ -396,15 +396,23 @@ func normalizeEdit(in *EditInput) error {
 		if !validVisibility(visibility) {
 			return ErrInvalidInput
 		}
-		// EditInput has no field to update the SELECTED allow-list, so
-		// accepting it here would let a host switch a Slot to SELECTED with
-		// no way to say who is actually selected — silently undiscoverable
-		// rather than a clear error. Deferred, not unimplemented; see
-		// EditInput.Visibility's doc comment.
 		if visibility == VisibilitySelected {
-			return ErrInvalidInput
+			ids, err := normalizeSelectedUserIDs(in.SelectedUserIDs)
+			if err != nil {
+				return err
+			}
+			in.SelectedUserIDs = ids
+		} else {
+			// Ignore any accidentally-provided list rather than storing it
+			// against a Slot whose visibility this edit is not setting to
+			// SELECTED at all.
+			in.SelectedUserIDs = nil
 		}
 		in.Visibility = &visibility
+	} else {
+		// No visibility change requested at all — the allow-list is never
+		// touched implicitly (SelectedUserIDs.doc comment).
+		in.SelectedUserIDs = nil
 	}
 	return nil
 }

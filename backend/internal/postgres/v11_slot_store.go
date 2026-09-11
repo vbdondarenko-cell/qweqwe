@@ -78,7 +78,14 @@ func (s *V11SlotStore) Create(ctx context.Context, actorID string, candidate slo
 }
 
 func (s *V11SlotStore) Get(ctx context.Context, actorID, slotID string) (slot.Slot, error) {
-	return scanV11Slot(s.pool.QueryRow(ctx, getV11SlotSQL, slotID, actorID, s.waitlistExpiryCutoff()))
+	out, err := scanV11Slot(s.pool.QueryRow(ctx, getV11SlotSQL, slotID, actorID, s.waitlistExpiryCutoff()))
+	if err != nil {
+		return slot.Slot{}, err
+	}
+	if err := attachSelectedUserIDsForHost(ctx, s.pool, &out, actorID); err != nil {
+		return slot.Slot{}, err
+	}
+	return out, nil
 }
 
 func (s *V11SlotStore) ListPulse(ctx context.Context, actorID string, limit int) ([]slot.Slot, error) {
@@ -95,7 +102,15 @@ func (s *V11SlotStore) ListPulse(ctx context.Context, actorID string, limit int)
 		}
 		items = append(items, item)
 	}
-	return items, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	for i := range items {
+		if err := attachSelectedUserIDsForHost(ctx, s.pool, &items[i], actorID); err != nil {
+			return nil, err
+		}
+	}
+	return items, nil
 }
 
 // waitlistExpiryCutoff bounds how far back a WAITLIST slot_requests row can
@@ -127,7 +142,15 @@ func (s *V11SlotStore) ListMine(ctx context.Context, actorID, view string, limit
 		}
 		items = append(items, item)
 	}
-	return items, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	for i := range items {
+		if err := attachSelectedUserIDsForHost(ctx, s.pool, &items[i], actorID); err != nil {
+			return nil, err
+		}
+	}
+	return items, nil
 }
 
 // ListPending overrides the v1.0 SlotStore.ListPending to add WAITLIST
@@ -203,6 +226,9 @@ func (s *V11SlotStore) Edit(ctx context.Context, actorID, slotID string, patch s
 	if replay {
 		out, err := getV11SlotInternalTx(ctx, tx, resourceID, actorID)
 		if err != nil {
+			return slot.Slot{}, err
+		}
+		if err := attachSelectedUserIDsTx(ctx, tx, &out); err != nil {
 			return slot.Slot{}, err
 		}
 		if err := tx.Commit(ctx); err != nil {
@@ -308,6 +334,29 @@ func (s *V11SlotStore) Edit(ctx context.Context, actorID, slotID string, patch s
 	if err != nil {
 		return slot.Slot{}, err
 	}
+	// A patch.Visibility of SELECTED (only reachable here at all while
+	// state=="DRAFT", enforced above) always carries a freshly-validated,
+	// non-empty patch.SelectedUserIDs from normalizeEdit — either the
+	// Slot's first allow-list (switching into SELECTED) or a full
+	// replacement of an existing one (re-asserting SELECTED again). Either
+	// way the old list, if any, is discarded and replaced wholesale; there
+	// is no partial add/remove contract.
+	if visibilitySet && newVisibility == string(slot.VisibilitySelected) {
+		if _, err := tx.Exec(ctx, `DELETE FROM slot_selected_viewers WHERE slot_id=$1`, slotID); err != nil {
+			return slot.Slot{}, err
+		}
+		rows := make([][]any, len(patch.SelectedUserIDs))
+		for i, userID := range patch.SelectedUserIDs {
+			rows[i] = []any{slotID, userID}
+		}
+		if _, err := tx.CopyFrom(ctx,
+			pgx.Identifier{"slot_selected_viewers"},
+			[]string{"slot_id", "user_id"},
+			pgx.CopyFromRows(rows),
+		); err != nil {
+			return slot.Slot{}, err
+		}
+	}
 	if currentAccessMode == string(slot.AccessWaitlist) && state != "DRAFT" && state != "ACTIVE" && newCapacity > acceptedCount {
 		beforePromotion := acceptedCount
 		for acceptedCount < newCapacity {
@@ -332,6 +381,13 @@ func (s *V11SlotStore) Edit(ctx context.Context, actorID, slotID string, patch s
 	}
 	out, err := getV11SlotInternalTx(ctx, tx, slotID, actorID)
 	if err != nil {
+		return slot.Slot{}, err
+	}
+	// actorID==hostID is already enforced above, so this always runs the
+	// same "populate for the host" path Get/ListPulse/ListMine gate behind
+	// attachSelectedUserIDsForHost — Edit has no non-host caller to guard
+	// against.
+	if err := attachSelectedUserIDsTx(ctx, tx, &out); err != nil {
 		return slot.Slot{}, err
 	}
 	if err := tx.Commit(ctx); err != nil {

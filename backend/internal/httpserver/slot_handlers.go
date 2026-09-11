@@ -38,6 +38,10 @@ type editSlotRequest struct {
 	Capacity              *int             `json:"capacity"`
 	AccessMode            *slot.AccessMode `json:"accessMode"`
 	Visibility            *slot.Visibility `json:"visibility"`
+	// SelectedUserIDs replaces the SELECTED-mode allow-list wholesale; read
+	// only when Visibility is present and "SELECTED" (slot.EditInput's own
+	// doc comment) — ignored otherwise.
+	SelectedUserIDs []string `json:"selectedUserIds"`
 }
 
 type cancelSlotRequest struct {
@@ -135,6 +139,7 @@ func (s *Server) editSlot(w http.ResponseWriter, r *http.Request) {
 		Capacity:              in.Capacity,
 		AccessMode:            in.AccessMode,
 		Visibility:            in.Visibility,
+		SelectedUserIDs:       in.SelectedUserIDs,
 	}, r.Header.Get("Idempotency-Key"))
 	if err != nil {
 		s.writeSlotError(w, r, err)
