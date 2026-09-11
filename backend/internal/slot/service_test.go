@@ -381,77 +381,126 @@ func TestEditRequiresExpectedVersion(t *testing.T) {
 }
 
 func (m *memoryStore) ListMine(_ context.Context, actorID, view string, _ int) ([]Slot, error) {
-    m.ensure()
-    out := m.created
-    out.ViewerState = m.viewer(actorID)
-    if out.ID == "" || (out.State != StateFilling && out.State != StateFull && out.State != StatePublished && out.State != StateActive) { return []Slot{}, nil }
-    matches := view == "HOSTING" && out.ViewerState == ViewerHost || view == "JOINED" && out.ViewerState == ViewerAccepted || view == "REQUESTED" && out.ViewerState == ViewerPending && out.State != StateActive
-    if !matches { return []Slot{}, nil }
-    return []Slot{out}, nil
+	m.ensure()
+	out := m.created
+	out.ViewerState = m.viewer(actorID)
+	if out.ID == "" || (out.State != StateFilling && out.State != StateFull && out.State != StatePublished && out.State != StateActive) {
+		return []Slot{}, nil
+	}
+	matches := view == "HOSTING" && out.ViewerState == ViewerHost || view == "JOINED" && out.ViewerState == ViewerAccepted || view == "REQUESTED" && out.ViewerState == ViewerPending && out.State != StateActive
+	if !matches {
+		return []Slot{}, nil
+	}
+	return []Slot{out}, nil
 }
 
 func TestListMineIncludesActiveRelationships(t *testing.T) {
-    store := &memoryStore{created: Slot{ID:"slot", Organizer:Organizer{ID:"host"}, State:StateActive}, members:map[string]bool{"member":true}}
-    svc, err := NewService(store)
-    if err != nil { t.Fatal(err) }
-    for _, tc := range []struct{ actor, view string; count int }{
-        {"host","HOSTING",1}, {"member","JOINED",1}, {"stranger","JOINED",0},
-        {"member","HOSTING",0}, {"host","JOINED",0},
-    } {
-        got, err := svc.ListMine(context.Background(),tc.actor,tc.view)
-        if err != nil || len(got)!=tc.count { t.Fatalf("%s/%s count=%d err=%v",tc.actor,tc.view,len(got),err) }
-    }
-    if _, err := svc.ListMine(context.Background(),"host","ALL_USERS"); !errors.Is(err,ErrInvalidInput) { t.Fatal("invalid scope accepted") }
-    if _, err := svc.ListMine(context.Background(),"","HOSTING"); !errors.Is(err,ErrInvalidInput) { t.Fatal("empty actor accepted") }
+	store := &memoryStore{created: Slot{ID: "slot", Organizer: Organizer{ID: "host"}, State: StateActive}, members: map[string]bool{"member": true}}
+	svc, err := NewService(store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		actor, view string
+		count       int
+	}{
+		{"host", "HOSTING", 1}, {"member", "JOINED", 1}, {"stranger", "JOINED", 0},
+		{"member", "HOSTING", 0}, {"host", "JOINED", 0},
+	} {
+		got, err := svc.ListMine(context.Background(), tc.actor, tc.view)
+		if err != nil || len(got) != tc.count {
+			t.Fatalf("%s/%s count=%d err=%v", tc.actor, tc.view, len(got), err)
+		}
+	}
+	if _, err := svc.ListMine(context.Background(), "host", "ALL_USERS"); !errors.Is(err, ErrInvalidInput) {
+		t.Fatal("invalid scope accepted")
+	}
+	if _, err := svc.ListMine(context.Background(), "", "HOSTING"); !errors.Is(err, ErrInvalidInput) {
+		t.Fatal("empty actor accepted")
+	}
 }
 
 func (m *memoryStore) ListAccepted(_ context.Context, actorID, slotID string) ([]Organizer, error) {
-    if m.created.ID != slotID || m.created.Organizer.ID != actorID { return nil, ErrNotFound }
-    switch m.created.State {
-    case StatePublished, StateFilling, StateFull, StateActive:
-    default: return nil, ErrNotFound
-    }
-    out := make([]Organizer, 0)
-    for id := range m.members { if id != actorID { out = append(out, Organizer{ID:id}) } }
-    return out, nil
+	if m.created.ID != slotID || m.created.Organizer.ID != actorID {
+		return nil, ErrNotFound
+	}
+	switch m.created.State {
+	case StatePublished, StateFilling, StateFull, StateActive:
+	default:
+		return nil, ErrNotFound
+	}
+	out := make([]Organizer, 0)
+	for id := range m.members {
+		if id != actorID {
+			out = append(out, Organizer{ID: id})
+		}
+	}
+	return out, nil
 }
 
 func TestAcceptedRosterRequiresCurrentHost(t *testing.T) {
-    store := &memoryStore{created: Slot{ID:"slot", Organizer:Organizer{ID:"host"}, State:StateActive}, members:map[string]bool{"member":true}}
-    svc, _ := NewService(store)
-    items, err := svc.ListAccepted(context.Background(), "host", "slot")
-    if err != nil || len(items) != 1 || items[0].ID != "member" { t.Fatalf("items=%v err=%v", items, err) }
-    for _, actor := range []string{"member", "pending", "stranger"} {
-        if _, err := svc.ListAccepted(context.Background(), actor, "slot"); !errors.Is(err, ErrNotFound) { t.Fatalf("actor=%s err=%v", actor, err) }
-    }
-    store.created.State = StateCompleted
-    if _, err := svc.ListAccepted(context.Background(), "host", "slot"); !errors.Is(err, ErrNotFound) { t.Fatal("terminal roster exposed") }
-    if _, err := svc.ListAccepted(context.Background(), "", "slot"); !errors.Is(err, ErrInvalidInput) { t.Fatal("empty actor accepted") }
+	store := &memoryStore{created: Slot{ID: "slot", Organizer: Organizer{ID: "host"}, State: StateActive}, members: map[string]bool{"member": true}}
+	svc, _ := NewService(store)
+	items, err := svc.ListAccepted(context.Background(), "host", "slot")
+	if err != nil || len(items) != 1 || items[0].ID != "member" {
+		t.Fatalf("items=%v err=%v", items, err)
+	}
+	for _, actor := range []string{"member", "pending", "stranger"} {
+		if _, err := svc.ListAccepted(context.Background(), actor, "slot"); !errors.Is(err, ErrNotFound) {
+			t.Fatalf("actor=%s err=%v", actor, err)
+		}
+	}
+	store.created.State = StateCompleted
+	if _, err := svc.ListAccepted(context.Background(), "host", "slot"); !errors.Is(err, ErrNotFound) {
+		t.Fatal("terminal roster exposed")
+	}
+	if _, err := svc.ListAccepted(context.Background(), "", "slot"); !errors.Is(err, ErrInvalidInput) {
+		t.Fatal("empty actor accepted")
+	}
 }
 
 func (m *memoryStore) RemoveMember(_ context.Context, actorID, slotID, memberID string, version int64, _ string, _ []byte, _ time.Time) (Slot, error) {
-    if m.created.ID != slotID { return Slot{}, ErrNotFound }
-    if m.created.Organizer.ID != actorID { return Slot{}, ErrForbidden }
-    if m.created.Version != version { return Slot{}, ErrConflict }
-    if !m.members[memberID] { return Slot{}, ErrNotFound }
-    delete(m.members, memberID)
-    m.created.AcceptedCount--
-    m.created.Version++
-    if m.created.State == StateFull { m.created.State = StateFilling }
-    return m.created, nil
+	if m.created.ID != slotID {
+		return Slot{}, ErrNotFound
+	}
+	if m.created.Organizer.ID != actorID {
+		return Slot{}, ErrForbidden
+	}
+	if m.created.Version != version {
+		return Slot{}, ErrConflict
+	}
+	if !m.members[memberID] {
+		return Slot{}, ErrNotFound
+	}
+	delete(m.members, memberID)
+	m.created.AcceptedCount--
+	m.created.Version++
+	if m.created.State == StateFull {
+		m.created.State = StateFilling
+	}
+	return m.created, nil
 }
 
 func TestRemoveMemberValidatesVersionAndIdentity(t *testing.T) {
-    store := &memoryStore{created:Slot{ID:"link", Organizer:Organizer{ID:"host"}, Version:3, State:StateFull, AcceptedCount:1}, members:map[string]bool{"member":true}}
-    svc, _ := NewService(store)
-    for _, tc := range []struct { actor, member, key string; version int64 }{
-        {"host","host","remove-member-001",3}, {"host","member","",3}, {"host","member","remove-member-001",0},
-    } {
-        if _, err := svc.RemoveMember(context.Background(),tc.actor,"link",tc.member,tc.version,tc.key); !errors.Is(err,ErrInvalidInput) { t.Fatalf("invalid input: %v",err) }
-    }
-    if _, err := svc.RemoveMember(context.Background(),"host","link","member",2,"remove-member-001"); !errors.Is(err,ErrConflict) { t.Fatal("stale version accepted") }
-    out, err := svc.RemoveMember(context.Background(),"host","link","member",3,"remove-member-001")
-    if err != nil || out.AcceptedCount != 0 || out.State != StateFilling || out.Version != 4 { t.Fatalf("out=%v err=%v",out,err) }
+	store := &memoryStore{created: Slot{ID: "link", Organizer: Organizer{ID: "host"}, Version: 3, State: StateFull, AcceptedCount: 1}, members: map[string]bool{"member": true}}
+	svc, _ := NewService(store)
+	for _, tc := range []struct {
+		actor, member, key string
+		version            int64
+	}{
+		{"host", "host", "remove-member-001", 3}, {"host", "member", "", 3}, {"host", "member", "remove-member-001", 0},
+	} {
+		if _, err := svc.RemoveMember(context.Background(), tc.actor, "link", tc.member, tc.version, tc.key); !errors.Is(err, ErrInvalidInput) {
+			t.Fatalf("invalid input: %v", err)
+		}
+	}
+	if _, err := svc.RemoveMember(context.Background(), "host", "link", "member", 2, "remove-member-001"); !errors.Is(err, ErrConflict) {
+		t.Fatal("stale version accepted")
+	}
+	out, err := svc.RemoveMember(context.Background(), "host", "link", "member", 3, "remove-member-001")
+	if err != nil || out.AcceptedCount != 0 || out.State != StateFilling || out.Version != 4 {
+		t.Fatalf("out=%v err=%v", out, err)
+	}
 }
 
 func TestLegacyCreateRejectsFutureAccessModes(t *testing.T) {
@@ -464,6 +513,24 @@ func TestLegacyCreateRejectsFutureAccessModes(t *testing.T) {
 	_, err = service.Create(context.Background(), "host-id", CreateInput{
 		Title: "Coffee", Activity: "coffee", PlaceText: "Center", Capacity: 4, AccessMode: &mode,
 	}, "00000000-0000-0000-0000-000000000099")
+	if err != ErrInvalidState {
+		t.Fatalf("expected ErrInvalidState, got %v", err)
+	}
+}
+
+// TestLegacyCreateRejectsNonPublicVisibility mirrors the AccessMode case
+// above: v1.0 mandates Public (README §4.3); PRIVATE (and any future
+// visibility mode) is configured through DRAFT, same as INSTANT/WAITLIST.
+func TestLegacyCreateRejectsNonPublicVisibility(t *testing.T) {
+	store := &memoryStore{}
+	service, err := NewService(store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	visibility := VisibilityPrivate
+	_, err = service.Create(context.Background(), "host-id", CreateInput{
+		Title: "Coffee", Activity: "coffee", PlaceText: "Center", Capacity: 4, Visibility: &visibility,
+	}, "00000000-0000-0000-0000-000000000100")
 	if err != ErrInvalidState {
 		t.Fatalf("expected ErrInvalidState, got %v", err)
 	}

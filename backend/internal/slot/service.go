@@ -37,6 +37,11 @@ func (s *Service) Create(ctx context.Context, actorID string, in CreateInput, id
 	if in.AccessMode != nil && *in.AccessMode != AccessApproval {
 		return Slot{}, ErrInvalidState
 	}
+	// Same reasoning for visibility: v1.0 mandates Public (README §4.3).
+	// PRIVATE is configured through DRAFT, same as INSTANT/WAITLIST above.
+	if in.Visibility != nil && *in.Visibility != VisibilityPublic {
+		return Slot{}, ErrInvalidState
+	}
 	id, err := identifier.NewUUID()
 	if err != nil {
 		return Slot{}, err
@@ -277,6 +282,13 @@ func normalizeCreate(in *CreateInput) error {
 		}
 		in.AccessMode = &mode
 	}
+	if in.Visibility != nil {
+		visibility := Visibility(strings.ToUpper(strings.TrimSpace(string(*in.Visibility))))
+		if !validVisibility(visibility) {
+			return ErrInvalidInput
+		}
+		in.Visibility = &visibility
+	}
 	return nil
 }
 
@@ -348,6 +360,22 @@ func effectiveAccessMode(mode *AccessMode) AccessMode {
 
 func validAccessMode(mode AccessMode) bool {
 	return mode == AccessInstant || mode == AccessApproval || mode == AccessWaitlist
+}
+
+func effectiveVisibility(visibility *Visibility) Visibility {
+	if visibility == nil {
+		return VisibilityPublic
+	}
+	return *visibility
+}
+
+// validVisibility is the closed set this API actually accepts today:
+// PUBLIC (v1.0 mandatory) and PRIVATE (the first of README §4.3's
+// additional v1.1 modes — see VisibilityPrivate's doc comment). The other
+// five (LINKS/SELECTED/CITY/LASSO/TRAVEL_CORRIDOR) are rejected as invalid
+// input rather than silently accepted and ignored.
+func validVisibility(visibility Visibility) bool {
+	return visibility == VisibilityPublic || visibility == VisibilityPrivate
 }
 
 func validUUID(value string) bool {

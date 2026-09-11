@@ -27,6 +27,20 @@ const (
 	AccessWaitlist AccessMode = "WAITLIST"
 
 	VisibilityPublic Visibility = "PUBLIC"
+	// VisibilityPrivate is the first non-PUBLIC visibility mode README
+	// §4.3 lists (v1.0 mandates Public; wider visibility is v1.1 scope).
+	// Every existing discovery surface (Pulse, Map, the Get "stranger"
+	// branch, realtime lifecycle-event visibility) already gates on
+	// visibility='PUBLIC' explicitly, so a PRIVATE Slot is automatically
+	// excluded from all of them with no further change. It is still
+	// directly reachable by anyone who already has a relationship (host,
+	// accepted member, or a live pending request) or who knows the Slot ID
+	// and calls Request/Join directly — Request/Join never check
+	// visibility, matching an "invite by sharing the ID" model. The other
+	// six modes README §4.3 lists (LINKS/SELECTED/CITY/LASSO/
+	// TRAVEL_CORRIDOR) remain unimplemented; see internal/slot's own
+	// validation for the closed set this API actually accepts.
+	VisibilityPrivate Visibility = "PRIVATE"
 
 	ViewerNone     ViewerState = "NONE"
 	ViewerPending  ViewerState = "PENDING"
@@ -108,6 +122,13 @@ type CreateInput struct {
 	StartAt          *time.Time
 	Capacity         int
 	AccessMode       *AccessMode
+	// Visibility is nil-safe (defaults to VisibilityPublic, v1.0's only
+	// supported value); the v1.1 hosting draft/publish path additionally
+	// accepts VisibilityPrivate. Changing visibility after creation is
+	// deliberately not supported by this block (not in EditInput) — a host
+	// who needs to switch must cancel and recreate; stated as an explicit
+	// scope limit, not silently assumed away.
+	Visibility *Visibility
 }
 
 type EditInput struct {

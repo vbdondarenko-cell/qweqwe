@@ -18,6 +18,7 @@ type createSlotRequest struct {
 	StartAt          *time.Time       `json:"startAt"`
 	Capacity         int              `json:"capacity"`
 	AccessMode       *slot.AccessMode `json:"accessMode"`
+	Visibility       *slot.Visibility `json:"visibility"`
 }
 
 type editSlotRequest struct {
@@ -67,6 +68,7 @@ func (s *Server) createSlot(w http.ResponseWriter, r *http.Request) {
 		StartAt:          in.StartAt,
 		Capacity:         in.Capacity,
 		AccessMode:       in.AccessMode,
+		Visibility:       in.Visibility,
 	}, r.Header.Get("Idempotency-Key"))
 	if err != nil {
 		s.writeSlotError(w, r, err)

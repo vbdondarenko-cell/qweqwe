@@ -45,7 +45,7 @@ func (s *Service) CreateDraft(ctx context.Context, actorID string, in CreateInpu
 		AcceptedCount:    0,
 		State:            StateDraft,
 		AccessMode:       effectiveAccessMode(in.AccessMode),
-		Visibility:       VisibilityPublic,
+		Visibility:       effectiveVisibility(in.Visibility),
 		ViewerState:      ViewerHost,
 		Version:          1,
 		CreatedAt:        now,
@@ -61,8 +61,9 @@ func (s *Service) CreateDraft(ctx context.Context, actorID string, in CreateInpu
 		StartAt          *time.Time
 		Capacity         int
 		AccessMode       AccessMode
+		Visibility       Visibility
 		Draft            bool
-	}{in.Title, in.Activity, in.Details, in.PlaceText, in.ZoneText, in.CanonicalPlaceID, in.StartAt, in.Capacity, effectiveAccessMode(in.AccessMode), true})
+	}{in.Title, in.Activity, in.Details, in.PlaceText, in.ZoneText, in.CanonicalPlaceID, in.StartAt, in.Capacity, effectiveAccessMode(in.AccessMode), effectiveVisibility(in.Visibility), true})
 	if err != nil {
 		return Slot{}, err
 	}

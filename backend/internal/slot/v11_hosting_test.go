@@ -2,6 +2,7 @@ package slot
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 )
@@ -64,6 +65,38 @@ func TestCreateDraftPreservesConfiguredAccessMode(t *testing.T) {
 	}
 	if out.AccessMode != AccessWaitlist || store.created.AccessMode != AccessWaitlist {
 		t.Fatalf("draft access mode lost: out=%s stored=%s", out.AccessMode, store.created.AccessMode)
+	}
+}
+
+func TestCreateDraftPreservesConfiguredVisibility(t *testing.T) {
+	store := &hostingStoreStub{}
+	service, err := NewService(store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	visibility := VisibilityPrivate
+	out, err := service.CreateDraft(context.Background(), "host-id", CreateInput{
+		Title: "Coffee later", Activity: "coffee", PlaceText: "Central Cafe", Capacity: 4, Visibility: &visibility,
+	}, "00000000-0000-0000-0000-000000000004")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out.Visibility != VisibilityPrivate || store.created.Visibility != VisibilityPrivate {
+		t.Fatalf("draft visibility lost: out=%s stored=%s", out.Visibility, store.created.Visibility)
+	}
+}
+
+func TestCreateDraftRejectsUnknownVisibility(t *testing.T) {
+	store := &hostingStoreStub{}
+	service, err := NewService(store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	bogus := Visibility("SELECTED")
+	if _, err := service.CreateDraft(context.Background(), "host-id", CreateInput{
+		Title: "Coffee later", Activity: "coffee", PlaceText: "Central Cafe", Capacity: 4, Visibility: &bogus,
+	}, "00000000-0000-0000-0000-000000000005"); !errors.Is(err, ErrInvalidInput) {
+		t.Fatalf("expected ErrInvalidInput for an unimplemented visibility mode, got %v", err)
 	}
 }
 
