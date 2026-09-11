@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/realtime"
@@ -10,13 +11,29 @@ import (
 
 type RealtimeViewerStore struct {
 	pool *pgxpool.Pool
+	// waitlistRequestTTL mirrors V11SlotStore's/CityMapStore's own field
+	// (see V11SlotStore.waitlistExpiryCutoff's doc comment): it bounds how
+	// long a WAITLIST slot_requests row still grants the viewer realtime
+	// visibility into that Slot's own lifecycle events (slot.created/
+	// updated/state_changed). Unlike those two — which only ever corrected
+	// a *displayed* relationship label without touching row visibility —
+	// this is the visibility grant itself, deliberately deferred at §44/
+	// §47/§49 until reasoned through on its own: an expired WAITLIST
+	// position no longer counts as "this viewer has an active reason to
+	// see this Slot's events" here either, but every other access path
+	// (host, accepted member, PUBLIC discovery) is completely unaffected.
+	waitlistRequestTTL time.Duration
 }
 
-func NewRealtimeViewerStore(pool *pgxpool.Pool) (*RealtimeViewerStore, error) {
-	if pool == nil {
+func NewRealtimeViewerStore(pool *pgxpool.Pool, waitlistRequestTTL time.Duration) (*RealtimeViewerStore, error) {
+	if pool == nil || waitlistRequestTTL <= 0 {
 		return nil, realtime.ErrInvalidInput
 	}
-	return &RealtimeViewerStore{pool: pool}, nil
+	return &RealtimeViewerStore{pool: pool, waitlistRequestTTL: waitlistRequestTTL}, nil
+}
+
+func (s *RealtimeViewerStore) waitlistExpiryCutoff() time.Time {
+	return time.Now().UTC().Add(-s.waitlistRequestTTL)
 }
 
 // PullViewer treats canonical outbox events as invalidation deltas, not as
@@ -55,7 +72,7 @@ func (s *RealtimeViewerStore) PullViewer(ctx context.Context, viewerID string, a
 		return realtime.ViewerBatch{Cursor: after, Events: []realtime.Event{}}, nil
 	}
 
-	rows, err := s.pool.Query(ctx, viewerRealtimeSQL, viewerID, after, scannedCursor, limit+1)
+	rows, err := s.pool.Query(ctx, viewerRealtimeSQL, viewerID, after, scannedCursor, limit+1, s.waitlistExpiryCutoff())
 	if err != nil {
 		return realtime.ViewerBatch{}, err
 	}
@@ -104,7 +121,8 @@ const viewerRealtimeSQL = `
 			AND (
 				s.host_id=$1::uuid
 				OR EXISTS (SELECT 1 FROM slot_memberships m WHERE m.slot_id=s.id AND m.user_id=$1::uuid)
-				OR EXISTS (SELECT 1 FROM slot_requests r WHERE r.slot_id=s.id AND r.user_id=$1::uuid)
+				OR EXISTS (SELECT 1 FROM slot_requests r WHERE r.slot_id=s.id AND r.user_id=$1::uuid
+					AND (s.access_mode<>'WAITLIST' OR r.created_at>$5::timestamptz))
 				OR (
 					s.visibility='PUBLIC'
 					AND s.state IN ('PUBLISHED','FILLING','FULL')

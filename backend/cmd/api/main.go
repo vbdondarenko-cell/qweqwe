@@ -91,7 +91,7 @@ func main() {
 	if err != nil { slog.Error("map service init failed", "error", err); os.Exit(1) }
 	placeService, err := places.NewService(postgres.NewPlaceStore(pool))
 	if err != nil { slog.Error("place service init failed", "error", err); os.Exit(1) }
-	realtimeStore, err := postgres.NewRealtimeViewerStore(pool)
+	realtimeStore, err := postgres.NewRealtimeViewerStore(pool, cfg.WaitlistRequestTTL)
 	if err != nil { slog.Error("realtime store init failed", "error", err); os.Exit(1) }
 	realtimeService, err := realtime.NewFeedService(realtimeStore)
 	if err != nil { slog.Error("realtime service init failed", "error", err); os.Exit(1) }

@@ -56,7 +56,7 @@ func TestV11CityRealtimeFeedIsolationAndTransitions(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	viewerStore, err := NewRealtimeViewerStore(pool)
+	viewerStore, err := NewRealtimeViewerStore(pool, time.Hour)
 	if err != nil {
 		t.Fatal(err)
 	}
