@@ -190,13 +190,15 @@ func (p *NotificationProjector) attemptPush(ctx context.Context, cand *candidate
 	return notification.OutcomeSent
 }
 
-// buildCandidate recognizes exactly the outbox event types this block
-// implements. Every other event type returns (nil, nil): the cursor still
-// advances past it (Skipped), but no notification_deliveries row is
-// created. This is a deliberately small, explicit allow-list — extending it
-// to more of README §6.8's canonical types (EVENT_RECOMMENDATION, MESSAGE
-// grouping, FRIEND_*, admin PROMO campaigns) is future work, not silently
-// assumed done by this switch existing.
+// buildCandidate recognizes exactly the outbox event types this codebase's
+// notification work has wired through so far. Every other event type
+// returns (nil, nil): the cursor still advances past it (Skipped), but no
+// notification_deliveries row is created. This is a deliberately small,
+// explicit allow-list — extending it to more of README §6.8's canonical
+// types (EVENT_RECOMMENDATION, MESSAGE grouping, admin PROMO campaigns) is
+// future work, not silently assumed done by this switch existing.
+// FRIEND_REQUEST/FRIEND_ACCEPTED (internal/friend, friend_store.go) were
+// added in the same block as this comment's last edit.
 func (p *NotificationProjector) buildCandidate(ctx context.Context, event realtime.Event) (*candidate, error) {
 	switch event.Type {
 	case "slot.membership_added":
@@ -205,6 +207,10 @@ func (p *NotificationProjector) buildCandidate(ctx context.Context, event realti
 		return p.buildRequestCreatedCandidate(ctx, event)
 	case "slot.starting_soon":
 		return p.buildStartingSoonCandidate(ctx, event)
+	case "friend.requested":
+		return p.buildFriendRequestedCandidate(ctx, event)
+	case "friend.accepted":
+		return p.buildFriendAcceptedCandidate(ctx, event)
 	default:
 		return nil, nil
 	}
@@ -298,6 +304,59 @@ func (p *NotificationProjector) buildStartingSoonCandidate(ctx context.Context, 
 		slotID:      event.SlotID,
 		title:       "Starting soon",
 		body:        title + " is starting soon.",
+	}, nil
+}
+
+// buildFriendRequestedCandidate notifies the target (event.SubjectUserID)
+// that someone sent them a friend request. event.AggregateID is the
+// friend_requests.id (FriendStore.Request emits this in the same
+// transaction as the INSERT), so the requester's name is looked up through
+// that row rather than needing it duplicated into the event payload.
+func (p *NotificationProjector) buildFriendRequestedCandidate(ctx context.Context, event realtime.Event) (*candidate, error) {
+	if event.SubjectUserID == nil {
+		return nil, nil
+	}
+	var requesterName string
+	err := p.pool.QueryRow(ctx, `
+		SELECT u.display_name FROM friend_requests r JOIN app_users u ON u.id=r.requester_id
+		WHERE r.id=$1`, event.AggregateID).Scan(&requesterName)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil // Request row (or requester) no longer exists.
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &candidate{
+		recipientID: *event.SubjectUserID,
+		typ:         notification.TypeFriendRequest,
+		title:       "New friend request",
+		body:        requesterName + " wants to connect.",
+	}, nil
+}
+
+// buildFriendAcceptedCandidate notifies the ORIGINAL requester
+// (event.SubjectUserID, set by FriendStore's acceptRequestRowTx) that their
+// request was accepted — never the person who clicked accept, who already
+// knows. The target's name (who accepted) is looked up the same way.
+func (p *NotificationProjector) buildFriendAcceptedCandidate(ctx context.Context, event realtime.Event) (*candidate, error) {
+	if event.SubjectUserID == nil {
+		return nil, nil
+	}
+	var targetName string
+	err := p.pool.QueryRow(ctx, `
+		SELECT u.display_name FROM friend_requests r JOIN app_users u ON u.id=r.target_id
+		WHERE r.id=$1`, event.AggregateID).Scan(&targetName)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &candidate{
+		recipientID: *event.SubjectUserID,
+		typ:         notification.TypeFriendAccepted,
+		title:       "Friend request accepted",
+		body:        targetName + " accepted your friend request.",
 	}, nil
 }
 

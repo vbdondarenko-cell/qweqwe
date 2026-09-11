@@ -18,6 +18,7 @@ import (
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/citycontext"
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/citymap"
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/config"
+	"github.com/vbdondarenko-cell/qweqwe/backend/internal/friend"
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/httpserver"
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/monetization"
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/notification"
@@ -141,6 +142,11 @@ func main() {
 	bumpService, err := bump.NewService(bumpStore, cfg.BumpChallengeTTL)
 	if err != nil { slog.Error("bump service init failed", "error", err); os.Exit(1) }
 
+	friendStore, err := postgres.NewFriendStore(pool)
+	if err != nil { slog.Error("friend store init failed", "error", err); os.Exit(1) }
+	friendService, err := friend.NewService(friendStore)
+	if err != nil { slog.Error("friend service init failed", "error", err); os.Exit(1) }
+
 	reminderScanner, err := postgres.NewReminderScanner(pool, cfg.EventReminderLeadTime)
 	if err != nil { slog.Error("reminder scanner init failed", "error", err); os.Exit(1) }
 
@@ -164,6 +170,7 @@ func main() {
 		Push: pushService,
 		NotificationPreferences: notificationPreferencesService,
 		Bump: bumpService,
+		Friends: friendService,
 		Onboarding: onboardingService,
 		Telegram: telegramBot,
 		TelegramWebhookSecret: cfg.TelegramWebhookSecret,

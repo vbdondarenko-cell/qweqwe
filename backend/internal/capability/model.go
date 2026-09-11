@@ -23,11 +23,12 @@ const (
 	FlyNow        Key = "fly_now"
 	FlyTravel     Key = "fly_travel"
 	FlyMotion     Key = "fly_motion"
+	Friends       Key = "friends"
 )
 
 var knownKeys = []Key{
 	Realtime, CityContext, Map, Waitlist, ChatV2, Notifications,
-	Bump, CityBPM, Swarms, FlyNow, FlyTravel, FlyMotion,
+	Bump, CityBPM, Swarms, FlyNow, FlyTravel, FlyMotion, Friends,
 }
 
 var ErrUnavailable = errors.New("capability registry unavailable")

@@ -19,6 +19,7 @@ import (
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/chat"
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/citycontext"
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/citymap"
+	"github.com/vbdondarenko-cell/qweqwe/backend/internal/friend"
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/identifier"
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/monetization"
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/notification"
@@ -44,6 +45,7 @@ type Dependencies struct {
 	Push                    *push.Service
 	NotificationPreferences *notification.PreferencesService
 	Bump                    *bump.Service
+	Friends                 *friend.Service
 	Onboarding              *onboarding.Service
 	Telegram                onboarding.ContactPrompter
 	TelegramWebhookSecret   string
@@ -109,6 +111,14 @@ func New(deps Dependencies) *Server {
 	mux.Handle("GET /v1/me/reliability", s.requireAuth(s.requireCapability(capability.Bump, http.HandlerFunc(s.getReliability))))
 	mux.Handle("GET /v1/me/bump-vault", s.requireAuth(s.requireCapability(capability.Bump, http.HandlerFunc(s.getBumpVault))))
 	mux.Handle("GET /v1/users/{userID}/reliability-band", s.requireAuth(s.requireCapability(capability.Bump, http.HandlerFunc(s.getUserReliabilityBand))))
+	mux.Handle("POST /v1/me/friends/requests/{userID}", s.requireAuth(s.requireCapability(capability.Friends, http.HandlerFunc(s.sendFriendRequest))))
+	mux.Handle("DELETE /v1/me/friends/requests/{userID}", s.requireAuth(s.requireCapability(capability.Friends, http.HandlerFunc(s.cancelFriendRequest))))
+	mux.Handle("POST /v1/me/friends/requests/{userID}/accept", s.requireAuth(s.requireCapability(capability.Friends, http.HandlerFunc(s.acceptFriendRequest))))
+	mux.Handle("POST /v1/me/friends/requests/{userID}/reject", s.requireAuth(s.requireCapability(capability.Friends, http.HandlerFunc(s.rejectFriendRequest))))
+	mux.Handle("GET /v1/me/friends/requests/incoming", s.requireAuth(s.requireCapability(capability.Friends, http.HandlerFunc(s.listIncomingFriendRequests))))
+	mux.Handle("GET /v1/me/friends/requests/outgoing", s.requireAuth(s.requireCapability(capability.Friends, http.HandlerFunc(s.listOutgoingFriendRequests))))
+	mux.Handle("GET /v1/me/friends", s.requireAuth(s.requireCapability(capability.Friends, http.HandlerFunc(s.listFriends))))
+	mux.Handle("DELETE /v1/me/friends/{userID}", s.requireAuth(s.requireCapability(capability.Friends, http.HandlerFunc(s.removeFriend))))
 
 	mux.Handle("GET /v1/realtime/events", s.requireAuth(s.requireCapability(capability.Realtime, http.HandlerFunc(s.realtimeEvents))))
 	mux.Handle("GET /v1/realtime/city", s.requireAuth(s.requireCapability(capability.Realtime, s.requireCapability(capability.CityContext, http.HandlerFunc(s.realtimeCity)))))
