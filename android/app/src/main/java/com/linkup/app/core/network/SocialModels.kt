@@ -15,7 +15,17 @@ enum class SlotState {
 }
 
 enum class SlotAccessMode { INSTANT, APPROVAL, WAITLIST }
-enum class SlotVisibility { PUBLIC }
+
+// PRIVATE and LINKS (README §4.3's first two non-PUBLIC visibility modes,
+// backend/IMPLEMENTATION_STATUS.md §52/§55) are discoverability gates, not
+// access-control gates: Request/Join work identically regardless of which
+// value is set here. valueOf(json.getString("visibility")) in parseSlot
+// (LinkUpApiClient.kt, DurableSocialApi.kt) throws for any value not
+// listed here, so this enum must stay in sync with slot.Visibility's
+// closed set (internal/slot/service.go's validVisibility) or a real
+// PRIVATE/LINKS Slot response would crash parsing instead of just failing
+// to render one unsupported field.
+enum class SlotVisibility { PUBLIC, PRIVATE, LINKS }
 enum class SlotViewerState { NONE, PENDING, ACCEPTED, HOST }
 
 data class SlotOrganizer(
@@ -56,6 +66,11 @@ data class CreateSlotInput(
     val startAtEpochMillis: Long? = null,
     val capacity: Int,
     val accessMode: SlotAccessMode = SlotAccessMode.APPROVAL,
+    // Nil-safe server-side (defaults to PUBLIC); the legacy /v1/slots
+    // endpoint rejects anything else with invalid_slot_state, matching
+    // slot.Service.Create's own guard — only /v1/slots/drafts (createDraft)
+    // actually accepts PRIVATE/LINKS.
+    val visibility: SlotVisibility? = null,
 )
 
 data class EditSlotInput(
@@ -70,6 +85,10 @@ data class EditSlotInput(
     val clearStartAt: Boolean = false,
     val capacity: Int? = null,
     val accessMode: SlotAccessMode? = null,
+    // Server only accepts this while the Slot is still DRAFT
+    // (invalid_slot_state otherwise) — see backend IMPLEMENTATION_STATUS.md
+    // §53.
+    val visibility: SlotVisibility? = null,
 )
 
 data class PendingSlotRequest(

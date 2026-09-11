@@ -86,6 +86,24 @@ func TestCreateDraftPreservesConfiguredVisibility(t *testing.T) {
 	}
 }
 
+func TestCreateDraftPreservesConfiguredLinksVisibility(t *testing.T) {
+	store := &hostingStoreStub{}
+	service, err := NewService(store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	visibility := VisibilityLinks
+	out, err := service.CreateDraft(context.Background(), "host-id", CreateInput{
+		Title: "Coffee later", Activity: "coffee", PlaceText: "Central Cafe", Capacity: 4, Visibility: &visibility,
+	}, "00000000-0000-0000-0000-000000000006")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out.Visibility != VisibilityLinks || store.created.Visibility != VisibilityLinks {
+		t.Fatalf("draft visibility lost: out=%s stored=%s", out.Visibility, store.created.Visibility)
+	}
+}
+
 func TestCreateDraftRejectsUnknownVisibility(t *testing.T) {
 	store := &hostingStoreStub{}
 	service, err := NewService(store)

@@ -8,9 +8,11 @@ import com.linkup.app.core.network.PendingSlotRequest
 import com.linkup.app.core.network.SlotModel
 import com.linkup.app.core.network.SlotAccessMode
 import com.linkup.app.core.network.SlotOrganizer
+import com.linkup.app.core.network.SlotVisibility
 import com.linkup.app.core.network.SocialApi
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 import kotlinx.coroutines.test.runTest
 
@@ -44,6 +46,57 @@ class DurableHostingApiTest {
         assertEquals("POST", observed?.method)
         assertTrue(observed!!.bodyJson!!.contains("\"accessMode\":\"WAITLIST\""))
         assertTrue(outbox.items.isEmpty())
+    }
+
+    @Test
+    fun `draft create includes visibility when configured`() = runTest {
+        val outbox = MemoryOutbox()
+        var observed: DurableMutationCommand? = null
+        val api = DurableSocialApi(
+            delegate = UnusedSocial,
+            currentBearerToken = { TOKEN },
+            runner = DurableMutationRunner(outbox) { 2_000L },
+            transport = DurableMutationTransport { command ->
+                observed = command
+                DurableAttemptResult(
+                    disposition = DurableAttemptDisposition.ACKNOWLEDGED,
+                    responseJson = slotJson("DRAFT", 1).replace("\"visibility\":\"PUBLIC\"", "\"visibility\":\"PRIVATE\""),
+                    httpStatus = 201,
+                )
+            },
+        )
+
+        val out = api.createDraft(
+            CreateSlotInput(
+                "Coffee", "coffee", placeText = "Center", capacity = 4, visibility = SlotVisibility.PRIVATE,
+            ),
+        )
+
+        assertEquals(SlotVisibility.PRIVATE, out.visibility)
+        assertTrue(observed!!.bodyJson!!.contains("\"visibility\":\"PRIVATE\""))
+    }
+
+    @Test
+    fun `draft create omits visibility from body when not configured`() = runTest {
+        val outbox = MemoryOutbox()
+        var observed: DurableMutationCommand? = null
+        val api = DurableSocialApi(
+            delegate = UnusedSocial,
+            currentBearerToken = { TOKEN },
+            runner = DurableMutationRunner(outbox) { 2_000L },
+            transport = DurableMutationTransport { command ->
+                observed = command
+                DurableAttemptResult(
+                    disposition = DurableAttemptDisposition.ACKNOWLEDGED,
+                    responseJson = slotJson("DRAFT", 1),
+                    httpStatus = 201,
+                )
+            },
+        )
+
+        api.createDraft(CreateSlotInput("Coffee", "coffee", placeText = "Center", capacity = 4))
+
+        assertFalse(observed!!.bodyJson!!.contains("visibility"))
     }
 
     @Test

@@ -259,6 +259,7 @@ class LinkUpApiClient(
         input.zoneText?.let { body.put("zoneText", it) }
         input.canonicalPlaceId?.let { body.put("canonicalPlaceId", uuid(it)) }
         input.startAtEpochMillis?.let { body.put("startAt", Instant.ofEpochMilli(it).toString()) }
+        input.visibility?.let { body.put("visibility", it.name) }
         return parseSlot(request("POST", "/v1/slots", body, true, mutationHeaders())!!)
     }
 
@@ -279,6 +280,7 @@ class LinkUpApiClient(
         if (input.clearStartAt) body.put("clearStartAt", true)
         input.capacity?.let { body.put("capacity", it) }
         input.accessMode?.let { body.put("accessMode", it.name) }
+        input.visibility?.let { body.put("visibility", it.name) }
         return parseSlot(request("PATCH", "/v1/slots/${uuid(slotId)}", body, true, mutationHeaders())!!)
     }
 

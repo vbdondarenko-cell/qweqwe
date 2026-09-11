@@ -70,6 +70,7 @@ class DurableSocialApi(
         if (input.clearStartAt) body.put("clearStartAt", true)
         input.capacity?.let { body.put("capacity", it) }
         input.accessMode?.let { body.put("accessMode", it.name) }
+        input.visibility?.let { body.put("visibility", it.name) }
         return executeSlot("PATCH", "/v1/slots/$normalizedSlotId", body)
     }
 
@@ -142,6 +143,7 @@ class DurableSocialApi(
         input.zoneText?.let { body.put("zoneText", it) }
         input.canonicalPlaceId?.let { body.put("canonicalPlaceId", uuid(it)) }
         input.startAtEpochMillis?.let { body.put("startAt", Instant.ofEpochMilli(it).toString()) }
+        input.visibility?.let { body.put("visibility", it.name) }
         return body
     }
 

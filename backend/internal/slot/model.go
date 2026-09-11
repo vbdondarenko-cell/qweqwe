@@ -41,6 +41,15 @@ const (
 	// TRAVEL_CORRIDOR) remain unimplemented; see internal/slot's own
 	// validation for the closed set this API actually accepts.
 	VisibilityPrivate Visibility = "PRIVATE"
+	// VisibilityLinks is README §4.3's "Friends/Links" mode: discoverable
+	// only to the host's accepted friends (internal/friend.Store.AreFriends),
+	// same "discoverability gate, not access-control gate" design as
+	// VisibilityPrivate — anyone with the Slot ID can still Request/Join
+	// regardless of visibility, matching every other mode's contract. The
+	// friendship check itself lives in the postgres query layer (V11SlotStore),
+	// since the Slot domain has no dependency on internal/friend and this
+	// block does not introduce one; see internal/postgres/v11_slot_store.go.
+	VisibilityLinks Visibility = "LINKS"
 
 	ViewerNone     ViewerState = "NONE"
 	ViewerPending  ViewerState = "PENDING"

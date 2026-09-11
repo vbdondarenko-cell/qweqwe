@@ -377,12 +377,13 @@ func effectiveVisibility(visibility *Visibility) Visibility {
 }
 
 // validVisibility is the closed set this API actually accepts today:
-// PUBLIC (v1.0 mandatory) and PRIVATE (the first of README §4.3's
-// additional v1.1 modes — see VisibilityPrivate's doc comment). The other
-// five (LINKS/SELECTED/CITY/LASSO/TRAVEL_CORRIDOR) are rejected as invalid
-// input rather than silently accepted and ignored.
+// PUBLIC (v1.0 mandatory), PRIVATE, and LINKS (the first two of README
+// §4.3's additional v1.1 modes — see VisibilityPrivate's and
+// VisibilityLinks's doc comments). The other four
+// (SELECTED/CITY/LASSO/TRAVEL_CORRIDOR) are rejected as invalid input
+// rather than silently accepted and ignored.
 func validVisibility(visibility Visibility) bool {
-	return visibility == VisibilityPublic || visibility == VisibilityPrivate
+	return visibility == VisibilityPublic || visibility == VisibilityPrivate || visibility == VisibilityLinks
 }
 
 func validUUID(value string) bool {
