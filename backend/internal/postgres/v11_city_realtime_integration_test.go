@@ -77,6 +77,11 @@ func TestV11CityRealtimeFeedIsolationAndTransitions(t *testing.T) {
 	t.Cleanup(func() {
 		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 15*time.Second)
 		defer cleanupCancel()
+		// Delete children before the parent slots row: see the matching
+		// comment in cleanupIntegrationRows (v1_social_integration_test.go)
+		// for why deleting slots directly can FK-violate the outbox trigger.
+		_, _ = pool.Exec(cleanupCtx, `DELETE FROM slot_memberships WHERE slot_id IN (SELECT id FROM slots WHERE host_id=$1)`, host.User.ID)
+		_, _ = pool.Exec(cleanupCtx, `DELETE FROM slot_requests WHERE slot_id IN (SELECT id FROM slots WHERE host_id=$1)`, host.User.ID)
 		_, _ = pool.Exec(cleanupCtx, `DELETE FROM slots WHERE host_id=$1`, host.User.ID)
 		_, _ = pool.Exec(cleanupCtx, `DELETE FROM canonical_places WHERE id=ANY($1::uuid[])`, []string{placeA, placeB})
 		_, _ = pool.Exec(cleanupCtx, `DELETE FROM app_users WHERE id=ANY($1::uuid[])`, []string{host.User.ID, viewerA.User.ID, viewerB.User.ID})

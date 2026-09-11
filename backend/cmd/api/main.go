@@ -115,6 +115,20 @@ func main() {
 		slog.Info("android push device registration enabled", "delivery_enabled", pushCfg.DeliveryEnabled())
 	}
 
+	// pushService is a *push.Service that may be a nil pointer above; passing
+	// a nil pointer of a concrete type into an interface parameter produces a
+	// non-nil interface value wrapping that nil pointer (the classic Go
+	// typed-nil trap), which would defeat NotificationProjector's own
+	// `pusher == nil` check and panic on first call. Branch explicitly so a
+	// genuinely nil interface is passed when push isn't configured.
+	var notificationProjector *postgres.NotificationProjector
+	if pushService != nil {
+		notificationProjector, err = postgres.NewNotificationProjector(pool, capabilityService, pushService, cfg.NotificationTTL, cfg.NotificationFrequencyCapWindow, cfg.NotificationFrequencyCapMax)
+	} else {
+		notificationProjector, err = postgres.NewNotificationProjector(pool, capabilityService, nil, cfg.NotificationTTL, cfg.NotificationFrequencyCapWindow, cfg.NotificationFrequencyCapMax)
+	}
+	if err != nil { slog.Error("notification projector init failed", "error", err); os.Exit(1) }
+
 	authLimiter, err := ratelimit.New(ratelimit.Config{Limit: cfg.AuthRateLimit, Window: cfg.AuthRateWindow, IdleTTL: cfg.AuthRateIdleTTL, MaxEntries: cfg.AuthRateMaxEntries})
 	if err != nil { slog.Error("auth rate limiter init failed", "error", err); os.Exit(1) }
 	userLimiter, err := ratelimit.New(ratelimit.Config{Limit: cfg.SocialRateLimit, Window: cfg.SocialRateWindow, IdleTTL: cfg.SocialRateIdleTTL, MaxEntries: cfg.SocialRateMaxEntries})
@@ -155,6 +169,27 @@ func main() {
 	go func() {
 		slog.Info("linkup api listening", "addr", cfg.HTTPAddr)
 		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) { errCh <- err }
+	}()
+
+	// README §6.8's notification projector/worker runs in-process on a
+	// simple ticker rather than as a separate binary: it is stateless
+	// between ticks (all state lives in Postgres via the durable connector
+	// cursor), so a restart of this process just resumes from the last
+	// checkpoint, and a separate deployable is not required for that
+	// property. It stops with the same shutdown signal as the HTTP server.
+	go func() {
+		ticker := time.NewTicker(cfg.NotificationPollInterval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				if _, err := notificationProjector.ProcessBatch(ctx, cfg.NotificationBatchSize); err != nil && ctx.Err() == nil {
+					slog.Warn("notification projector batch failed", "error", err)
+				}
+			}
+		}
 	}()
 
 	select {

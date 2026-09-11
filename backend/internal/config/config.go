@@ -12,67 +12,77 @@ import (
 )
 
 type Config struct {
-	HTTPAddr               string
-	DatabaseURL            string
-	SessionTTL             time.Duration
-	PasswordResetTTL       time.Duration
-	RegistrationTTL        time.Duration
-	IdempotencyTTL         time.Duration
-	WaitlistRequestTTL     time.Duration
-	MigrationDir           string
-	ArgonMemoryKiB         uint32
-	ArgonIterations        uint32
-	ArgonParallel          uint8
-	AuthRateLimit          int
-	AuthRateWindow         time.Duration
-	AuthRateIdleTTL        time.Duration
-	AuthRateMaxEntries     int
-	SocialRateLimit        int
-	SocialRateWindow       time.Duration
-	SocialRateIdleTTL      time.Duration
-	SocialRateMaxEntries   int
-	RecoverySMTPAddress    string
-	RecoverySMTPHost       string
-	RecoverySMTPUsername   string
-	RecoverySMTPPassword   string
-	RecoveryFrom           string
-	RecoveryResetURL       string
-	RecoveryImplicitTLS    bool
-	TelegramBotToken       string
-	TelegramBotUsername    string
-	TelegramWebhookSecret  string
+	HTTPAddr                       string
+	DatabaseURL                    string
+	SessionTTL                     time.Duration
+	PasswordResetTTL               time.Duration
+	RegistrationTTL                time.Duration
+	IdempotencyTTL                 time.Duration
+	WaitlistRequestTTL             time.Duration
+	MigrationDir                   string
+	ArgonMemoryKiB                 uint32
+	ArgonIterations                uint32
+	ArgonParallel                  uint8
+	AuthRateLimit                  int
+	AuthRateWindow                 time.Duration
+	AuthRateIdleTTL                time.Duration
+	AuthRateMaxEntries             int
+	SocialRateLimit                int
+	SocialRateWindow               time.Duration
+	SocialRateIdleTTL              time.Duration
+	SocialRateMaxEntries           int
+	RecoverySMTPAddress            string
+	RecoverySMTPHost               string
+	RecoverySMTPUsername           string
+	RecoverySMTPPassword           string
+	RecoveryFrom                   string
+	RecoveryResetURL               string
+	RecoveryImplicitTLS            bool
+	TelegramBotToken               string
+	TelegramBotUsername            string
+	TelegramWebhookSecret          string
+	NotificationTTL                time.Duration
+	NotificationFrequencyCapMax    int
+	NotificationFrequencyCapWindow time.Duration
+	NotificationPollInterval       time.Duration
+	NotificationBatchSize          int
 }
 
 func Load() (Config, error) {
 	cfg := Config{
-		HTTPAddr:              envOr("LINKUP_HTTP_ADDR", ":8080"),
-		DatabaseURL:           os.Getenv("DATABASE_URL"),
-		SessionTTL:            30 * 24 * time.Hour,
-		PasswordResetTTL:      30 * time.Minute,
-		RegistrationTTL:       20 * time.Minute,
-		IdempotencyTTL:        24 * time.Hour,
-		WaitlistRequestTTL:    48 * time.Hour,
-		MigrationDir:          envOr("LINKUP_MIGRATIONS_DIR", "../db/migrations"),
-		ArgonMemoryKiB:        19 * 1024,
-		ArgonIterations:       2,
-		ArgonParallel:         1,
-		AuthRateLimit:         10,
-		AuthRateWindow:        time.Minute,
-		AuthRateIdleTTL:       10 * time.Minute,
-		AuthRateMaxEntries:    20_000,
-		SocialRateLimit:       120,
-		SocialRateWindow:      time.Minute,
-		SocialRateIdleTTL:     10 * time.Minute,
-		SocialRateMaxEntries:  20_000,
-		RecoverySMTPAddress:   strings.TrimSpace(os.Getenv("LINKUP_RECOVERY_SMTP_ADDR")),
-		RecoverySMTPHost:      strings.TrimSpace(os.Getenv("LINKUP_RECOVERY_SMTP_HOST")),
-		RecoverySMTPUsername:  strings.TrimSpace(os.Getenv("LINKUP_RECOVERY_SMTP_USERNAME")),
-		RecoverySMTPPassword:  os.Getenv("LINKUP_RECOVERY_SMTP_PASSWORD"),
-		RecoveryFrom:          strings.TrimSpace(os.Getenv("LINKUP_RECOVERY_FROM")),
-		RecoveryResetURL:      strings.TrimSpace(os.Getenv("LINKUP_RECOVERY_RESET_URL")),
-		TelegramBotToken:      strings.TrimSpace(os.Getenv("LINKUP_TELEGRAM_BOT_TOKEN")),
-		TelegramBotUsername:   strings.TrimPrefix(strings.TrimSpace(os.Getenv("LINKUP_TELEGRAM_BOT_USERNAME")), "@"),
-		TelegramWebhookSecret: strings.TrimSpace(os.Getenv("LINKUP_TELEGRAM_WEBHOOK_SECRET")),
+		HTTPAddr:                       envOr("LINKUP_HTTP_ADDR", ":8080"),
+		DatabaseURL:                    os.Getenv("DATABASE_URL"),
+		SessionTTL:                     30 * 24 * time.Hour,
+		PasswordResetTTL:               30 * time.Minute,
+		RegistrationTTL:                20 * time.Minute,
+		IdempotencyTTL:                 24 * time.Hour,
+		WaitlistRequestTTL:             48 * time.Hour,
+		MigrationDir:                   envOr("LINKUP_MIGRATIONS_DIR", "../db/migrations"),
+		ArgonMemoryKiB:                 19 * 1024,
+		ArgonIterations:                2,
+		ArgonParallel:                  1,
+		AuthRateLimit:                  10,
+		AuthRateWindow:                 time.Minute,
+		AuthRateIdleTTL:                10 * time.Minute,
+		AuthRateMaxEntries:             20_000,
+		SocialRateLimit:                120,
+		SocialRateWindow:               time.Minute,
+		SocialRateIdleTTL:              10 * time.Minute,
+		SocialRateMaxEntries:           20_000,
+		RecoverySMTPAddress:            strings.TrimSpace(os.Getenv("LINKUP_RECOVERY_SMTP_ADDR")),
+		RecoverySMTPHost:               strings.TrimSpace(os.Getenv("LINKUP_RECOVERY_SMTP_HOST")),
+		RecoverySMTPUsername:           strings.TrimSpace(os.Getenv("LINKUP_RECOVERY_SMTP_USERNAME")),
+		RecoverySMTPPassword:           os.Getenv("LINKUP_RECOVERY_SMTP_PASSWORD"),
+		RecoveryFrom:                   strings.TrimSpace(os.Getenv("LINKUP_RECOVERY_FROM")),
+		RecoveryResetURL:               strings.TrimSpace(os.Getenv("LINKUP_RECOVERY_RESET_URL")),
+		TelegramBotToken:               strings.TrimSpace(os.Getenv("LINKUP_TELEGRAM_BOT_TOKEN")),
+		TelegramBotUsername:            strings.TrimPrefix(strings.TrimSpace(os.Getenv("LINKUP_TELEGRAM_BOT_USERNAME")), "@"),
+		TelegramWebhookSecret:          strings.TrimSpace(os.Getenv("LINKUP_TELEGRAM_WEBHOOK_SECRET")),
+		NotificationTTL:                14 * 24 * time.Hour,
+		NotificationFrequencyCapMax:    5,
+		NotificationFrequencyCapWindow: 24 * time.Hour,
+		NotificationPollInterval:       5 * time.Second,
+		NotificationBatchSize:          200,
 	}
 	if cfg.DatabaseURL == "" {
 		return Config{}, errors.New("DATABASE_URL is required")
@@ -94,6 +104,21 @@ func Load() (Config, error) {
 	if cfg.WaitlistRequestTTL, err = durationEnv("LINKUP_WAITLIST_REQUEST_TTL", cfg.WaitlistRequestTTL); err != nil {
 		return Config{}, err
 	}
+	if cfg.NotificationTTL, err = durationEnv("LINKUP_NOTIFICATION_TTL", cfg.NotificationTTL); err != nil {
+		return Config{}, err
+	}
+	if cfg.NotificationFrequencyCapMax, err = positiveIntEnv("LINKUP_NOTIFICATION_FREQUENCY_CAP_MAX", cfg.NotificationFrequencyCapMax); err != nil {
+		return Config{}, err
+	}
+	if cfg.NotificationFrequencyCapWindow, err = durationEnv("LINKUP_NOTIFICATION_FREQUENCY_CAP_WINDOW", cfg.NotificationFrequencyCapWindow); err != nil {
+		return Config{}, err
+	}
+	if cfg.NotificationPollInterval, err = durationEnv("LINKUP_NOTIFICATION_POLL_INTERVAL", cfg.NotificationPollInterval); err != nil {
+		return Config{}, err
+	}
+	if cfg.NotificationBatchSize, err = positiveIntEnv("LINKUP_NOTIFICATION_BATCH_SIZE", cfg.NotificationBatchSize); err != nil {
+		return Config{}, err
+	}
 	if cfg.ArgonMemoryKiB, err = uint32Env("LINKUP_ARGON_MEMORY_KIB", cfg.ArgonMemoryKiB); err != nil {
 		return Config{}, err
 	}
@@ -109,11 +134,11 @@ func Load() (Config, error) {
 	}
 	cfg.ArgonParallel = uint8(parallel)
 	if err := (password.Params{
-		MemoryKiB: cfg.ArgonMemoryKiB,
+		MemoryKiB:  cfg.ArgonMemoryKiB,
 		Iterations: cfg.ArgonIterations,
-		Parallel: cfg.ArgonParallel,
-		SaltBytes: 16,
-		KeyBytes: 32,
+		Parallel:   cfg.ArgonParallel,
+		SaltBytes:  16,
+		KeyBytes:   32,
 	}).Validate(); err != nil {
 		return Config{}, fmt.Errorf("invalid Argon2id configuration: %w", err)
 	}
@@ -165,9 +190,15 @@ func recoveryTransportFieldsPresent(cfg Config) bool {
 
 func validateTelegramConfig(cfg Config) error {
 	configured := 0
-	if cfg.TelegramBotToken != "" { configured++ }
-	if cfg.TelegramBotUsername != "" { configured++ }
-	if cfg.TelegramWebhookSecret != "" { configured++ }
+	if cfg.TelegramBotToken != "" {
+		configured++
+	}
+	if cfg.TelegramBotUsername != "" {
+		configured++
+	}
+	if cfg.TelegramWebhookSecret != "" {
+		configured++
+	}
 	if configured == 0 {
 		return nil
 	}

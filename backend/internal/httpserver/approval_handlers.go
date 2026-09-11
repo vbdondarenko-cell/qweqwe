@@ -25,13 +25,10 @@ func (s *Server) requestSlot(w http.ResponseWriter, r *http.Request) {
 		s.writeSlotError(w, r, err)
 		return
 	}
-	if out.ViewerState == slot.ViewerPending {
-		s.notifyUser(out.Organizer.ID, push.Message{
-			Title: "New LinkUp request",
-			Body:  auth.User.DisplayName + " wants to join " + out.Title,
-			Data:  map[string]string{"type": "slot_request", "slotId": out.ID},
-		})
-	}
+	// README §6.8: "push is never called directly from an HTTP handler".
+	// The host's "new request" notification now projects through the
+	// notification outbox pipeline (NotificationProjector, slot.request_created)
+	// instead of being sent synchronously from here.
 	writeJSON(w, http.StatusOK, out)
 }
 
@@ -75,11 +72,10 @@ func (s *Server) approveRequest(w http.ResponseWriter, r *http.Request) {
 		s.writeSlotError(w, r, err)
 		return
 	}
-	s.notifyUser(requesterID, push.Message{
-		Title: "Request approved",
-		Body:  "You were approved for " + out.Title,
-		Data:  map[string]string{"type": "slot_request_approved", "slotId": out.ID},
-	})
+	// README §6.8: "push is never called directly from an HTTP handler".
+	// The requester's "you're in" notification now projects through the
+	// notification outbox pipeline (NotificationProjector, slot.membership_added)
+	// instead of being sent synchronously from here.
 	writeJSON(w, http.StatusOK, out)
 }
 
@@ -95,6 +91,16 @@ func (s *Server) rejectRequest(w http.ResponseWriter, r *http.Request) {
 		s.writeSlotError(w, r, err)
 		return
 	}
+	// Known deviation from README §6.8's "push is never called directly
+	// from an HTTP handler": the generic slot.request_removed outbox event
+	// this mutation emits cannot distinguish a host rejection from the
+	// requester's own withdrawal (slot_requests carries no "removed by"
+	// actor for the trigger to record), so NotificationProjector cannot
+	// build this specific notification from the outbox alone yet without
+	// risking telling a user who withdrew their own request that it was
+	// rejected. Left as a direct call — a wrong "not approved" message
+	// would be worse than an un-pipelined correct one — until a distinct
+	// rejection signal exists to build it from properly.
 	s.notifyUser(requesterID, push.Message{
 		Title: "Request update",
 		Body:  "Your request for " + out.Title + " was not approved",

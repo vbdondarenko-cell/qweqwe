@@ -113,7 +113,24 @@ func (s *RealtimeOutboxStore) Checkpoint(ctx context.Context, connector string, 
 		}
 		return tx.Commit(ctx)
 	}
-	if event.Sequence != current+1 {
+	// event.Sequence > current here. Advancing straight to it (rather than
+	// requiring event.Sequence == current+1) is deliberate: `sequence` is a
+	// Postgres IDENTITY column, which is not transactional — a rolled-back
+	// transaction anywhere in the system that happened to touch an
+	// outbox-triggering table permanently burns the sequence value it
+	// claimed, leaving a numeric gap with no row ever occupying it. Such a
+	// gap is not a missed event (nothing was ever there to miss) and must
+	// not permanently wedge a connector's cursor. What must still be
+	// rejected is skipping over a sequence number that IS a real,
+	// unprocessed row: that would silently drop an actual event, which is
+	// exactly what this connector-cursor mechanism exists to prevent.
+	var realGapExists bool
+	if err := tx.QueryRow(ctx, `
+		SELECT EXISTS(SELECT 1 FROM domain_outbox_events WHERE sequence>$1 AND sequence<$2)`,
+		current, event.Sequence).Scan(&realGapExists); err != nil {
+		return err
+	}
+	if realGapExists {
 		return realtime.ErrCursorOutOfOrder
 	}
 

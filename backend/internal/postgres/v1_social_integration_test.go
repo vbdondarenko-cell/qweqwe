@@ -429,6 +429,15 @@ func cleanupIntegrationRows(pool *pgxpool.Pool, userIDs []string) {
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 	for _, id := range userIDs {
+		// Delete slot_memberships/slot_requests explicitly before the parent
+		// slots row: their AFTER DELETE outbox trigger inserts a
+		// domain_outbox_events row referencing slot_id, which fails its FK
+		// if the parent slots row is deleted in the same cascading DELETE
+		// (the row is already gone from the FK's point of view by the time
+		// the trigger fires). Deleting children first, while the slot still
+		// exists, avoids that ordering entirely.
+		_, _ = pool.Exec(ctx, `DELETE FROM slot_memberships WHERE slot_id IN (SELECT id FROM slots WHERE host_id=$1)`, id)
+		_, _ = pool.Exec(ctx, `DELETE FROM slot_requests WHERE slot_id IN (SELECT id FROM slots WHERE host_id=$1)`, id)
 		_, _ = pool.Exec(ctx, `DELETE FROM slots WHERE host_id=$1`, id)
 	}
 	for _, id := range userIDs {

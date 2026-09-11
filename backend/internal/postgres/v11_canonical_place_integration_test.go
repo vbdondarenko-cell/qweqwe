@@ -64,6 +64,15 @@ func TestV11CanonicalPlaceSlotAndMapIntegration(t *testing.T) {
 	t.Cleanup(func() {
 		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 15*time.Second)
 		defer cleanupCancel()
+		// Delete children before the parent slots row: see the matching
+		// comment in cleanupIntegrationRows (v1_social_integration_test.go)
+		// for why deleting slots directly can FK-violate the outbox trigger.
+		if _, err := pool.Exec(cleanupCtx, `DELETE FROM slot_memberships WHERE slot_id IN (SELECT id FROM slots WHERE host_id=$1::uuid)`, viewer.User.ID); err != nil {
+			t.Errorf("cleanup slot memberships: %v", err)
+		}
+		if _, err := pool.Exec(cleanupCtx, `DELETE FROM slot_requests WHERE slot_id IN (SELECT id FROM slots WHERE host_id=$1::uuid)`, viewer.User.ID); err != nil {
+			t.Errorf("cleanup slot requests: %v", err)
+		}
 		if _, err := pool.Exec(cleanupCtx, `DELETE FROM slots WHERE host_id=$1::uuid`, viewer.User.ID); err != nil {
 			t.Errorf("cleanup slots: %v", err)
 		}
