@@ -82,6 +82,20 @@ type Slot struct {
 type PendingRequest struct {
 	User        Organizer `json:"user"`
 	RequestedAt time.Time `json:"requestedAt"`
+	// QueuePosition is non-nil only when the Slot's access mode is
+	// WAITLIST: the requester's 1-based FIFO position among all pending
+	// requests for that Slot, in the same order promoteOldestWaitlistTx
+	// promotes from (created_at ASC, user_id ASC as a deterministic
+	// tie-breaker). Always nil for APPROVAL mode, which has no queue —
+	// only a host-decides pending list.
+	QueuePosition *int `json:"queuePosition,omitempty"`
+	// Expired reports whether this WAITLIST queue position has passed the
+	// server's waitlistRequestTTL and will not be promoted until the
+	// requester requests again (README §6.6 request-expiry hardening;
+	// mirrors the same expiry already applied to Get/ListPulse/ListMine/
+	// Map/realtime visibility). Always false for APPROVAL mode, which has
+	// no expiry concept for a pending request.
+	Expired bool `json:"expired"`
 }
 
 type CreateInput struct {

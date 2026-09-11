@@ -130,6 +130,65 @@ func (s *V11SlotStore) ListMine(ctx context.Context, actorID, view string, limit
 	return items, rows.Err()
 }
 
+// ListPending overrides the v1.0 SlotStore.ListPending to add WAITLIST
+// queue awareness (README §6.6 "complete roster/request/waitlist states"):
+// for a WAITLIST-mode Slot, each pending request also reports its 1-based
+// FIFO queue position and whether it has passed the same expiry TTL every
+// other WAITLIST-aware read already applies. APPROVAL-mode Slots are
+// unaffected — QueuePosition stays nil and Expired stays false, matching
+// v1.0's original contract exactly, since APPROVAL has no queue or expiry
+// concept for a pending request.
+func (s *V11SlotStore) ListPending(ctx context.Context, actorID, slotID string) ([]slot.PendingRequest, error) {
+	var hostID, accessMode string
+	if err := s.pool.QueryRow(ctx, `SELECT host_id,access_mode FROM slots WHERE id=$1`, slotID).Scan(&hostID, &accessMode); errors.Is(err, pgx.ErrNoRows) {
+		return nil, slot.ErrNotFound
+	} else if err != nil {
+		return nil, err
+	}
+	if hostID != actorID {
+		return nil, slot.ErrForbidden
+	}
+
+	rows, err := s.pool.Query(ctx, `
+		SELECT u.id,u.username,u.display_name,u.avatar_url,r.created_at,
+		       ROW_NUMBER() OVER (ORDER BY r.created_at ASC,u.id ASC)
+		FROM slot_requests r
+		JOIN app_users u ON u.id=r.user_id
+		WHERE r.slot_id=$1
+		  AND NOT EXISTS (
+			SELECT 1 FROM user_blocks b
+			WHERE (b.blocker_id=$2 AND b.blocked_id=r.user_id)
+			   OR (b.blocker_id=r.user_id AND b.blocked_id=$2)
+		  )
+		ORDER BY r.created_at ASC,u.id
+		LIMIT $3`, slotID, actorID, slot.MaxPendingRequests)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	isWaitlist := accessMode == "WAITLIST"
+	cutoff := s.waitlistExpiryCutoff()
+	out := make([]slot.PendingRequest, 0, slot.MaxPendingRequests)
+	for rows.Next() {
+		var item slot.PendingRequest
+		var position int64
+		if err := rows.Scan(&item.User.ID, &item.User.Username, &item.User.DisplayName, &item.User.AvatarURL, &item.RequestedAt, &position); err != nil {
+			return nil, err
+		}
+		if isWaitlist {
+			p := int(position)
+			item.QueuePosition = &p
+			item.Expired = !item.RequestedAt.After(cutoff)
+		}
+		out = append(out, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (s *V11SlotStore) Edit(ctx context.Context, actorID, slotID string, patch slot.EditInput, key string, requestHash []byte, now time.Time) (slot.Slot, error) {
 	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.ReadCommitted})
 	if err != nil {
