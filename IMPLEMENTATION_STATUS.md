@@ -960,3 +960,25 @@ Executed evidence, this session:
 Not done in this block, and not claimed: block-triggered `MEMBER_LEFT` (see scope decision above — needs its own privacy-policy review, not a mechanical follow-on); Android UI for any `SYSTEM` message kind (no Android SDK in this environment, per RULE 2/3); README §6.7's remaining bullets (reconnect thread convergence beyond what already exists, stronger revocation-handling verification, activation/expiry/retention rules beyond what §25/existing purge already provide).
 
 Next: decide and implement (or explicitly defer with reasoning) block-triggered `MEMBER_LEFT`; then the read-side WAITLIST-expiry gap from §40, or move on to README §6.8 Notifications. Go-backend-first until Android SDK/Gradle network access is available in this environment.
+
+## 43. 2026-09-11 — v1.1 Chat V2: block-triggered MEMBER_LEFT (closes §42's deferral)
+
+Resolves the privacy question §42 deliberately left open before implementing anything, rather than deferring again by default.
+
+**Decision:** the notice is safe to add. It reads exactly like a voluntary leave ("X left") — it never says a block caused it — so it discloses nothing beyond what every other participant already learns the instant the blocked user's name silently disappears from the roster and stops being able to send/read chat (README §8.1 already requires blocked users filtered from every active chat/social/realtime layer, which this repository's chat read path already enforced before this block). Cross-checked against README §8.1 Privacy and §8.3 Anti-stalking: neither prohibits a same-content-as-voluntary-leave departure notice; §8.3 is about location/route/position inference, not membership departure text.
+
+Implemented in `block_store.go`'s `blockPairTx`: before the existing bulk CTE-based `DELETE`/`UPDATE` across every Slot the two users share (a set-based statement, not a per-user loop, so it cannot itself call `emitSystemChatMessageTx` per row), a new `SELECT` captures the exact `(slot_id, user_id)` membership pairs about to be removed. After the bulk statement commits its changes within the same transaction, a loop emits one `MEMBER_LEFT` per captured pair, before the existing WAITLIST-promotion loop (so the chat order for a block that both removes a member and promotes their replacement is `LEFT` then `JOINED`, consistent with every other leave-then-promote path in this codebase). A pending-only request removal (nobody was ever a member) correctly emits nothing.
+
+Executed evidence, this session:
+
+- `go build ./...`, `go vet ./...` — clean;
+- `go test -count=1 ./...` and `go test -race -count=1 ./...` — all packages pass;
+- fresh disposable PostgreSQL 16 + PostGIS, migrations `000001..000026` applied;
+- `block_store_test.go`'s temp-table contract test extended: asserts exactly one `MEMBER_LEFT`/subject=`member` row for the removed accepted membership, zero rows for the pending-only removal, and — critically — that the idempotent block repeat does **not** duplicate the notice (the second call finds no membership left to remove, so its pre-fetch is empty);
+- new `TestV11ChatSystemMessageOnBlockRemoval` (disposable-DB integration): host blocks one of two accepted members; both host and the remaining member see the `MEMBER_LEFT` notice with the correct subject; the blocked member themselves gets `ErrForbidden`, never the notice about their own departure;
+- the full pre-existing `internal/postgres` suite remains green under `-race` against the rebuilt disposable database, including `TestV1SocialCorePostgresIntegration`'s existing block subtest and all WAITLIST/block-promotion tests (no regression to the promotion-order coverage already added in §42);
+- `go mod tidy` — no diff.
+
+This closes every `MEMBER_JOINED`/`MEMBER_LEFT` call site identified across §41-§43: `Approve`, `Leave`, `removeMemberTx`, `Join` (INSTANT), `waitlistRequest`, `waitlistLeave`, `waitlistRemoveMember`, `promoteOldestWaitlistTx` (covering leave/removal/capacity-expansion/block-triggered promotion), and now block-triggered removal itself. Not done or claimed: Android UI for any `SYSTEM` message kind (no Android SDK in this environment, per RULE 2/3).
+
+Next: the read-side WAITLIST-expiry gap from §40, or README §6.8 Notifications, or the remaining §6.7 bullets (reconnect thread convergence, activation/retention rules beyond existing purge). Go-backend-first until Android SDK/Gradle network access is available in this environment.

@@ -7,6 +7,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/blocklist"
+	"github.com/vbdondarenko-cell/qweqwe/backend/internal/chat"
 )
 
 type BlockStore struct {
@@ -51,6 +52,41 @@ func blockPairTx(ctx context.Context, tx pgx.Tx, blockerID, blockedID string, no
 	if err := lockHostedSlotsForBlock(ctx, tx, blockerID, blockedID); err != nil {
 		return err
 	}
+
+	// Remember exactly which (Slot, user) memberships this block is about to
+	// remove, so a MEMBER_LEFT system notice can be emitted per membership
+	// after the bulk removal below. The bulk statement is a single
+	// set-based DELETE/UPDATE across every Slot the two users share, not a
+	// per-row loop, so this is the only point where those pairs are known.
+	// The notice reads exactly like a voluntary leave ("X left") — it does
+	// not say a block caused it — so it adds no information beyond what
+	// every other participant already learns as soon as the blocked user's
+	// name silently disappears from the roster (README §8.1: blocked users
+	// are already filtered from every active chat/social/realtime layer).
+	memberRows, err := tx.Query(ctx, `
+		SELECT m.slot_id::text,m.user_id::text
+		FROM slot_memberships m
+		JOIN slots s ON s.id=m.slot_id
+		WHERE (s.host_id=$1 AND m.user_id=$2) OR (s.host_id=$2 AND m.user_id=$1)
+		ORDER BY m.slot_id::text,m.user_id::text`, blockerID, blockedID)
+	if err != nil {
+		return err
+	}
+	type removedMembership struct{ slotID, userID string }
+	var removedMemberships []removedMembership
+	for memberRows.Next() {
+		var m removedMembership
+		if err := memberRows.Scan(&m.slotID, &m.userID); err != nil {
+			memberRows.Close()
+			return err
+		}
+		removedMemberships = append(removedMemberships, m)
+	}
+	if err := memberRows.Err(); err != nil {
+		memberRows.Close()
+		return err
+	}
+	memberRows.Close()
 
 	// Remember WAITLIST Slots where this block removes an accepted member. The
 	// Slot rows are already locked above, so promotion can safely happen in the
@@ -121,6 +157,12 @@ func blockPairTx(ctx context.Context, tx pgx.Tx, blockerID, blockedID string, no
 		FROM counts
 		WHERE s.id=counts.slot_id`, blockerID, blockedID, now); err != nil {
 		return err
+	}
+
+	for _, m := range removedMemberships {
+		if err := emitSystemChatMessageTx(ctx, tx, m.slotID, string(chat.SystemEventMemberLeft), &m.userID); err != nil {
+			return err
+		}
 	}
 
 	for _, slotID := range waitlistFreed {

@@ -10,6 +10,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/account"
+	"github.com/vbdondarenko-cell/qweqwe/backend/internal/blocklist"
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/chat"
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/migrate"
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/password"
@@ -360,5 +361,95 @@ func TestV11ChatSystemMessageOnInstantAndWaitlistJoin(t *testing.T) {
 		if msg.Kind != chat.KindSystem || msg.SystemEventType == nil || *msg.SystemEventType != want.event || msg.Subject == nil || msg.Subject.ID != want.subject {
 			t.Fatalf("waitlist message %d: want event=%s subject=%s, got %#v", i, want.event, want.subject, msg)
 		}
+	}
+}
+
+// TestV11ChatSystemMessageOnBlockRemoval covers the block-triggered
+// MEMBER_LEFT path in block_store.go's bulk relationship-cleanup statement:
+// a host blocking one accepted member must emit exactly one MEMBER_LEFT for
+// that member, unaffected members keep full chat history including it, and
+// the blocked member themselves is filtered out of chat entirely (README
+// §8.1) rather than receiving the notice.
+func TestV11ChatSystemMessageOnBlockRemoval(t *testing.T) {
+	dsn := os.Getenv("LINKUP_TEST_DATABASE_URL")
+	if dsn == "" || os.Getenv("LINKUP_TEST_DATABASE_DESTRUCTIVE") != "1" {
+		t.Skip("disposable PostgreSQL requires LINKUP_TEST_DATABASE_URL and LINKUP_TEST_DATABASE_DESTRUCTIVE=1")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+	pool, err := pgxpool.New(ctx, dsn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(pool.Close)
+	if err := migrate.Apply(ctx, pool, migrationDir(t)); err != nil {
+		t.Fatal(err)
+	}
+
+	accountService, err := account.NewService(NewAccountStore(pool), password.OWASPMinimum(), time.Hour)
+	if err != nil {
+		t.Fatal(err)
+	}
+	suffix := fmt.Sprintf("%x", time.Now().UnixNano())
+	host := registerIntegrationUser(t, ctx, accountService, "cbh", suffix)
+	blocked := registerIntegrationUser(t, ctx, accountService, "cbb", suffix)
+	stays := registerIntegrationUser(t, ctx, accountService, "cbs", suffix)
+	t.Cleanup(func() { cleanupIntegrationRows(pool, []string{host.User.ID, blocked.User.ID, stays.User.ID}) })
+
+	baseStore, err := NewSlotStore(pool, time.Hour)
+	if err != nil {
+		t.Fatal(err)
+	}
+	slotService, err := slot.NewService(baseStore)
+	if err != nil {
+		t.Fatal(err)
+	}
+	chatService, err := chat.NewService(NewChatStore(pool))
+	if err != nil {
+		t.Fatal(err)
+	}
+	blockService, err := blocklist.NewService(NewBlockStore(pool, time.Hour))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	created, err := slotService.Create(ctx, host.User.ID, slot.CreateInput{
+		Title: "Block Removal", Activity: "coffee", PlaceText: "Center", Capacity: 2,
+	}, "v11-chat-system-block-create-0001")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, member := range []string{blocked.User.ID, stays.User.ID} {
+		if _, err := slotService.Request(ctx, member, created.ID, "v11-chat-system-block-request-"+member); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := slotService.Approve(ctx, host.User.ID, created.ID, member, "v11-chat-system-block-approve-"+member); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	if err := blockService.Block(ctx, host.User.ID, blocked.User.ID); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = blockService.Unblock(ctx, host.User.ID, blocked.User.ID) })
+
+	for _, viewer := range []string{host.User.ID, stays.User.ID} {
+		messages, err := chatService.ListRecent(ctx, viewer, created.ID, 100)
+		if err != nil {
+			t.Fatalf("viewer %s: %v", viewer, err)
+		}
+		// Two MEMBER_JOINED (approve x2) followed by one MEMBER_LEFT for the
+		// blocked member, and no second MEMBER_LEFT for the member who stays.
+		if len(messages) != 3 {
+			t.Fatalf("viewer %s: expected 3 SYSTEM messages, got %#v", viewer, messages)
+		}
+		left := messages[2]
+		if left.Kind != chat.KindSystem || left.SystemEventType == nil || *left.SystemEventType != chat.SystemEventMemberLeft || left.Subject == nil || left.Subject.ID != blocked.User.ID {
+			t.Fatalf("viewer %s: expected MEMBER_LEFT for blocked user, got %#v", viewer, left)
+		}
+	}
+
+	if _, err := chatService.ListRecent(ctx, blocked.User.ID, created.ID, 100); !errors.Is(err, chat.ErrForbidden) {
+		t.Fatalf("blocked member must not see the departure notice about themselves either, got %v", err)
 	}
 }
