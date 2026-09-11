@@ -47,6 +47,9 @@ type Config struct {
 	NotificationPollInterval       time.Duration
 	NotificationBatchSize          int
 	BumpChallengeTTL               time.Duration
+	EventReminderLeadTime          time.Duration
+	EventReminderPollInterval      time.Duration
+	EventReminderBatchSize         int
 }
 
 func Load() (Config, error) {
@@ -85,6 +88,9 @@ func Load() (Config, error) {
 		NotificationPollInterval:       5 * time.Second,
 		NotificationBatchSize:          200,
 		BumpChallengeTTL:               10 * time.Minute,
+		EventReminderLeadTime:          30 * time.Minute,
+		EventReminderPollInterval:      time.Minute,
+		EventReminderBatchSize:         100,
 	}
 	if cfg.DatabaseURL == "" {
 		return Config{}, errors.New("DATABASE_URL is required")
@@ -122,6 +128,15 @@ func Load() (Config, error) {
 		return Config{}, err
 	}
 	if cfg.BumpChallengeTTL, err = durationEnv("LINKUP_BUMP_CHALLENGE_TTL", cfg.BumpChallengeTTL); err != nil {
+		return Config{}, err
+	}
+	if cfg.EventReminderLeadTime, err = durationEnv("LINKUP_EVENT_REMINDER_LEAD_TIME", cfg.EventReminderLeadTime); err != nil {
+		return Config{}, err
+	}
+	if cfg.EventReminderPollInterval, err = durationEnv("LINKUP_EVENT_REMINDER_POLL_INTERVAL", cfg.EventReminderPollInterval); err != nil {
+		return Config{}, err
+	}
+	if cfg.EventReminderBatchSize, err = positiveIntEnv("LINKUP_EVENT_REMINDER_BATCH_SIZE", cfg.EventReminderBatchSize); err != nil {
 		return Config{}, err
 	}
 	if cfg.ArgonMemoryKiB, err = uint32Env("LINKUP_ARGON_MEMORY_KIB", cfg.ArgonMemoryKiB); err != nil {

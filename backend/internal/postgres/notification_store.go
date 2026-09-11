@@ -194,15 +194,17 @@ func (p *NotificationProjector) attemptPush(ctx context.Context, cand *candidate
 // implements. Every other event type returns (nil, nil): the cursor still
 // advances past it (Skipped), but no notification_deliveries row is
 // created. This is a deliberately small, explicit allow-list — extending it
-// to more of README §6.8's canonical types (EVENT_REMINDER,
-// EVENT_RECOMMENDATION, MESSAGE grouping, FRIEND_*, admin PROMO campaigns)
-// is future work, not silently assumed done by this switch existing.
+// to more of README §6.8's canonical types (EVENT_RECOMMENDATION, MESSAGE
+// grouping, FRIEND_*, admin PROMO campaigns) is future work, not silently
+// assumed done by this switch existing.
 func (p *NotificationProjector) buildCandidate(ctx context.Context, event realtime.Event) (*candidate, error) {
 	switch event.Type {
 	case "slot.membership_added":
 		return p.buildMembershipAddedCandidate(ctx, event)
 	case "slot.request_created":
 		return p.buildRequestCreatedCandidate(ctx, event)
+	case "slot.starting_soon":
+		return p.buildStartingSoonCandidate(ctx, event)
 	default:
 		return nil, nil
 	}
@@ -269,6 +271,33 @@ func (p *NotificationProjector) buildRequestCreatedCandidate(ctx context.Context
 		slotID:      event.SlotID,
 		title:       "New request",
 		body:        requesterName + " wants to join " + slotTitle + ".",
+	}, nil
+}
+
+// buildStartingSoonCandidate handles the one event type in this file that a
+// DB trigger never emits: ReminderScanner (internal/postgres/
+// reminder_scanner.go) emits it directly, already scoped to exactly one
+// recipient per event (event.SubjectUserID), so unlike the trigger-driven
+// candidates above there is no separate "who gets notified" decision to
+// make here — only what to say.
+func (p *NotificationProjector) buildStartingSoonCandidate(ctx context.Context, event realtime.Event) (*candidate, error) {
+	if event.SubjectUserID == nil || event.SlotID == nil {
+		return nil, nil
+	}
+	var title string
+	err := p.pool.QueryRow(ctx, `SELECT title FROM slots WHERE id=$1`, *event.SlotID).Scan(&title)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil // Slot no longer exists; nothing left to notify about.
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &candidate{
+		recipientID: *event.SubjectUserID,
+		typ:         notification.TypeEventReminder,
+		slotID:      event.SlotID,
+		title:       "Starting soon",
+		body:        title + " is starting soon.",
 	}, nil
 }
 

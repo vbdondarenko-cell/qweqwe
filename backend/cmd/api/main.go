@@ -141,6 +141,9 @@ func main() {
 	bumpService, err := bump.NewService(bumpStore, cfg.BumpChallengeTTL)
 	if err != nil { slog.Error("bump service init failed", "error", err); os.Exit(1) }
 
+	reminderScanner, err := postgres.NewReminderScanner(pool, cfg.EventReminderLeadTime)
+	if err != nil { slog.Error("reminder scanner init failed", "error", err); os.Exit(1) }
+
 	authLimiter, err := ratelimit.New(ratelimit.Config{Limit: cfg.AuthRateLimit, Window: cfg.AuthRateWindow, IdleTTL: cfg.AuthRateIdleTTL, MaxEntries: cfg.AuthRateMaxEntries})
 	if err != nil { slog.Error("auth rate limiter init failed", "error", err); os.Exit(1) }
 	userLimiter, err := ratelimit.New(ratelimit.Config{Limit: cfg.SocialRateLimit, Window: cfg.SocialRateWindow, IdleTTL: cfg.SocialRateIdleTTL, MaxEntries: cfg.SocialRateMaxEntries})
@@ -201,6 +204,26 @@ func main() {
 			case <-ticker.C:
 				if _, err := notificationProjector.ProcessBatch(ctx, cfg.NotificationBatchSize); err != nil && ctx.Err() == nil {
 					slog.Warn("notification projector batch failed", "error", err)
+				}
+			}
+		}
+	}()
+
+	// EVENT_REMINDER's own ticker (internal/postgres/reminder_scanner.go):
+	// separate from the notification projector's above because it scans
+	// slots.start_at against wall-clock time rather than consuming the
+	// outbox, but the events it emits then flow through the exact same
+	// projector/connector-cursor pipeline once emitted.
+	go func() {
+		ticker := time.NewTicker(cfg.EventReminderPollInterval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				if _, err := reminderScanner.ScanAndEmit(ctx, cfg.EventReminderBatchSize); err != nil && ctx.Err() == nil {
+					slog.Warn("event reminder scan failed", "error", err)
 				}
 			}
 		}

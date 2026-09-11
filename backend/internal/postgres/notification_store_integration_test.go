@@ -360,6 +360,47 @@ func TestNotificationProjectorRecentFrequencyCappedCount(t *testing.T) {
 	}
 }
 
+// TestNotificationProjectorEventReminder exercises the one recognized
+// outbox event type this projector never receives from a DB trigger:
+// slot.starting_soon (emitted only by internal/postgres.ReminderScanner —
+// see reminder_scanner_integration_test.go for scanner-side coverage of
+// eligibility/idempotency/lead-time). This test seeds that event directly
+// via the same linkup_enqueue_outbox function the scanner itself calls, so
+// it verifies buildStartingSoonCandidate's own logic in isolation from the
+// scanner's eligibility scan.
+func TestNotificationProjectorEventReminder(t *testing.T) {
+	ctx, pool, slotService, capService, host, _ := newNotificationFixture(t)
+	enableNotificationsForAll(t, ctx, pool)
+
+	start := time.Now().UTC().Add(20 * time.Minute)
+	created, err := slotService.Create(ctx, host.User.ID, slot.CreateInput{
+		Title: "Reminder Coffee", Activity: "coffee", PlaceText: "Center", StartAt: &start, Capacity: 2,
+	}, "notif-reminder-create-0001")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `
+		SELECT linkup_enqueue_outbox('slot.starting_soon','slot',$1::uuid,$2::uuid,$1::uuid,'{}'::jsonb)`,
+		created.ID, host.User.ID); err != nil {
+		t.Fatal(err)
+	}
+
+	recorder := &recordingPusher{}
+	projector, err := NewNotificationProjector(pool, capService, recorder, 14*24*time.Hour, 24*time.Hour, 5)
+	if err != nil {
+		t.Fatal(err)
+	}
+	drainProjector(t, ctx, projector, 200)
+
+	hostCalls := recorder.callsFor(host.User.ID)
+	if len(hostCalls) != 1 || hostCalls[0].message.Title != "Starting soon" {
+		t.Fatalf("expected host to receive one Starting soon push, got %#v", hostCalls)
+	}
+	assertNotificationRow(t, ctx, pool, host.User.ID, "EVENT_REMINDER", "SENT", func(deepLink string) bool {
+		return deepLink == "app://slot/"+created.ID
+	})
+}
+
 // drainProjector repeatedly calls ProcessBatch until it reports nothing left
 // to process, returning the total events processed across every call.
 //

@@ -35,7 +35,7 @@ func TestV11RealtimeOutboxIntegration(t *testing.T) {
 	}
 	assertMigrationCount(t, ctx, pool, 14)
 
-	t.Run("runtime api role cannot mutate outbox", func(t *testing.T) {
+	t.Run("runtime api role has exactly the connector privileges it needs, no more", func(t *testing.T) {
 		var roleExists bool
 		if err := pool.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='linkup_api')`).Scan(&roleExists); err != nil {
 			t.Fatal(err)
@@ -58,7 +58,21 @@ func TestV11RealtimeOutboxIntegration(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if !canSelect || canInsert || canUpdate || canDelete || canCursorWrite || canReceiptWrite || canSequence || canEnqueue || canTrigger {
+		// linkup_api may never write domain_outbox_events directly (only
+		// the trigger function does, via its own SECURITY DEFINER
+		// privileges — never call linkup_emit_canonical_outbox() directly
+		// either, it is trigger-only) and never touch the identity
+		// sequence directly. But it MUST be able to write
+		// connector_cursors/connector_delivery_receipts and call
+		// linkup_enqueue_outbox(): those are exactly what
+		// RealtimeOutboxStore.Checkpoint (NotificationProjector's write
+		// path) and ReminderScanner (README §6.9 EVENT_REMINDER) do as
+		// linkup_api in production, since cmd/api is the only server
+		// binary and runs both in-process — see migration 000029's doc
+		// comment for the real regression (migration 000021 revoked these
+		// on the mistaken assumption of a separate worker role that was
+		// never built) this assertion once silently locked in.
+		if !canSelect || canInsert || canUpdate || canDelete || !canCursorWrite || !canReceiptWrite || canSequence || !canEnqueue || canTrigger {
 			t.Fatalf("unexpected linkup_api realtime privileges select=%v insert=%v update=%v delete=%v cursorWrite=%v receiptWrite=%v sequence=%v enqueue=%v trigger=%v",
 				canSelect, canInsert, canUpdate, canDelete, canCursorWrite, canReceiptWrite, canSequence, canEnqueue, canTrigger)
 		}
