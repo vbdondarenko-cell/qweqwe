@@ -60,7 +60,8 @@ func (s *ChatStore) Send(ctx context.Context, actorID, slotID, messageID, idempo
 	out := chat.Message{
 		ID:        resolvedID,
 		SlotID:    slotID,
-		Author:    author,
+		Kind:      chat.KindUser,
+		Author:    &author,
 		Text:      resolvedText,
 		CreatedAt: createdAt.UTC(),
 	}
@@ -81,10 +82,17 @@ func (s *ChatStore) ListRecent(ctx context.Context, actorID, slotID string, limi
 		return nil, err
 	}
 
+	// System messages (author_id IS NULL) are never matched by the block
+	// filter below: a NULL author_id can never equal a blocked/blocker id,
+	// so NOT EXISTS(...) is unconditionally true for them.
 	rows, err := tx.Query(ctx, `
-		SELECT q.id,q.slot_id,u.id,u.username,u.display_name,u.avatar_url,q.body,q.created_at
+		SELECT q.id,q.slot_id,q.kind,
+		       u.id,u.username,u.display_name,u.avatar_url,
+		       q.body,q.system_event_type,
+		       su.id,su.username,su.display_name,su.avatar_url,
+		       q.created_at
 		FROM (
-			SELECT m.id,m.slot_id,m.author_id,m.body,m.created_at
+			SELECT m.id,m.slot_id,m.kind,m.author_id,m.body,m.system_event_type,m.subject_user_id,m.created_at
 			FROM slot_messages m
 			WHERE m.slot_id=$1
 			  AND NOT EXISTS (
@@ -95,7 +103,8 @@ func (s *ChatStore) ListRecent(ctx context.Context, actorID, slotID string, limi
 			ORDER BY m.created_at DESC,m.id DESC
 			LIMIT $3
 		) q
-		JOIN app_users u ON u.id=q.author_id
+		LEFT JOIN app_users u ON u.id=q.author_id
+		LEFT JOIN app_users su ON su.id=q.subject_user_id
 		ORDER BY q.created_at ASC,q.id ASC`, slotID, actorID, limit)
 	if err != nil {
 		return nil, err
@@ -105,17 +114,34 @@ func (s *ChatStore) ListRecent(ctx context.Context, actorID, slotID string, limi
 	items := make([]chat.Message, 0, limit)
 	for rows.Next() {
 		var item chat.Message
+		var kind string
+		var authorID, authorUsername, authorDisplayName, authorAvatar *string
+		var body, systemEventType *string
+		var subjectID, subjectUsername, subjectDisplayName, subjectAvatar *string
 		if err := rows.Scan(
 			&item.ID,
 			&item.SlotID,
-			&item.Author.ID,
-			&item.Author.Username,
-			&item.Author.DisplayName,
-			&item.Author.AvatarURL,
-			&item.Text,
+			&kind,
+			&authorID, &authorUsername, &authorDisplayName, &authorAvatar,
+			&body, &systemEventType,
+			&subjectID, &subjectUsername, &subjectDisplayName, &subjectAvatar,
 			&item.CreatedAt,
 		); err != nil {
 			return nil, err
+		}
+		item.Kind = chat.MessageKind(kind)
+		if authorID != nil {
+			item.Author = &chat.Author{ID: *authorID, Username: *authorUsername, DisplayName: *authorDisplayName, AvatarURL: authorAvatar}
+		}
+		if body != nil {
+			item.Text = *body
+		}
+		if systemEventType != nil {
+			eventType := chat.SystemEventType(*systemEventType)
+			item.SystemEventType = &eventType
+		}
+		if subjectID != nil {
+			item.Subject = &chat.Author{ID: *subjectID, Username: *subjectUsername, DisplayName: *subjectDisplayName, AvatarURL: subjectAvatar}
 		}
 		item.CreatedAt = item.CreatedAt.UTC()
 		items = append(items, item)

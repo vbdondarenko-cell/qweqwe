@@ -8,6 +8,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/vbdondarenko-cell/qweqwe/backend/internal/chat"
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/slot"
 )
 
@@ -667,6 +668,9 @@ func (s *SlotStore) hostLifecycle(ctx context.Context, actorID, slotID, key stri
 			return slot.Slot{}, err
 		}
 		if _, err := tx.Exec(ctx, `UPDATE slots SET state='ACTIVE',started_at=$2,version=version+1,updated_at=$2 WHERE id=$1`, slotID, now); err != nil {
+			return slot.Slot{}, err
+		}
+		if err := emitSystemChatMessageTx(ctx, tx, slotID, string(chat.SystemEventSlotStarted), &hostID, now); err != nil {
 			return slot.Slot{}, err
 		}
 	} else {

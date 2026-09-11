@@ -22,7 +22,7 @@ func (m *memoryStore) Send(_ context.Context, actorID, slotID, messageID, key, t
 		return Message{}, m.err
 	}
 	m.lastActor, m.lastSlot, m.lastKey, m.lastText = actorID, slotID, key, text
-	return Message{ID: messageID, SlotID: slotID, Author: Author{ID: actorID}, Text: text, CreatedAt: time.Unix(1, 0).UTC()}, nil
+	return Message{ID: messageID, SlotID: slotID, Author: &Author{ID: actorID}, Text: text, CreatedAt: time.Unix(1, 0).UTC()}, nil
 }
 
 func (m *memoryStore) ListRecent(_ context.Context, actorID, slotID string, _ int) ([]Message, error) {

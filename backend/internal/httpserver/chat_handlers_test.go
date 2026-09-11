@@ -37,7 +37,8 @@ func (s *chatHTTPStore) Send(_ context.Context, actorID, slotID, messageID, key,
 	out := chat.Message{
 		ID:        messageID,
 		SlotID:    slotID,
-		Author:    chat.Author{ID: actorID, Username: "alice", DisplayName: "Alice"},
+		Kind:      chat.KindUser,
+		Author:    &chat.Author{ID: actorID, Username: "alice", DisplayName: "Alice"},
 		Text:      text,
 		CreatedAt: time.Unix(1, 0).UTC(),
 	}
