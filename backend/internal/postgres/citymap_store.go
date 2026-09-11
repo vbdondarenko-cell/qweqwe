@@ -3,19 +3,34 @@ package postgres
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/citymap"
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/slot"
 )
 
-type CityMapStore struct{ pool *pgxpool.Pool }
+type CityMapStore struct {
+	pool *pgxpool.Pool
+	// waitlistRequestTTL mirrors V11SlotStore's own field (see its doc
+	// comment on waitlistExpiryCutoff): it bounds how long a WAITLIST
+	// slot_requests row still reads as the viewer's PENDING relationship
+	// in PlaceSlots, the same display-only staleness the read side
+	// (Get/ListPulse/ListMine) was already fixed for. This never changes
+	// which Slots are visible on the Map — only what PENDING/NONE a
+	// viewer sees for one they already have visibility into.
+	waitlistRequestTTL time.Duration
+}
 
-func NewCityMapStore(pool *pgxpool.Pool) (*CityMapStore, error) {
-	if pool == nil {
+func NewCityMapStore(pool *pgxpool.Pool, waitlistRequestTTL time.Duration) (*CityMapStore, error) {
+	if pool == nil || waitlistRequestTTL <= 0 {
 		return nil, errors.New("invalid city map store dependency")
 	}
-	return &CityMapStore{pool: pool}, nil
+	return &CityMapStore{pool: pool, waitlistRequestTTL: waitlistRequestTTL}, nil
+}
+
+func (s *CityMapStore) waitlistExpiryCutoff() time.Time {
+	return time.Now().UTC().Add(-s.waitlistRequestTTL)
 }
 
 func (s *CityMapStore) Viewport(ctx context.Context, viewerID, localityID string, query citymap.Viewport) ([]citymap.Cluster, error) {
@@ -100,7 +115,8 @@ func (s *CityMapStore) PlaceSlots(ctx context.Context, viewerID, localityID stri
 		CASE
 			WHEN s.host_id=$1::uuid THEN 'HOST'
 			WHEN EXISTS(SELECT 1 FROM slot_memberships m WHERE m.slot_id=s.id AND m.user_id=$1::uuid) THEN 'ACCEPTED'
-			WHEN EXISTS(SELECT 1 FROM slot_requests r WHERE r.slot_id=s.id AND r.user_id=$1::uuid) THEN 'PENDING'
+			WHEN EXISTS(SELECT 1 FROM slot_requests r WHERE r.slot_id=s.id AND r.user_id=$1::uuid
+				AND (s.access_mode<>'WAITLIST' OR r.created_at>$7::timestamptz)) THEN 'PENDING'
 			ELSE 'NONE'
 		END
 	FROM slots s
@@ -119,7 +135,7 @@ func (s *CityMapStore) PlaceSlots(ctx context.Context, viewerID, localityID stri
 		   OR (b.blocker_id=s.host_id AND b.blocked_id=$1::uuid)
 	  )
 	ORDER BY s.start_at,s.id
-	LIMIT $5::integer`, viewerID, query.PlaceID, query.From, query.To, query.Limit, localityID)
+	LIMIT $5::integer`, viewerID, query.PlaceID, query.From, query.To, query.Limit, localityID, s.waitlistExpiryCutoff())
 	if err != nil {
 		return nil, err
 	}

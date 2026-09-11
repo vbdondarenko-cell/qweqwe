@@ -234,7 +234,7 @@ func TestV11CanonicalPlaceSlotAndMapIntegration(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	mapStore, err := NewCityMapStore(pool)
+	mapStore, err := NewCityMapStore(pool, time.Hour)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -11,6 +11,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/account"
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/capability"
+	"github.com/vbdondarenko-cell/qweqwe/backend/internal/identifier"
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/migrate"
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/password"
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/push"
@@ -133,10 +134,7 @@ func TestNotificationProjectorApprovalAndRequestCreated(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	processed, err := projector.ProcessBatch(ctx, 100)
-	if err != nil {
-		t.Fatal(err)
-	}
+	processed := drainProjector(t, ctx, projector, 200)
 	if processed == 0 {
 		t.Fatal("expected at least the request_created event to be processed")
 	}
@@ -153,9 +151,7 @@ func TestNotificationProjectorApprovalAndRequestCreated(t *testing.T) {
 	if _, err := slotService.Approve(ctx, host.User.ID, created.ID, member.User.ID, "notif-approve-0001"); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := projector.ProcessBatch(ctx, 100); err != nil {
-		t.Fatal(err)
-	}
+	drainProjector(t, ctx, projector, 200)
 
 	memberCalls := recorder.callsFor(member.User.ID)
 	if len(memberCalls) != 1 || memberCalls[0].message.Title != "You're in!" {
@@ -166,6 +162,8 @@ func TestNotificationProjectorApprovalAndRequestCreated(t *testing.T) {
 	})
 
 	// Re-running must not duplicate anything: no new events past the cursor.
+	// A single bounded call suffices here — the drain above already caught
+	// the cursor up to the current end of the outbox.
 	processedAgain, err := projector.ProcessBatch(ctx, 100)
 	if err != nil {
 		t.Fatal(err)
@@ -203,9 +201,7 @@ func TestNotificationProjectorSuppressedByPreference(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := projector.ProcessBatch(ctx, 100); err != nil {
-		t.Fatal(err)
-	}
+	drainProjector(t, ctx, projector, 200)
 
 	if calls := recorder.callsFor(host.User.ID); len(calls) != 0 {
 		t.Fatalf("host has EVENT notifications disabled, expected no push, got %#v", calls)
@@ -235,9 +231,7 @@ func TestNotificationProjectorSuppressedByQuietHours(t *testing.T) {
 	// Default quiet hours are 23:00-08:00 UTC; force "now" well inside them.
 	projector.now = func() time.Time { return time.Date(2026, 6, 1, 23, 30, 0, 0, time.UTC) }
 
-	if _, err := projector.ProcessBatch(ctx, 100); err != nil {
-		t.Fatal(err)
-	}
+	drainProjector(t, ctx, projector, 200)
 	if calls := recorder.callsFor(host.User.ID); len(calls) != 0 {
 		t.Fatalf("expected no push during quiet hours, got %#v", calls)
 	}
@@ -263,10 +257,7 @@ func TestNotificationProjectorCapabilityDisabledCreatesNoRow(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	processed, err := projector.ProcessBatch(ctx, 100)
-	if err != nil {
-		t.Fatal(err)
-	}
+	processed := drainProjector(t, ctx, projector, 200)
 	if processed == 0 {
 		t.Fatal("the event must still be consumed (cursor advances) even though it is skipped")
 	}
@@ -300,9 +291,7 @@ func TestNotificationProjectorNoPusherConfigured(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := projector.ProcessBatch(ctx, 100); err != nil {
-		t.Fatal(err)
-	}
+	drainProjector(t, ctx, projector, 200)
 	assertNotificationRow(t, ctx, pool, host.User.ID, "EVENT", "SKIPPED_NO_DEVICE", nil)
 }
 
@@ -316,7 +305,23 @@ func TestNotificationProjectorRecentFrequencyCappedCount(t *testing.T) {
 
 	// notification_deliveries.source_event_id is a UNIQUE FK into
 	// domain_outbox_events, so each synthetic row here needs its own
-	// distinct real outbox event to reference.
+	// distinct real outbox event to reference. The event_id must be freshly
+	// generated per run, not a fixed literal: domain_outbox_events.
+	// subject_user_id is ON DELETE SET NULL (migration 000014), not CASCADE,
+	// so a synthetic row outlives the test's own host user being cleaned up
+	// — a fixed literal would collide with the previous run's leftover row
+	// the moment this test runs twice against the same disposable database
+	// (the normal case for this package's test suite, which reuses one live
+	// database across many `go test` invocations rather than a fresh one
+	// per test).
+	newSyntheticID := func() string {
+		t.Helper()
+		id, err := identifier.NewUUID()
+		if err != nil {
+			t.Fatal(err)
+		}
+		return id
+	}
 	seedEvent := func(id string) {
 		t.Helper()
 		if _, err := pool.Exec(ctx, `
@@ -324,9 +329,13 @@ func TestNotificationProjectorRecentFrequencyCappedCount(t *testing.T) {
 			VALUES ($1::uuid,'test.synthetic','test',$1::uuid,$2::uuid,'{}'::jsonb)`, id, host.User.ID); err != nil {
 			t.Fatal(err)
 		}
+		t.Cleanup(func() {
+			_, _ = pool.Exec(context.Background(), `DELETE FROM domain_outbox_events WHERE event_id=$1::uuid`, id)
+		})
 	}
-	insertWithEvent := func(eventID, notifType, outcome string, createdAt time.Time) {
+	insertWithEvent := func(notifType, outcome string, createdAt time.Time) {
 		t.Helper()
+		eventID := newSyntheticID()
 		seedEvent(eventID)
 		if _, err := pool.Exec(ctx, `
 			INSERT INTO notification_deliveries (id,user_id,notification_type,source_event_id,deep_link,title,body,created_at,expires_at,push_outcome)
@@ -336,11 +345,11 @@ func TestNotificationProjectorRecentFrequencyCappedCount(t *testing.T) {
 		}
 	}
 
-	insertWithEvent("aaaaaaaa-0000-4000-8000-000000000001", "PROMO", "SENT", now.Add(-time.Hour))
-	insertWithEvent("aaaaaaaa-0000-4000-8000-000000000002", "EVENT_RECOMMENDATION", "SENT", now.Add(-2*time.Hour))
-	insertWithEvent("aaaaaaaa-0000-4000-8000-000000000003", "PROMO", "SUPPRESSED_QUIET_HOURS", now.Add(-time.Hour)) // not SENT: excluded
-	insertWithEvent("aaaaaaaa-0000-4000-8000-000000000004", "PROMO", "SENT", now.Add(-48*time.Hour))                // outside window: excluded
-	insertWithEvent("aaaaaaaa-0000-4000-8000-000000000005", "EVENT", "SENT", now.Add(-time.Hour))                   // not a capped type: excluded
+	insertWithEvent("PROMO", "SENT", now.Add(-time.Hour))
+	insertWithEvent("EVENT_RECOMMENDATION", "SENT", now.Add(-2*time.Hour))
+	insertWithEvent("PROMO", "SUPPRESSED_QUIET_HOURS", now.Add(-time.Hour)) // not SENT: excluded
+	insertWithEvent("PROMO", "SENT", now.Add(-48*time.Hour))                // outside window: excluded
+	insertWithEvent("EVENT", "SENT", now.Add(-time.Hour))                   // not a capped type: excluded
 
 	count, err := projector.recentFrequencyCappedCount(ctx, host.User.ID, now)
 	if err != nil {
@@ -348,6 +357,38 @@ func TestNotificationProjectorRecentFrequencyCappedCount(t *testing.T) {
 	}
 	if count != 2 {
 		t.Fatalf("expected 2 recent frequency-capped SENT notifications, got %d", count)
+	}
+}
+
+// drainProjector repeatedly calls ProcessBatch until it reports nothing left
+// to process, returning the total events processed across every call.
+//
+// The `internal/postgres` package's integration tests all share one live
+// disposable database across the whole `go test` invocation (not a fresh
+// database per test), and the "notifications" connector's cursor
+// (connector_cursors) is a single durable row shared by every test that
+// exercises NotificationProjector, not scoped per test. A single bounded
+// ProcessBatch(ctx, N) call — this file's original pattern — silently
+// assumes the cursor is already within N events of "now", which holds only
+// by accident depending on how much unrelated outbox volume every other
+// integration test in the package happened to generate first. Draining to
+// completion instead matches what production's own poll ticker actually
+// guarantees (cmd/api/main.go calls ProcessBatch repeatedly, forever, until
+// caught up) and removes the dependency on total prior outbox volume.
+func drainProjector(t *testing.T, ctx context.Context, projector *NotificationProjector, batchSize int) int {
+	t.Helper()
+	total := 0
+	for {
+		n, err := projector.ProcessBatch(ctx, batchSize)
+		if err != nil {
+			t.Fatal(err)
+		}
+		total += n
+		if n < batchSize {
+			// A short batch means the connector reached the current end of
+			// the outbox; there is nothing left to drain right now.
+			return total
+		}
 	}
 }
 

@@ -84,7 +84,7 @@ func main() {
 	if err != nil { slog.Error("city context store init failed", "error", err); os.Exit(1) }
 	cityContextService, err := citycontext.NewService(cityContextStore, citycontext.DefaultPolicy())
 	if err != nil { slog.Error("city context service init failed", "error", err); os.Exit(1) }
-	mapStore, err := postgres.NewCityMapStore(pool)
+	mapStore, err := postgres.NewCityMapStore(pool, cfg.WaitlistRequestTTL)
 	if err != nil { slog.Error("map store init failed", "error", err); os.Exit(1) }
 	mapService, err := citymap.NewService(mapStore)
 	if err != nil { slog.Error("map service init failed", "error", err); os.Exit(1) }
