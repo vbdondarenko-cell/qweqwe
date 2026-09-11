@@ -142,7 +142,7 @@ func TestV11CanonicalPlaceSlotAndMapIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	v11Store, err := NewV11SlotStore(baseStore)
+	v11Store, err := NewV11SlotStore(baseStore, time.Hour)
 	if err != nil {
 		t.Fatal(err)
 	}

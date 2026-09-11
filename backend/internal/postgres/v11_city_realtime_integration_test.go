@@ -44,7 +44,7 @@ func TestV11CityRealtimeFeedIsolationAndTransitions(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	v11Store, err := NewV11SlotStore(baseStore)
+	v11Store, err := NewV11SlotStore(baseStore, time.Hour)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -52,7 +52,7 @@ func TestV11CityRealtimeFeedIsolationAndTransitions(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	blocks, err := blocklist.NewService(NewBlockStore(pool))
+	blocks, err := blocklist.NewService(NewBlockStore(pool, time.Hour))
 	if err != nil {
 		t.Fatal(err)
 	}

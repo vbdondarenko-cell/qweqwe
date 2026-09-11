@@ -18,6 +18,7 @@ type Config struct {
 	PasswordResetTTL       time.Duration
 	RegistrationTTL        time.Duration
 	IdempotencyTTL         time.Duration
+	WaitlistRequestTTL     time.Duration
 	MigrationDir           string
 	ArgonMemoryKiB         uint32
 	ArgonIterations        uint32
@@ -50,6 +51,7 @@ func Load() (Config, error) {
 		PasswordResetTTL:      30 * time.Minute,
 		RegistrationTTL:       20 * time.Minute,
 		IdempotencyTTL:        24 * time.Hour,
+		WaitlistRequestTTL:    48 * time.Hour,
 		MigrationDir:          envOr("LINKUP_MIGRATIONS_DIR", "../db/migrations"),
 		ArgonMemoryKiB:        19 * 1024,
 		ArgonIterations:       2,
@@ -87,6 +89,9 @@ func Load() (Config, error) {
 		return Config{}, err
 	}
 	if cfg.IdempotencyTTL, err = durationEnv("LINKUP_IDEMPOTENCY_TTL", cfg.IdempotencyTTL); err != nil {
+		return Config{}, err
+	}
+	if cfg.WaitlistRequestTTL, err = durationEnv("LINKUP_WAITLIST_REQUEST_TTL", cfg.WaitlistRequestTTL); err != nil {
 		return Config{}, err
 	}
 	if cfg.ArgonMemoryKiB, err = uint32Env("LINKUP_ARGON_MEMORY_KIB", cfg.ArgonMemoryKiB); err != nil {

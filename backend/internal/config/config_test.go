@@ -13,6 +13,32 @@ func TestDurationEnvRejectsIntegerSecondsOverflow(t *testing.T) {
 	}
 }
 
+func TestLoadWaitlistRequestTTLDefaultAndOverride(t *testing.T) {
+	t.Setenv("DATABASE_URL", "postgresql://user:password@db.example.test:5432/linkup")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.WaitlistRequestTTL != 48*time.Hour {
+		t.Fatalf("expected default WaitlistRequestTTL=48h, got %s", cfg.WaitlistRequestTTL)
+	}
+
+	t.Setenv("LINKUP_WAITLIST_REQUEST_TTL", "12h")
+	cfg, err = Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.WaitlistRequestTTL != 12*time.Hour {
+		t.Fatalf("expected overridden WaitlistRequestTTL=12h, got %s", cfg.WaitlistRequestTTL)
+	}
+
+	t.Setenv("LINKUP_WAITLIST_REQUEST_TTL", "0")
+	if _, err := Load(); err == nil {
+		t.Fatal("non-positive LINKUP_WAITLIST_REQUEST_TTL must be rejected")
+	}
+}
+
 func TestLoadRejectsArgonSafetyCeiling(t *testing.T) {
 	t.Setenv("DATABASE_URL", "postgresql://user:password@db.example.test:5432/linkup")
 	t.Setenv("LINKUP_SESSION_TTL", "720h")

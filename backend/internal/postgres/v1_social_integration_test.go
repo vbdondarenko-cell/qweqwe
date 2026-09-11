@@ -66,7 +66,7 @@ func TestV1SocialCorePostgresIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	blockService, err := blocklist.NewService(NewBlockStore(pool))
+	blockService, err := blocklist.NewService(NewBlockStore(pool, time.Hour))
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -46,7 +46,7 @@ INSERT INTO pg_temp.slot_memberships(slot_id,user_id) VALUES ('accepted-slot','m
 	}
 
 	now := time.Unix(1_800_000_000, 0).UTC()
-	if err := blockPairTx(ctx, tx, "host", "member", now); err != nil {
+	if err := blockPairTx(ctx, tx, "host", "member", now, time.Hour); err != nil {
 		t.Fatal(err)
 	}
 
@@ -89,7 +89,7 @@ INSERT INTO pg_temp.slot_memberships(slot_id,user_id) VALUES ('accepted-slot','m
 	}
 
 	// Idempotent repeat without a new relationship must not advance versions again.
-	if err := blockPairTx(ctx, tx, "host", "member", now.Add(time.Second)); err != nil {
+	if err := blockPairTx(ctx, tx, "host", "member", now.Add(time.Second), time.Hour); err != nil {
 		t.Fatal(err)
 	}
 	assertSlot("pending-slot", "FILLING", 0, 2)
@@ -122,7 +122,7 @@ INSERT INTO pg_temp.app_users(id) VALUES ('host');`)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := blockPairTx(ctx, tx, "host", "missing", time.Now()); !errors.Is(err, blocklist.ErrInvalidTarget) {
+	if err := blockPairTx(ctx, tx, "host", "missing", time.Now(), time.Hour); !errors.Is(err, blocklist.ErrInvalidTarget) {
 		t.Fatalf("expected invalid target, got %v", err)
 	}
 }

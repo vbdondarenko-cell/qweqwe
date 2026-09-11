@@ -46,7 +46,7 @@ func newV11WaitlistFixture(t *testing.T) (context.Context, *pgxpool.Pool, *slot.
 	if err != nil {
 		t.Fatal(err)
 	}
-	store, err := NewV11SlotStore(base)
+	store, err := NewV11SlotStore(base, time.Hour)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -200,7 +200,7 @@ func TestV11WaitlistBlockAcceptedMemberPromotesNextIntegration(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	blocks, err := blocklist.NewService(NewBlockStore(pool))
+	blocks, err := blocklist.NewService(NewBlockStore(pool, time.Hour))
 	if err != nil {
 		t.Fatal(err)
 	}

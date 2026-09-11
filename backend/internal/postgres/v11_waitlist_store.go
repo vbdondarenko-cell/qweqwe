@@ -79,7 +79,21 @@ func (s *V11SlotStore) waitlistRequest(ctx context.Context, actorID, slotID, key
 		return slot.Slot{}, slot.ErrAlreadyMember
 	}
 	if requestExists {
-		return slot.Slot{}, slot.ErrDuplicateRequest
+		// A prior request row can outlive its own queue position once it has
+		// expired (see promoteOldestWaitlistTx): expiry is enforced lazily,
+		// not by a background sweep, so a stale row may still be physically
+		// present. Withdrawal hardening treats it as gone rather than
+		// blocking re-request with a confusing duplicate error.
+		var requestedAt time.Time
+		if err := tx.QueryRow(ctx, `SELECT created_at FROM slot_requests WHERE slot_id=$1 AND user_id=$2`, slotID, actorID).Scan(&requestedAt); err != nil {
+			return slot.Slot{}, err
+		}
+		if now.Sub(requestedAt) < s.waitlistRequestTTL {
+			return slot.Slot{}, slot.ErrDuplicateRequest
+		}
+		if _, err := tx.Exec(ctx, `DELETE FROM slot_requests WHERE slot_id=$1 AND user_id=$2`, slotID, actorID); err != nil {
+			return slot.Slot{}, err
+		}
 	}
 
 	if acceptedCount < capacity {
@@ -189,7 +203,7 @@ func (s *V11SlotStore) waitlistLeave(ctx context.Context, actorID, slotID, key s
 		}
 		acceptedCount--
 		if state != "ACTIVE" {
-			acceptedCount, _, err = promoteOldestWaitlistTx(ctx, tx, slotID, hostID, acceptedCount, capacity, now)
+			acceptedCount, _, err = promoteOldestWaitlistTx(ctx, tx, slotID, hostID, acceptedCount, capacity, now, s.waitlistRequestTTL)
 			if err != nil {
 				return slot.Slot{}, err
 			}
@@ -272,7 +286,7 @@ func (s *V11SlotStore) waitlistRemoveMember(ctx context.Context, actorID, slotID
 	}
 	acceptedCount--
 	if state != "ACTIVE" {
-		acceptedCount, _, err = promoteOldestWaitlistTx(ctx, tx, slotID, hostID, acceptedCount, capacity, now)
+		acceptedCount, _, err = promoteOldestWaitlistTx(ctx, tx, slotID, hostID, acceptedCount, capacity, now, s.waitlistRequestTTL)
 		if err != nil {
 			return slot.Slot{}, err
 		}
@@ -304,22 +318,26 @@ func (s *V11SlotStore) slotAccessMode(ctx context.Context, slotID string) (strin
 	return mode, nil
 }
 
-func promoteOldestWaitlistTx(ctx context.Context, tx pgx.Tx, slotID, hostID string, acceptedCount, capacity int, now time.Time) (int, string, error) {
+func promoteOldestWaitlistTx(ctx context.Context, tx pgx.Tx, slotID, hostID string, acceptedCount, capacity int, now time.Time, requestTTL time.Duration) (int, string, error) {
 	if acceptedCount >= capacity {
 		return acceptedCount, "", nil
 	}
-	rows, err := tx.Query(ctx, `SELECT user_id::text FROM slot_requests WHERE slot_id=$1 ORDER BY created_at ASC,user_id ASC FOR UPDATE`, slotID)
+	rows, err := tx.Query(ctx, `SELECT user_id::text,created_at FROM slot_requests WHERE slot_id=$1 ORDER BY created_at ASC,user_id ASC FOR UPDATE`, slotID)
 	if err != nil {
 		return acceptedCount, "", err
 	}
-	var candidates []string
+	type candidate struct {
+		id        string
+		createdAt time.Time
+	}
+	var candidates []candidate
 	for rows.Next() {
-		var id string
-		if err := rows.Scan(&id); err != nil {
+		var c candidate
+		if err := rows.Scan(&c.id, &c.createdAt); err != nil {
 			rows.Close()
 			return acceptedCount, "", err
 		}
-		candidates = append(candidates, id)
+		candidates = append(candidates, c)
 	}
 	if err := rows.Err(); err != nil {
 		rows.Close()
@@ -327,7 +345,17 @@ func promoteOldestWaitlistTx(ctx context.Context, tx pgx.Tx, slotID, hostID stri
 	}
 	rows.Close()
 
-	for _, candidateID := range candidates {
+	for _, c := range candidates {
+		candidateID := c.id
+		// Expired queue positions are never promoted. They are cleaned up
+		// here lazily (no background sweep exists) so the FIFO queue keeps
+		// advancing instead of being blocked by a stale entry forever.
+		if requestTTL > 0 && now.Sub(c.createdAt) >= requestTTL {
+			if _, err := tx.Exec(ctx, `DELETE FROM slot_requests WHERE slot_id=$1 AND user_id=$2`, slotID, candidateID); err != nil {
+				return acceptedCount, "", err
+			}
+			continue
+		}
 		blocked, err := blockedPairTx(ctx, tx, candidateID, hostID)
 		if err != nil {
 			return acceptedCount, "", err

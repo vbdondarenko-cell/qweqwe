@@ -877,3 +877,29 @@ Next: continue README §15/§37 dependency chain — request-expiry/withdrawal h
 ## 39. 2026-09-11 — iOS re-frozen by direct user command
 
 The user's direct instruction this session ("на айфон ми поки нічого не пишемо, пишемо тільки на андроїд") re-freezes iOS, overriding the 2026-09-08 activation recorded in §§29–31. Recorded as `PROJECT_RULES.md` RULE 4.1. No iOS files were read, changed, built or deleted in this or the preceding block; `ios/` is preserved as-is per RULE 9. All continuing work in this and future blocks, until the user unlocks iOS again, targets Android (Kotlin/Compose) and Go backend only.
+
+## 40. 2026-09-11 — v1.1 WAITLIST request-expiry/withdrawal hardening (Go backend only)
+
+Continues README §6.6 ("request expiry/withdrawal hardening", "expiry during mutation") from main `4bc1543`, per RULE 5 re-read of README/IMPLEMENTATION_STATUS/§37 "Remaining" before starting. Scope was deliberately narrowed and the narrowing is recorded honestly below rather than silently assumed complete.
+
+**Scope decision:** expiry is implemented only for the v1.1 WAITLIST queue (`V11SlotStore`/`BlockStore` promotion paths), not for v1.0 APPROVAL pending requests. README places this requirement under §6.6 "Approval + Waitlist + Host Control V2", but v1.0's `SlotStore.Request/Approve/Reject/ListPending` is the frozen v1.0 regression baseline (RULE 8/9); changing its behavior without an explicit user request was judged out of scope for this block. Also deliberately out of scope: propagating expiry into shared read paths (`Get`/`Pulse`/`Map`/`MyLinks`/realtime viewer feed all compute `PENDING` by row existence, not TTL) — those queries are shared with v1.0 APPROVAL and with already-hardened realtime/idempotency-replay code (REPOSITORY_AUDIT.md P1 findings), so touching them safely needs its own reviewed block, not a side effect of this one.
+
+Implemented:
+
+- `LINKUP_WAITLIST_REQUEST_TTL` config (default `48h`, validated positive like every other TTL) bounds how long a WAITLIST `slot_requests` queue position stays eligible for promotion;
+- `promoteOldestWaitlistTx` (used by leave, host removal, capacity expansion and block-triggered promotion — all 4 call sites) now skips and deletes any candidate whose `created_at` is at or past the TTL, evaluated against the same `now` used for the rest of the transaction so an expiry racing a promotion resolves atomically and deterministically ("expiry during mutation");
+- `waitlistRequest` no longer returns `ErrDuplicateRequest` for a request whose own prior queue position has expired: the stale row is deleted and the new request proceeds, fixing the concrete "withdrawal hardening" gap (a user stuck behind a queue position that will never promote and that they cannot re-request into);
+- a live (non-expired) duplicate request is still rejected, unchanged;
+- `V11SlotStore`/`BlockStore` constructors now take `waitlistRequestTTL`; wired from `cfg.WaitlistRequestTTL` in `cmd/api/main.go`.
+
+Executed evidence, this session:
+
+- `go build ./...`, `go vet ./...` — clean;
+- `go test -count=1 ./...` and `go test -race -count=1 ./...` — all packages pass;
+- fresh disposable PostgreSQL 16 + PostGIS, migrations `000001..000024` applied;
+- `go test -race -count=1 ./internal/postgres/...` against that database (`LINKUP_TEST_DATABASE_DESTRUCTIVE=1`) — all pass, including two new deterministic tests (`v11_waitlist_expiry_integration_test.go`, timestamps backdated directly rather than sleeping): an expired queue position is skipped, purged, and the next eligible (later-queued but non-expired) candidate is promoted instead; a user can request again once their own expired position is gone, while a still-live duplicate is still rejected — and the existing FIFO/race/block-promotion WAITLIST tests remain green, confirming no regression to already-covered behavior;
+- `go mod tidy` — no diff.
+
+Not done in this block, and not claimed: v1.0 APPROVAL request expiry; read-side (`Get`/`Pulse`/`Map`/`MyLinks`/realtime feed) TTL awareness for WAITLIST viewer state — a WAITLIST requester whose position has technically expired still reads as `PENDING` until the next mutation on that Slot touches the queue; Android UI for any of this (`ANDROID_HOME` unset, no SDK in this environment, per RULE 2/3 no unverified client claim is made); optimistic-version conflict UX and two-client/device WAITLIST verification carried over from §37.
+
+Next: either close the read-side WAITLIST-expiry gap as its own reviewed block, or move to README §6.7 Chat V2 — both remain Go-backend-first until an environment with Android SDK/Gradle network access is available.

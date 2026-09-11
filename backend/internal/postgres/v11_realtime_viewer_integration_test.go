@@ -51,7 +51,7 @@ func TestV11RealtimeViewerFeedIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	blocks, err := blocklist.NewService(NewBlockStore(pool))
+	blocks, err := blocklist.NewService(NewBlockStore(pool, time.Hour))
 	if err != nil {
 		t.Fatal(err)
 	}

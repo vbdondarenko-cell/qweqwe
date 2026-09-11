@@ -17,13 +17,17 @@ import (
 // in the same transaction and optimistic-version contract as the Slot aggregate.
 type V11SlotStore struct {
 	*SlotStore
+	// waitlistRequestTTL bounds how long a WAITLIST queue position stays
+	// eligible for promotion. It is a v1.1-only concept: v1.0 APPROVAL
+	// requests are untouched and keep their existing behavior.
+	waitlistRequestTTL time.Duration
 }
 
-func NewV11SlotStore(base *SlotStore) (*V11SlotStore, error) {
-	if base == nil || base.pool == nil {
+func NewV11SlotStore(base *SlotStore, waitlistRequestTTL time.Duration) (*V11SlotStore, error) {
+	if base == nil || base.pool == nil || waitlistRequestTTL <= 0 {
 		return nil, errors.New("invalid v1.1 slot store dependency")
 	}
-	return &V11SlotStore{SlotStore: base}, nil
+	return &V11SlotStore{SlotStore: base, waitlistRequestTTL: waitlistRequestTTL}, nil
 }
 
 func (s *V11SlotStore) Create(ctx context.Context, actorID string, candidate slot.Slot, key string, requestHash []byte) (slot.Slot, error) {
@@ -223,7 +227,7 @@ func (s *V11SlotStore) Edit(ctx context.Context, actorID, slotID string, patch s
 	if currentAccessMode == string(slot.AccessWaitlist) && state != "DRAFT" && state != "ACTIVE" && newCapacity > acceptedCount {
 		beforePromotion := acceptedCount
 		for acceptedCount < newCapacity {
-			nextCount, promotedID, promoteErr := promoteOldestWaitlistTx(ctx, tx, slotID, hostID, acceptedCount, newCapacity, now)
+			nextCount, promotedID, promoteErr := promoteOldestWaitlistTx(ctx, tx, slotID, hostID, acceptedCount, newCapacity, now, s.waitlistRequestTTL)
 			if promoteErr != nil {
 				return slot.Slot{}, promoteErr
 			}

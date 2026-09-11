@@ -9,9 +9,17 @@ import (
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/blocklist"
 )
 
-type BlockStore struct{ pool *pgxpool.Pool }
+type BlockStore struct {
+	pool *pgxpool.Pool
+	// waitlistRequestTTL matches V11SlotStore.waitlistRequestTTL so a block
+	// that frees a WAITLIST seat promotes using the same expiry rule as
+	// every other promotion path. 0 disables expiry (v1.0-only wiring).
+	waitlistRequestTTL time.Duration
+}
 
-func NewBlockStore(pool *pgxpool.Pool) *BlockStore { return &BlockStore{pool: pool} }
+func NewBlockStore(pool *pgxpool.Pool, waitlistRequestTTL time.Duration) *BlockStore {
+	return &BlockStore{pool: pool, waitlistRequestTTL: waitlistRequestTTL}
+}
 
 func (s *BlockStore) Block(ctx context.Context, blockerID, blockedID string, now time.Time) error {
 	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.ReadCommitted})
@@ -20,13 +28,13 @@ func (s *BlockStore) Block(ctx context.Context, blockerID, blockedID string, now
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 
-	if err := blockPairTx(ctx, tx, blockerID, blockedID, now); err != nil {
+	if err := blockPairTx(ctx, tx, blockerID, blockedID, now, s.waitlistRequestTTL); err != nil {
 		return err
 	}
 	return tx.Commit(ctx)
 }
 
-func blockPairTx(ctx context.Context, tx pgx.Tx, blockerID, blockedID string, now time.Time) error {
+func blockPairTx(ctx context.Context, tx pgx.Tx, blockerID, blockedID string, now time.Time, waitlistRequestTTL time.Duration) error {
 	var exists bool
 	if err := tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM app_users WHERE id=$1)`, blockedID).Scan(&exists); err != nil {
 		return err
@@ -123,7 +131,7 @@ func blockPairTx(ctx context.Context, tx pgx.Tx, blockerID, blockedID string, no
 			return err
 		}
 		for acceptedCount < capacity {
-			next, promotedID, err := promoteOldestWaitlistTx(ctx, tx, slotID, hostID, acceptedCount, capacity, now)
+			next, promotedID, err := promoteOldestWaitlistTx(ctx, tx, slotID, hostID, acceptedCount, capacity, now, waitlistRequestTTL)
 			if err != nil {
 				return err
 			}

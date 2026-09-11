@@ -67,12 +67,12 @@ func main() {
 		slog.Info("telegram-only v1.0 registration enabled", "bot_username", cfg.TelegramBotUsername)
 	}
 
-	blockService, err := blocklist.NewService(postgres.NewBlockStore(pool))
+	blockService, err := blocklist.NewService(postgres.NewBlockStore(pool, cfg.WaitlistRequestTTL))
 	if err != nil { slog.Error("block service init failed", "error", err); os.Exit(1) }
 
 	baseSlotStore, err := postgres.NewSlotStore(pool, cfg.IdempotencyTTL)
 	if err != nil { slog.Error("slot store init failed", "error", err); os.Exit(1) }
-	slotStore, err := postgres.NewV11SlotStore(baseSlotStore)
+	slotStore, err := postgres.NewV11SlotStore(baseSlotStore, cfg.WaitlistRequestTTL)
 	if err != nil { slog.Error("v1.1 slot store init failed", "error", err); os.Exit(1) }
 	slotService, err := slot.NewService(slotStore)
 	if err != nil { slog.Error("slot service init failed", "error", err); os.Exit(1) }

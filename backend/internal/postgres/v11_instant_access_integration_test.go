@@ -48,7 +48,7 @@ func TestV11InstantJoinCapacityRaceIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	store, err := NewV11SlotStore(base)
+	store, err := NewV11SlotStore(base, time.Hour)
 	if err != nil {
 		t.Fatal(err)
 	}
