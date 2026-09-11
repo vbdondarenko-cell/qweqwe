@@ -23,7 +23,10 @@ type fakeBumpStore struct {
 	reliabilityErr  error
 	vault           []bump.VaultEntry
 	vaultErr        error
+	publicBand      bump.Band
+	publicBandErr   error
 	lastConfirmArgs [4]string
+	lastBandArgs    [2]string
 }
 
 func (f *fakeBumpStore) IssueChallenge(_ context.Context, _, _ string, _ time.Duration) (bump.Challenge, error) {
@@ -41,6 +44,11 @@ func (f *fakeBumpStore) Reliability(_ context.Context, _ string) (bump.Reliabili
 
 func (f *fakeBumpStore) Vault(_ context.Context, _ string, _ int) ([]bump.VaultEntry, error) {
 	return f.vault, f.vaultErr
+}
+
+func (f *fakeBumpStore) PublicBand(_ context.Context, viewerID, targetUserID string) (bump.Band, error) {
+	f.lastBandArgs = [2]string{viewerID, targetUserID}
+	return f.publicBand, f.publicBandErr
 }
 
 func requestWithBumpAuth(method, target, body string) *http.Request {
@@ -274,6 +282,75 @@ func TestGetBumpVaultPropagatesStoreError(t *testing.T) {
 	recorder := httptest.NewRecorder()
 	server.getBumpVault(recorder, requestWithBumpAuth(http.MethodGet, "/v1/me/bump-vault", ""))
 	if recorder.Code != http.StatusInternalServerError {
+		t.Fatalf("status=%d body=%s", recorder.Code, recorder.Body.String())
+	}
+}
+
+func requestWithBandAuth(targetUserID string) *http.Request {
+	request := httptest.NewRequest(http.MethodGet, "/v1/users/"+targetUserID+"/reliability-band", nil)
+	request.SetPathValue("userID", targetUserID)
+	ctx := context.WithValue(request.Context(), authKey, authContext{User: account.User{ID: "11111111-1111-1111-1111-111111111111"}})
+	return request.WithContext(ctx)
+}
+
+// TestGetUserReliabilityBandReturnsOnlyBand closes README §6.9's
+// "private/public reliability bands" at the API surface: unlike
+// getReliability (self-only, exact VerifiedBumpCount included), this
+// endpoint answers for ANY user and must never leak the exact count.
+func TestGetUserReliabilityBandReturnsOnlyBand(t *testing.T) {
+	store := &fakeBumpStore{publicBand: bump.BandTrusted}
+	svc, err := bump.NewService(store, time.Minute)
+	if err != nil {
+		t.Fatal(err)
+	}
+	server := &Server{deps: Dependencies{Bump: svc}}
+	recorder := httptest.NewRecorder()
+	server.getUserReliabilityBand(recorder, requestWithBandAuth("22222222-2222-2222-2222-222222222222"))
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", recorder.Code, recorder.Body.String())
+	}
+	if store.lastBandArgs[0] != "11111111-1111-1111-1111-111111111111" || store.lastBandArgs[1] != "22222222-2222-2222-2222-222222222222" {
+		t.Fatalf("expected (viewer,target) forwarded to the store, got %#v", store.lastBandArgs)
+	}
+	body := recorder.Body.String()
+	if !bytes.Contains([]byte(body), []byte(`"band":"TRUSTED"`)) {
+		t.Fatalf("expected band in response, got %s", body)
+	}
+	if bytes.Contains([]byte(body), []byte("verifiedBumpCount")) {
+		t.Fatalf("public band response must never include the exact count: %s", body)
+	}
+}
+
+func TestGetUserReliabilityBandRequiresAuth(t *testing.T) {
+	server := &Server{}
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodGet, "/v1/users/target/reliability-band", nil)
+	request.SetPathValue("userID", "target")
+	server.getUserReliabilityBand(recorder, request)
+	if recorder.Code != http.StatusUnauthorized {
+		t.Fatalf("status=%d body=%s", recorder.Code, recorder.Body.String())
+	}
+}
+
+func TestGetUserReliabilityBandFailsClosedWhenServiceUnavailable(t *testing.T) {
+	server := &Server{}
+	recorder := httptest.NewRecorder()
+	server.getUserReliabilityBand(recorder, requestWithBandAuth("target"))
+	if recorder.Code != http.StatusServiceUnavailable {
+		t.Fatalf("status=%d body=%s", recorder.Code, recorder.Body.String())
+	}
+}
+
+func TestGetUserReliabilityBandPropagatesForbiddenForBlockedPair(t *testing.T) {
+	store := &fakeBumpStore{publicBandErr: bump.ErrForbidden}
+	svc, err := bump.NewService(store, time.Minute)
+	if err != nil {
+		t.Fatal(err)
+	}
+	server := &Server{deps: Dependencies{Bump: svc}}
+	recorder := httptest.NewRecorder()
+	server.getUserReliabilityBand(recorder, requestWithBandAuth("blocked-user"))
+	if recorder.Code != http.StatusForbidden {
 		t.Fatalf("status=%d body=%s", recorder.Code, recorder.Body.String())
 	}
 }

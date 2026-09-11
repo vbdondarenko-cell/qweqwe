@@ -101,6 +101,11 @@ type Store interface {
 	Confirm(ctx context.Context, actorID, slotID, counterpartID, nonce string) (ConfirmResult, error)
 	Reliability(ctx context.Context, userID string) (Reliability, error)
 	Vault(ctx context.Context, userID string, limit int) ([]VaultEntry, error)
+	// PublicBand fails with ErrForbidden if viewerID and targetUserID have
+	// blocked each other in either direction. It never returns the exact
+	// VerifiedBumpCount — see PublicBand's own doc comment on Service for
+	// why that split exists.
+	PublicBand(ctx context.Context, viewerID, targetUserID string) (Band, error)
 }
 
 type Service struct {
@@ -143,6 +148,25 @@ func (s *Service) Reliability(ctx context.Context, userID string) (Reliability, 
 		return Reliability{}, ErrInvalidInput
 	}
 	return s.store.Reliability(ctx, userID)
+}
+
+// PublicBand closes README §6.9's "private/public reliability bands" split
+// at the API surface, not just in the domain model: GetReliability (§48)
+// only ever let a user read their own full Reliability (exact
+// VerifiedBumpCount included), so there was previously no way for anyone
+// to see ANOTHER user's public-facing Band at all — the private/public
+// distinction the Band type's own doc comment describes existed in code
+// but was never actually exposed as two different surfaces. This is the
+// public one: it returns only the coarse Band, never the exact count,
+// and is subject to the same block relationship every other
+// cross-user-visible surface in this codebase already enforces.
+func (s *Service) PublicBand(ctx context.Context, viewerID, targetUserID string) (Band, error) {
+	viewerID = strings.TrimSpace(viewerID)
+	targetUserID = strings.TrimSpace(targetUserID)
+	if viewerID == "" || targetUserID == "" {
+		return "", ErrInvalidInput
+	}
+	return s.store.PublicBand(ctx, viewerID, targetUserID)
 }
 
 func (s *Service) Vault(ctx context.Context, userID string, limit int) ([]VaultEntry, error) {

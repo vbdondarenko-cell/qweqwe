@@ -37,8 +37,11 @@ type fakeStore struct {
 	reliabilityErr  error
 	vault           []VaultEntry
 	vaultErr        error
+	publicBand      Band
+	publicBandErr   error
 	lastConfirmArgs [4]string // actorID, slotID, counterpartID, nonce
 	lastVaultLimit  int
+	lastBandArgs    [2]string // viewerID, targetUserID
 }
 
 func (f *fakeStore) IssueChallenge(_ context.Context, _, _ string, _ time.Duration) (Challenge, error) {
@@ -57,6 +60,11 @@ func (f *fakeStore) Reliability(_ context.Context, _ string) (Reliability, error
 func (f *fakeStore) Vault(_ context.Context, _ string, limit int) ([]VaultEntry, error) {
 	f.lastVaultLimit = limit
 	return f.vault, f.vaultErr
+}
+
+func (f *fakeStore) PublicBand(_ context.Context, viewerID, targetUserID string) (Band, error) {
+	f.lastBandArgs = [2]string{viewerID, targetUserID}
+	return f.publicBand, f.publicBandErr
 }
 
 func TestNewServiceRejectsInvalidDependencies(t *testing.T) {
@@ -156,5 +164,47 @@ func TestServiceVaultClampsLimit(t *testing.T) {
 	}
 	if _, err := svc.Vault(context.Background(), "", 10); !errors.Is(err, ErrInvalidInput) {
 		t.Fatalf("expected ErrInvalidInput for empty userID, got %v", err)
+	}
+}
+
+func TestServicePublicBandTrimsAndForwardsArgs(t *testing.T) {
+	store := &fakeStore{publicBand: BandTrusted}
+	svc, err := NewService(store, time.Minute)
+	if err != nil {
+		t.Fatal(err)
+	}
+	band, err := svc.PublicBand(context.Background(), "  viewer  ", "  target  ")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if band != BandTrusted {
+		t.Fatalf("expected BandTrusted, got %s", band)
+	}
+	if store.lastBandArgs != [2]string{"viewer", "target"} {
+		t.Fatalf("expected trimmed args to reach the store, got %#v", store.lastBandArgs)
+	}
+}
+
+func TestServicePublicBandRejectsEmptyInput(t *testing.T) {
+	svc, err := NewService(&fakeStore{}, time.Minute)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.PublicBand(context.Background(), "", "target"); !errors.Is(err, ErrInvalidInput) {
+		t.Fatalf("expected ErrInvalidInput for empty viewerID, got %v", err)
+	}
+	if _, err := svc.PublicBand(context.Background(), "viewer", "  "); !errors.Is(err, ErrInvalidInput) {
+		t.Fatalf("expected ErrInvalidInput for empty targetUserID, got %v", err)
+	}
+}
+
+func TestServicePublicBandPropagatesForbidden(t *testing.T) {
+	store := &fakeStore{publicBandErr: ErrForbidden}
+	svc, err := NewService(store, time.Minute)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.PublicBand(context.Background(), "viewer", "target"); !errors.Is(err, ErrForbidden) {
+		t.Fatalf("expected ErrForbidden to propagate for a blocked pair, got %v", err)
 	}
 }

@@ -233,6 +233,31 @@ func (s *BumpStore) Reliability(ctx context.Context, userID string) (bump.Reliab
 	return bump.Reliability{UserID: userID, VerifiedBumpCount: count, Band: bump.Band(band)}, nil
 }
 
+func (s *BumpStore) PublicBand(ctx context.Context, viewerID, targetUserID string) (bump.Band, error) {
+	if viewerID != targetUserID {
+		var blocked bool
+		if err := s.pool.QueryRow(ctx, `
+			SELECT EXISTS(
+				SELECT 1 FROM user_blocks
+				WHERE (blocker_id=$1 AND blocked_id=$2) OR (blocker_id=$2 AND blocked_id=$1)
+			)`, viewerID, targetUserID).Scan(&blocked); err != nil {
+			return "", err
+		}
+		if blocked {
+			return "", bump.ErrForbidden
+		}
+	}
+	var band string
+	err := s.pool.QueryRow(ctx, `SELECT band FROM user_reliability WHERE user_id=$1`, targetUserID).Scan(&band)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return bump.BandNew, nil
+	}
+	if err != nil {
+		return "", err
+	}
+	return bump.Band(band), nil
+}
+
 func (s *BumpStore) Vault(ctx context.Context, userID string, limit int) ([]bump.VaultEntry, error) {
 	rows, err := s.pool.Query(ctx, `
 		SELECT b.slot_id,s.title,

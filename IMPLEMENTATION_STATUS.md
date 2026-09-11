@@ -1264,3 +1264,31 @@ Executed evidence, this session:
 Not done or claimed in this block: visibility still cannot be changed once a Slot is published — this is the deliberate scope limit explained above, not an oversight; the remaining five README §4.3 modes (`LINKS`/`SELECTED`/`CITY`/`LASSO`/`TRAVEL_CORRIDOR`) remain entirely unimplemented; Android UI (no SDK in this environment, per RULE 2/3).
 
 Next: `EVENT_RECOMMENDATION` (still needs a real recommendation-candidate design), or `FRIEND_*` (blocked on a nonexistent Friends/Connections domain — also the prerequisite for `LINKS` visibility), or README §6.9's remaining after-check/public-band-exposure work. Go-backend-first until Android SDK/Gradle network access is available in this environment.
+
+## 54. 2026-09-11 — closes the "public-band-exposure" half of README §6.9's remaining gap
+
+**Before picking this, audited what was actually missing.** §48 already implemented `Band`/`Reliability`/`VaultEntry`/`reliability_events` — most of README §6.9 ("reliability events", "private/public reliability bands", "BUMP Vault baseline" were all already real, tested, and running against PostgreSQL. But `GET /v1/me/reliability` only ever let a user read their *own* `Reliability` (exact `VerifiedBumpCount` included) — there was no way for anyone to see *another* user's Band at all. The "private/public" split the `Band` type's own doc comment already described existed only in the domain model, never as two actual API surfaces. `EVENT_RECOMMENDATION` and `FRIEND_*` remain blocked exactly as stated in §50-§53 (real design/domain work, not attempted casually); README §6.9's other remaining bullet, "after-check flow", has no elaboration anywhere in the document beyond that one phrase and was deliberately left alone this block rather than invented from two words — the risk of building the wrong thing and calling it done is exactly what RULE 2 exists to prevent.
+
+**Implemented:** `GET /v1/users/{userID}/reliability-band` — a new, public counterpart to the existing self-only `GET /v1/me/reliability`. It returns *only* the coarse `Band` for any user, never the exact `VerifiedBumpCount` (that stays visible solely to the user themselves via the existing endpoint), and is gated by the same block relationship every other cross-user-visible surface in this codebase already enforces (`user_blocks`, checked both directions, mirroring `Confirm`'s existing block check in the same store).
+
+Code changes:
+- `bump/model.go`: `Store.PublicBand(ctx, viewerID, targetUserID) (Band, error)`; `Service.PublicBand` (trims/validates both IDs, delegates).
+- `postgres/bump_store.go`: `BumpStore.PublicBand` — skips the block check for a self-lookup (so a stray self-block row can never lock a user out of their own public band), otherwise checks `user_blocks` both directions and returns `ErrForbidden`; reads `user_reliability.band`, defaulting to `BandNew` (`pgx.ErrNoRows`) for a user with no credited history yet, exactly mirroring `Reliability`'s existing default.
+- `httpserver/bump_handlers.go` + `server.go`: new handler `getUserReliabilityBand` and route, capability-gated the same as every other BUMP endpoint (`capability.Bump`), auth required.
+
+New tests:
+- `bump/model_test.go`: `TestServicePublicBandTrimsAndForwardsArgs`, `TestServicePublicBandRejectsEmptyInput`, `TestServicePublicBandPropagatesForbidden`.
+- `httpserver/bump_handlers_test.go`: `TestGetUserReliabilityBandReturnsOnlyBand` (asserts the response body contains `band` but never `verifiedBumpCount` — the actual privacy boundary, not just a status code), `TestGetUserReliabilityBandRequiresAuth`, `TestGetUserReliabilityBandFailsClosedWhenServiceUnavailable`, `TestGetUserReliabilityBandPropagatesForbiddenForBlockedPair`.
+- `postgres/bump_store_integration_test.go` (end-to-end against real PostgreSQL): `TestBumpStorePublicBandReflectsCreditedReliability` — a user with no history reads `BandNew` publicly; after a real mutual BUMP confirmation between two other users (the same `IssueChallenge`/`Confirm` flow §48 already proved), the public `Band` for one of them is fetched by an unrelated third party and shown to exactly match that user's own private `Reliability().Band` (`BandBuilding` after one credited BUMP) — proving the public projection stays in sync with real credited reliability, not a separate/stale computation. `TestBumpStorePublicBandRejectsBlockedViewer` — blocked in either direction, `ErrForbidden`. `TestBumpStorePublicBandAllowsSelfLookupRegardlessOfBlocks` — the self-lookup skip cannot misbehave.
+
+Executed evidence, this session:
+
+- `go build ./...`, `go vet ./...` — clean; `gofmt -l` on every new/touched file — clean;
+- fresh disposable PostgreSQL 16 + PostGIS, migrations `000001..000030` applied cleanly (no new migration — `user_reliability`/`user_blocks` already exist from `000028`/earlier);
+- the full `go test -count=1 ./...` suite run three consecutive times against the same, non-recreated, accumulating disposable database (with the `linkup_api` role present) — all three green;
+- `go test -race -count=1 ./...` against a freshly rebuilt disposable database — green;
+- `go mod tidy` — no diff.
+
+Not done or claimed in this block: README §6.9's "after-check flow" bullet remains unimplemented — deliberately, since the document gives no further specification of what it means beyond the two words, and inventing behavior for it risks building something that does not match the intended product design (a "fake" real feature, which is its own kind of RULE 2 violation even if the code itself is genuine and tested); this endpoint exposes Band to any authenticated, non-blocked user with no additional relationship requirement (e.g. not restricted to co-participants of a shared Slot) — stated as a design choice matching the Band doc comment's own framing ("the coarse, public-facing reliability signal"), not silently assumed; Android UI (no SDK in this environment, per RULE 2/3).
+
+Next: `EVENT_RECOMMENDATION` (still needs a real recommendation-candidate design), or `FRIEND_*` (blocked on a nonexistent Friends/Connections domain), or a real specification for README §6.9's "after-check flow" (this session will not invent one unprompted). Go-backend-first until Android SDK/Gradle network access is available in this environment.

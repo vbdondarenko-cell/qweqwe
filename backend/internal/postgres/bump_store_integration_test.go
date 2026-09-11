@@ -331,3 +331,89 @@ func TestBumpStoreReliabilityDefaultsForUnknownUser(t *testing.T) {
 		t.Fatalf("a user with no BUMPs must default to zero/NEW, got %#v", rel)
 	}
 }
+
+// TestBumpStorePublicBandReflectsCreditedReliability closes README §6.9's
+// "private/public reliability bands" at the API surface: any user (subject
+// to the block relationship, proven separately below) can look up another
+// user's coarse Band, and it stays in sync with real credited reliability
+// — a mutual BUMP confirmation moves it exactly the same way it moves the
+// private Reliability() the confirmed user reads about themselves.
+func TestBumpStorePublicBandReflectsCreditedReliability(t *testing.T) {
+	f := newBumpFixture(t)
+
+	// A user with no history defaults to NEW, publicly and privately alike.
+	band, err := f.store.PublicBand(f.ctx, f.stranger.User.ID, f.memberA.User.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if band != bump.BandNew {
+		t.Fatalf("expected BandNew before any credited BUMP, got %s", band)
+	}
+
+	// Mutually confirm memberA<->memberB on the ACTIVE slot to credit both.
+	chA, err := f.store.IssueChallenge(f.ctx, f.memberA.User.ID, f.activeSlot.ID, time.Minute)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.store.Confirm(f.ctx, f.memberA.User.ID, f.activeSlot.ID, f.memberB.User.ID, chA.Nonce); err != nil {
+		t.Fatal(err)
+	}
+	chB, err := f.store.IssueChallenge(f.ctx, f.memberB.User.ID, f.activeSlot.ID, time.Minute)
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, err := f.store.Confirm(f.ctx, f.memberB.User.ID, f.activeSlot.ID, f.memberA.User.ID, chB.Nonce)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !result.Verified {
+		t.Fatalf("expected the second, reciprocal claim to verify the pair: %#v", result)
+	}
+
+	privateRel, err := f.store.Reliability(f.ctx, f.memberA.User.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	publicBand, err := f.store.PublicBand(f.ctx, f.stranger.User.ID, f.memberA.User.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if publicBand != privateRel.Band {
+		t.Fatalf("public Band must match the private Reliability's Band: public=%s private=%#v", publicBand, privateRel)
+	}
+	if publicBand != bump.BandBuilding {
+		t.Fatalf("expected BandBuilding after one credited BUMP, got %s", publicBand)
+	}
+}
+
+// TestBumpStorePublicBandRejectsBlockedViewer proves the public Band lookup
+// respects the same block relationship every other cross-user-visible
+// surface in this codebase already enforces — it is not a bypass around
+// blocking just because it only exposes a coarse signal.
+func TestBumpStorePublicBandRejectsBlockedViewer(t *testing.T) {
+	f := newBumpFixture(t)
+	if _, err := f.pool.Exec(f.ctx, `INSERT INTO user_blocks (blocker_id, blocked_id) VALUES ($1,$2)`, f.memberA.User.ID, f.stranger.User.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.store.PublicBand(f.ctx, f.stranger.User.ID, f.memberA.User.ID); !errors.Is(err, bump.ErrForbidden) {
+		t.Fatalf("expected ErrForbidden for a blocked viewer (either direction), got %v", err)
+	}
+	// The reverse direction (blocker looking up the user they blocked) is
+	// also rejected — blocking is symmetric for visibility purposes
+	// throughout this codebase, and this surface must not be an exception.
+	if _, err := f.store.PublicBand(f.ctx, f.memberA.User.ID, f.stranger.User.ID); !errors.Is(err, bump.ErrForbidden) {
+		t.Fatalf("expected ErrForbidden for the blocker's own lookup of the blocked user, got %v", err)
+	}
+}
+
+// TestBumpStorePublicBandAllowsSelfLookupRegardlessOfBlocks confirms the
+// self-block-skip optimization in PublicBand's implementation cannot be
+// used to accidentally lock a user out of their own (public) band — not
+// that self-blocking is a real product flow, but the query must not
+// misbehave if a stray self-block row ever existed.
+func TestBumpStorePublicBandAllowsSelfLookupRegardlessOfBlocks(t *testing.T) {
+	f := newBumpFixture(t)
+	if _, err := f.store.PublicBand(f.ctx, f.memberA.User.ID, f.memberA.User.ID); err != nil {
+		t.Fatalf("a user must always be able to look up their own public band, got %v", err)
+	}
+}

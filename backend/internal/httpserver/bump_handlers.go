@@ -80,6 +80,35 @@ func (s *Server) getReliability(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, rel)
 }
 
+type publicReliabilityBandResponse struct {
+	UserID string `json:"userId"`
+	Band   string `json:"band"`
+}
+
+// getUserReliabilityBand is the public counterpart to getReliability
+// (GET /v1/me/reliability): it lets any authenticated user look up another
+// user's coarse, public-facing reliability Band — never the exact
+// VerifiedBumpCount, which stays visible only to that user themselves via
+// getReliability. See bump.Service.PublicBand's doc comment.
+func (s *Server) getUserReliabilityBand(w http.ResponseWriter, r *http.Request) {
+	auth, ok := authFrom(r)
+	if !ok {
+		writeProblem(w, r, http.StatusUnauthorized, "unauthorized", "authentication required")
+		return
+	}
+	if s.deps.Bump == nil {
+		writeProblem(w, r, http.StatusServiceUnavailable, "not_ready", "bump service is unavailable")
+		return
+	}
+	targetUserID := r.PathValue("userID")
+	band, err := s.deps.Bump.PublicBand(r.Context(), auth.User.ID, targetUserID)
+	if err != nil {
+		writeBumpError(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, publicReliabilityBandResponse{UserID: targetUserID, Band: string(band)})
+}
+
 type bumpVaultEntryResponse struct {
 	SlotID        string `json:"slotId"`
 	SlotTitle     string `json:"slotTitle"`
