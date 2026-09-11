@@ -46,6 +46,7 @@ type Config struct {
 	NotificationFrequencyCapWindow time.Duration
 	NotificationPollInterval       time.Duration
 	NotificationBatchSize          int
+	BumpChallengeTTL               time.Duration
 }
 
 func Load() (Config, error) {
@@ -83,6 +84,7 @@ func Load() (Config, error) {
 		NotificationFrequencyCapWindow: 24 * time.Hour,
 		NotificationPollInterval:       5 * time.Second,
 		NotificationBatchSize:          200,
+		BumpChallengeTTL:               10 * time.Minute,
 	}
 	if cfg.DatabaseURL == "" {
 		return Config{}, errors.New("DATABASE_URL is required")
@@ -117,6 +119,9 @@ func Load() (Config, error) {
 		return Config{}, err
 	}
 	if cfg.NotificationBatchSize, err = positiveIntEnv("LINKUP_NOTIFICATION_BATCH_SIZE", cfg.NotificationBatchSize); err != nil {
+		return Config{}, err
+	}
+	if cfg.BumpChallengeTTL, err = durationEnv("LINKUP_BUMP_CHALLENGE_TTL", cfg.BumpChallengeTTL); err != nil {
 		return Config{}, err
 	}
 	if cfg.ArgonMemoryKiB, err = uint32Env("LINKUP_ARGON_MEMORY_KIB", cfg.ArgonMemoryKiB); err != nil {

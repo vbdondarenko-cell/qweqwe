@@ -12,6 +12,7 @@ import (
 
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/account"
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/blocklist"
+	"github.com/vbdondarenko-cell/qweqwe/backend/internal/bump"
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/capability"
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/chat"
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/citycontext"
@@ -135,6 +136,11 @@ func main() {
 	notificationPreferencesService, err := notification.NewPreferencesService(notificationPreferencesStore)
 	if err != nil { slog.Error("notification preferences service init failed", "error", err); os.Exit(1) }
 
+	bumpStore, err := postgres.NewBumpStore(pool)
+	if err != nil { slog.Error("bump store init failed", "error", err); os.Exit(1) }
+	bumpService, err := bump.NewService(bumpStore, cfg.BumpChallengeTTL)
+	if err != nil { slog.Error("bump service init failed", "error", err); os.Exit(1) }
+
 	authLimiter, err := ratelimit.New(ratelimit.Config{Limit: cfg.AuthRateLimit, Window: cfg.AuthRateWindow, IdleTTL: cfg.AuthRateIdleTTL, MaxEntries: cfg.AuthRateMaxEntries})
 	if err != nil { slog.Error("auth rate limiter init failed", "error", err); os.Exit(1) }
 	userLimiter, err := ratelimit.New(ratelimit.Config{Limit: cfg.SocialRateLimit, Window: cfg.SocialRateWindow, IdleTTL: cfg.SocialRateIdleTTL, MaxEntries: cfg.SocialRateMaxEntries})
@@ -154,6 +160,7 @@ func main() {
 		Monetization: monetizationService,
 		Push: pushService,
 		NotificationPreferences: notificationPreferencesService,
+		Bump: bumpService,
 		Onboarding: onboardingService,
 		Telegram: telegramBot,
 		TelegramWebhookSecret: cfg.TelegramWebhookSecret,

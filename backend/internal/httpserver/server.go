@@ -14,6 +14,7 @@ import (
 
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/account"
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/blocklist"
+	"github.com/vbdondarenko-cell/qweqwe/backend/internal/bump"
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/capability"
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/chat"
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/citycontext"
@@ -42,6 +43,7 @@ type Dependencies struct {
 	Monetization            *monetization.Service
 	Push                    *push.Service
 	NotificationPreferences *notification.PreferencesService
+	Bump                    *bump.Service
 	Onboarding              *onboarding.Service
 	Telegram                onboarding.ContactPrompter
 	TelegramWebhookSecret   string
@@ -102,6 +104,10 @@ func New(deps Dependencies) *Server {
 	mux.Handle("DELETE /v1/me/push/android/{installationID}", s.requireAuth(s.requireCapability(capability.Notifications, http.HandlerFunc(s.revokeAndroidPush))))
 	mux.Handle("GET /v1/me/notifications/preferences", s.requireAuth(s.requireCapability(capability.Notifications, http.HandlerFunc(s.getNotificationPreferences))))
 	mux.Handle("PUT /v1/me/notifications/preferences", s.requireAuth(s.requireCapability(capability.Notifications, http.HandlerFunc(s.updateNotificationPreferences))))
+	mux.Handle("POST /v1/slots/{slotID}/bump/challenge", s.requireAuth(s.requireCapability(capability.Bump, http.HandlerFunc(s.issueBumpChallenge))))
+	mux.Handle("POST /v1/slots/{slotID}/bump/confirm", s.requireAuth(s.requireCapability(capability.Bump, http.HandlerFunc(s.confirmBump))))
+	mux.Handle("GET /v1/me/reliability", s.requireAuth(s.requireCapability(capability.Bump, http.HandlerFunc(s.getReliability))))
+	mux.Handle("GET /v1/me/bump-vault", s.requireAuth(s.requireCapability(capability.Bump, http.HandlerFunc(s.getBumpVault))))
 
 	mux.Handle("GET /v1/realtime/events", s.requireAuth(s.requireCapability(capability.Realtime, http.HandlerFunc(s.realtimeEvents))))
 	mux.Handle("GET /v1/realtime/city", s.requireAuth(s.requireCapability(capability.Realtime, s.requireCapability(capability.CityContext, http.HandlerFunc(s.realtimeCity)))))
