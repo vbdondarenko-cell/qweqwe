@@ -20,6 +20,7 @@ import (
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/citymap"
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/identifier"
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/monetization"
+	"github.com/vbdondarenko-cell/qweqwe/backend/internal/notification"
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/onboarding"
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/places"
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/push"
@@ -28,24 +29,25 @@ import (
 )
 
 type Dependencies struct {
-	Accounts              *account.Service
-	Blocks                *blocklist.Service
-	Slots                 *slot.Service
-	Chats                 *chat.Service
-	CityContext           *citycontext.Service
-	Capabilities          *capability.Service
-	Map                   *citymap.Service
-	Places                *places.Service
-	Realtime              RealtimeFeed
-	CityRealtime          CityRealtimeFeed
-	Monetization          *monetization.Service
-	Push                  *push.Service
-	Onboarding            *onboarding.Service
-	Telegram              onboarding.ContactPrompter
-	TelegramWebhookSecret string
-	Ready                 func(context.Context) error
-	AuthLimiter           *ratelimit.Limiter
-	UserLimiter           *ratelimit.Limiter
+	Accounts                *account.Service
+	Blocks                  *blocklist.Service
+	Slots                   *slot.Service
+	Chats                   *chat.Service
+	CityContext             *citycontext.Service
+	Capabilities            *capability.Service
+	Map                     *citymap.Service
+	Places                  *places.Service
+	Realtime                RealtimeFeed
+	CityRealtime            CityRealtimeFeed
+	Monetization            *monetization.Service
+	Push                    *push.Service
+	NotificationPreferences *notification.PreferencesService
+	Onboarding              *onboarding.Service
+	Telegram                onboarding.ContactPrompter
+	TelegramWebhookSecret   string
+	Ready                   func(context.Context) error
+	AuthLimiter             *ratelimit.Limiter
+	UserLimiter             *ratelimit.Limiter
 }
 
 type Server struct {
@@ -98,6 +100,8 @@ func New(deps Dependencies) *Server {
 	mux.Handle("PUT /v1/me/referral", s.requireAuth(http.HandlerFunc(s.bindReferral)))
 	mux.Handle("PUT /v1/me/push/android", s.requireAuth(s.requireCapability(capability.Notifications, http.HandlerFunc(s.registerAndroidPush))))
 	mux.Handle("DELETE /v1/me/push/android/{installationID}", s.requireAuth(s.requireCapability(capability.Notifications, http.HandlerFunc(s.revokeAndroidPush))))
+	mux.Handle("GET /v1/me/notifications/preferences", s.requireAuth(s.requireCapability(capability.Notifications, http.HandlerFunc(s.getNotificationPreferences))))
+	mux.Handle("PUT /v1/me/notifications/preferences", s.requireAuth(s.requireCapability(capability.Notifications, http.HandlerFunc(s.updateNotificationPreferences))))
 
 	mux.Handle("GET /v1/realtime/events", s.requireAuth(s.requireCapability(capability.Realtime, http.HandlerFunc(s.realtimeEvents))))
 	mux.Handle("GET /v1/realtime/city", s.requireAuth(s.requireCapability(capability.Realtime, s.requireCapability(capability.CityContext, http.HandlerFunc(s.realtimeCity)))))
