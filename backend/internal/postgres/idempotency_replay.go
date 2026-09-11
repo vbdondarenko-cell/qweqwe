@@ -76,6 +76,18 @@ func authorizeIdempotencyReplayTx(ctx context.Context, tx pgx.Tx, actorID, resou
 							   OR (b.blocker_id=s.host_id AND b.blocked_id=$2)
 						)
 					)
+					OR (
+						s.visibility='SELECTED'
+						AND s.state IN ('PUBLISHED','FILLING','FULL')
+						AND EXISTS (
+							SELECT 1 FROM slot_selected_viewers v WHERE v.slot_id=s.id AND v.user_id=$2
+						)
+						AND NOT EXISTS (
+							SELECT 1 FROM user_blocks b
+							WHERE (b.blocker_id=$2 AND b.blocked_id=s.host_id)
+							   OR (b.blocker_id=s.host_id AND b.blocked_id=$2)
+						)
+					)
 				  )
 			)`, resourceID, actorID).Scan(&allowed)
 

@@ -53,6 +53,10 @@ func (s *CityMapStore) Viewport(ctx context.Context, viewerID, localityID string
 						WHERE f.user_lo_id=LEAST(s.host_id,$6::uuid) AND f.user_hi_id=GREATEST(s.host_id,$6::uuid)
 					)
 				)
+				OR (
+					s.visibility='SELECTED'
+					AND EXISTS(SELECT 1 FROM slot_selected_viewers v WHERE v.slot_id=s.id AND v.user_id=$6::uuid)
+				)
 			  )
 			  AND s.state IN ('PUBLISHED','FILLING','FULL')
 			  AND s.start_at IS NOT NULL
@@ -142,6 +146,10 @@ func (s *CityMapStore) PlaceSlots(ctx context.Context, viewerID, localityID stri
 				SELECT 1 FROM friendships f
 				WHERE f.user_lo_id=LEAST(s.host_id,$1::uuid) AND f.user_hi_id=GREATEST(s.host_id,$1::uuid)
 			)
+		)
+		OR (
+			s.visibility='SELECTED'
+			AND EXISTS(SELECT 1 FROM slot_selected_viewers v WHERE v.slot_id=s.id AND v.user_id=$1::uuid)
 		)
 	  )
 	  AND s.state IN ('PUBLISHED','FILLING','FULL')

@@ -33,6 +33,7 @@ CREATE TEMP TABLE slot_requests(slot_id text, user_id text) ON COMMIT DROP;
 CREATE TEMP TABLE slot_memberships(slot_id text, user_id text) ON COMMIT DROP;
 CREATE TEMP TABLE user_blocks(blocker_id text, blocked_id text) ON COMMIT DROP;
 CREATE TEMP TABLE friendships(user_lo_id text, user_hi_id text) ON COMMIT DROP;
+CREATE TEMP TABLE slot_selected_viewers(slot_id text, user_id text) ON COMMIT DROP;
 INSERT INTO pg_temp.slots(id,host_id,state,visibility) VALUES ('slot','host','FILLING','PUBLIC');`)
 	if err != nil {
 		t.Fatal(err)
@@ -120,6 +121,7 @@ CREATE TEMP TABLE slot_requests(slot_id text, user_id text) ON COMMIT DROP;
 CREATE TEMP TABLE slot_memberships(slot_id text, user_id text) ON COMMIT DROP;
 CREATE TEMP TABLE user_blocks(blocker_id text, blocked_id text) ON COMMIT DROP;
 CREATE TEMP TABLE friendships(user_lo_id text, user_hi_id text) ON COMMIT DROP;
+CREATE TEMP TABLE slot_selected_viewers(slot_id text, user_id text) ON COMMIT DROP;
 INSERT INTO pg_temp.slots(id,host_id,state,visibility) VALUES ('slot','host','FILLING','LINKS');`)
 	if err != nil {
 		t.Fatal(err)
@@ -164,4 +166,77 @@ INSERT INTO pg_temp.slots(id,host_id,state,visibility) VALUES ('slot','host','FI
 	// entirely, exactly like the PUBLIC branch already behaves.
 	exec("UPDATE pg_temp.slots SET state='ACTIVE' WHERE id='slot'")
 	mustDeny("friend")
+}
+
+// TestIdempotencyReplayAuthorizationSQLSelectedVisibility mirrors
+// TestIdempotencyReplayAuthorizationSQLLinksVisibility for the SELECTED
+// allow-list: the "slot.leave" case's fallback branch needed a SELECTED
+// sibling gated on a slot_selected_viewers row, exactly like
+// Get/ListPulse/Map/the realtime viewer/the city realtime channel already
+// have.
+func TestIdempotencyReplayAuthorizationSQLSelectedVisibility(t *testing.T) {
+	dsn := os.Getenv("LINKUP_TEST_DATABASE_URL")
+	if dsn == "" {
+		t.Skip("LINKUP_TEST_DATABASE_URL is required for PostgreSQL query tests")
+	}
+	ctx := context.Background()
+	conn, err := pgx.Connect(ctx, dsn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close(ctx)
+	tx, err := conn.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tx.Rollback(ctx)
+
+	_, err = tx.Exec(ctx, `
+CREATE TEMP TABLE slots(id text PRIMARY KEY, host_id text, state text, visibility text) ON COMMIT DROP;
+CREATE TEMP TABLE slot_requests(slot_id text, user_id text) ON COMMIT DROP;
+CREATE TEMP TABLE slot_memberships(slot_id text, user_id text) ON COMMIT DROP;
+CREATE TEMP TABLE user_blocks(blocker_id text, blocked_id text) ON COMMIT DROP;
+CREATE TEMP TABLE friendships(user_lo_id text, user_hi_id text) ON COMMIT DROP;
+CREATE TEMP TABLE slot_selected_viewers(slot_id text, user_id text) ON COMMIT DROP;
+INSERT INTO pg_temp.slots(id,host_id,state,visibility) VALUES ('slot','host','FILLING','SELECTED');`)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	mustAllow := func(actor string) {
+		t.Helper()
+		if err := authorizeIdempotencyReplayTx(ctx, tx, actor, "slot", "slot.leave"); err != nil {
+			t.Fatalf("%s/slot.leave should be allowed: %v", actor, err)
+		}
+	}
+	mustDeny := func(actor string) {
+		t.Helper()
+		if err := authorizeIdempotencyReplayTx(ctx, tx, actor, "slot", "slot.leave"); !errors.Is(err, slot.ErrForbidden) {
+			t.Fatalf("%s/slot.leave should be forbidden: %v", actor, err)
+		}
+	}
+	exec := func(query string, args ...any) {
+		t.Helper()
+		if _, err := tx.Exec(ctx, query, args...); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	// A stranger not on the allow-list must not fall back to SELECTED
+	// visibility (unlike PUBLIC, SELECTED requires a real allow-list row).
+	mustDeny("stranger")
+
+	exec("INSERT INTO pg_temp.slot_selected_viewers VALUES ('slot','selected')")
+	mustAllow("selected")
+
+	// A block between the two still wins over being selected.
+	exec("INSERT INTO pg_temp.user_blocks VALUES ('selected','host')")
+	mustDeny("selected")
+	exec("DELETE FROM pg_temp.user_blocks")
+	mustAllow("selected")
+
+	// Leaving the PUBLISHED/FILLING/FULL state range removes the fallback
+	// entirely, exactly like the PUBLIC/LINKS branches already behave.
+	exec("UPDATE pg_temp.slots SET state='ACTIVE' WHERE id='slot'")
+	mustDeny("selected")
 }

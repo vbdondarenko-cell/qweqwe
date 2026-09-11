@@ -10,8 +10,11 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/account"
+	"github.com/vbdondarenko-cell/qweqwe/backend/internal/citymap"
+	"github.com/vbdondarenko-cell/qweqwe/backend/internal/identifier"
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/migrate"
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/password"
+	"github.com/vbdondarenko-cell/qweqwe/backend/internal/realtime"
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/slot"
 )
 
@@ -175,5 +178,234 @@ func TestV11SelectedVisibilityRejectedForLegacyCreate(t *testing.T) {
 		Visibility: &visibility, SelectedUserIDs: []string{other.User.ID},
 	}, "v11-selected-visibility-legacy-0001"); !errors.Is(err, slot.ErrInvalidState) {
 		t.Fatalf("expected ErrInvalidState rejecting SELECTED on the v1.0 create endpoint, got %v", err)
+	}
+}
+
+// TestV11SelectedVisibilityMap mirrors TestV11LinksVisibilityMap for the
+// SELECTED allow-list: citymap_store.go's Viewport (cluster counts) and
+// PlaceSlots (the actual Slot list for one place) must both exclude a
+// SELECTED Slot from a non-selected stranger and include it for whichever
+// user the host put on the allow-list.
+func TestV11SelectedVisibilityMap(t *testing.T) {
+	dsn := os.Getenv("LINKUP_TEST_DATABASE_URL")
+	if dsn == "" || os.Getenv("LINKUP_TEST_DATABASE_DESTRUCTIVE") != "1" {
+		t.Skip("disposable PostgreSQL requires LINKUP_TEST_DATABASE_URL and LINKUP_TEST_DATABASE_DESTRUCTIVE=1")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+	pool, err := pgxpool.New(ctx, dsn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(pool.Close)
+	if err := migrate.Apply(ctx, pool, migrationDir(t)); err != nil {
+		t.Fatal(err)
+	}
+
+	accountService, err := account.NewService(NewAccountStore(pool), password.OWASPMinimum(), time.Hour)
+	if err != nil {
+		t.Fatal(err)
+	}
+	suffix := fmt.Sprintf("%x", time.Now().UnixNano())
+	host := registerIntegrationUser(t, ctx, accountService, "svma", suffix)
+	selected := registerIntegrationUser(t, ctx, accountService, "svnb", suffix)
+	t.Cleanup(func() { cleanupIntegrationRows(pool, []string{host.User.ID, selected.User.ID}) })
+
+	localityID, err := identifier.NewUUID()
+	if err != nil {
+		t.Fatal(err)
+	}
+	placeID, err := identifier.NewUUID()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 15*time.Second)
+		defer cleanupCancel()
+		_, _ = pool.Exec(cleanupCtx, `DELETE FROM canonical_places WHERE id=$1::uuid`, placeID)
+		_, _ = pool.Exec(cleanupCtx, `DELETE FROM localities WHERE id=$1::uuid`, localityID)
+	})
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO localities (
+			id,source,source_locality_id,name,country_code,timezone_name,
+			centroid_latitude_e6,centroid_longitude_e6,boundary_wkt
+		) VALUES ($1::uuid,'integration',$2,'Kyiv','UA','Europe/Kyiv',
+			50500000,30500000,'MULTIPOLYGON(((30 50,31 50,31 51,30 51,30 50)))')`,
+		localityID, "selected-map-"+suffix); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO canonical_places (
+			id,source,source_place_id,name,category,locality,country_code,
+			latitude_e6,longitude_e6,precision_m,locality_id
+		) VALUES ($1::uuid,'integration',$2,'Selected Map Place','cafe','Kyiv','UA',50500000,30500000,50,$3::uuid)`,
+		placeID, "selected-map-place-"+suffix, localityID); err != nil {
+		t.Fatal(err)
+	}
+
+	baseStore, err := NewSlotStore(pool, time.Hour)
+	if err != nil {
+		t.Fatal(err)
+	}
+	v11Store, err := NewV11SlotStore(baseStore, time.Hour)
+	if err != nil {
+		t.Fatal(err)
+	}
+	slotService, err := slot.NewService(v11Store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mapStore, err := NewCityMapStore(pool, time.Hour)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mapService, err := citymap.NewService(mapStore)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	start := time.Now().UTC().Add(2 * time.Hour).Truncate(time.Second)
+	visibility := slot.VisibilitySelected
+	draft, err := slotService.CreateDraft(ctx, host.User.ID, slot.CreateInput{
+		Title: "Selected Map Meetup", Activity: "coffee", PlaceText: "Selected Map Place",
+		CanonicalPlaceID: &placeID, StartAt: &start, Capacity: 3,
+		Visibility: &visibility, SelectedUserIDs: []string{selected.User.ID},
+	}, "v11-selected-map-draft-0001")
+	if err != nil {
+		t.Fatal(err)
+	}
+	published, err := slotService.PublishDraft(ctx, host.User.ID, draft.ID, draft.Version, "v11-selected-map-publish-0001")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if published.Visibility != slot.VisibilitySelected {
+		t.Fatalf("published slot lost SELECTED visibility: %#v", published)
+	}
+
+	viewportQuery := citymap.Viewport{
+		WestE6: 30000000, SouthE6: 50000000, EastE6: 31000000, NorthE6: 51000000, Zoom: 12,
+		From: start.Add(-time.Hour), To: start.Add(time.Hour), Limit: 20,
+	}
+	placeSlotsQuery := citymap.PlaceSlotsQuery{PlaceID: placeID, From: start.Add(-time.Hour), To: start.Add(time.Hour), Limit: 20}
+
+	strangerID, err := identifier.NewUUID()
+	if err != nil {
+		t.Fatal(err)
+	}
+	beforeClusters, err := mapService.Viewport(ctx, strangerID, localityID, viewportQuery)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, cluster := range beforeClusters {
+		if cluster.SlotCount > 0 {
+			t.Fatalf("SELECTED slot must not count on the Map for a non-selected stranger: %#v", cluster)
+		}
+	}
+	beforeSlots, err := mapService.PlaceSlots(ctx, strangerID, localityID, placeSlotsQuery)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(beforeSlots) != 0 {
+		t.Fatalf("SELECTED slot must not appear in PlaceSlots for a non-selected stranger: %#v", beforeSlots)
+	}
+
+	afterClusters, err := mapService.Viewport(ctx, selected.User.ID, localityID, viewportQuery)
+	if err != nil {
+		t.Fatal(err)
+	}
+	total := 0
+	for _, cluster := range afterClusters {
+		total += cluster.SlotCount
+	}
+	if total != 1 {
+		t.Fatalf("expected exactly one SELECTED slot visible to the selected user on the Map, got total=%d: %#v", total, afterClusters)
+	}
+	afterSlots, err := mapService.PlaceSlots(ctx, selected.User.ID, localityID, placeSlotsQuery)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(afterSlots) != 1 || afterSlots[0].ID != published.ID {
+		t.Fatalf("expected the SELECTED slot in PlaceSlots for the selected user: %#v", afterSlots)
+	}
+}
+
+// TestV11SelectedVisibilityRealtimeViewer mirrors
+// TestV11LinksVisibilityRealtimeViewer for the SELECTED allow-list: a
+// non-selected stranger's PullViewer must not surface a slot.created event
+// for a SELECTED Slot, but the selected user's must.
+func TestV11SelectedVisibilityRealtimeViewer(t *testing.T) {
+	dsn := os.Getenv("LINKUP_TEST_DATABASE_URL")
+	if dsn == "" || os.Getenv("LINKUP_TEST_DATABASE_DESTRUCTIVE") != "1" {
+		t.Skip("disposable PostgreSQL requires LINKUP_TEST_DATABASE_URL and LINKUP_TEST_DATABASE_DESTRUCTIVE=1")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+	pool, err := pgxpool.New(ctx, dsn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(pool.Close)
+	if err := migrate.Apply(ctx, pool, migrationDir(t)); err != nil {
+		t.Fatal(err)
+	}
+
+	accountService, err := account.NewService(NewAccountStore(pool), password.OWASPMinimum(), time.Hour)
+	if err != nil {
+		t.Fatal(err)
+	}
+	suffix := fmt.Sprintf("%x", time.Now().UnixNano())
+	host := registerIntegrationUser(t, ctx, accountService, "svwc", suffix)
+	selected := registerIntegrationUser(t, ctx, accountService, "svfd", suffix)
+	stranger := registerIntegrationUser(t, ctx, accountService, "svze", suffix)
+	t.Cleanup(func() { cleanupIntegrationRows(pool, []string{host.User.ID, selected.User.ID, stranger.User.ID}) })
+
+	baseStore, err := NewSlotStore(pool, time.Hour)
+	if err != nil {
+		t.Fatal(err)
+	}
+	v11Store, err := NewV11SlotStore(baseStore, time.Hour)
+	if err != nil {
+		t.Fatal(err)
+	}
+	slotService, err := slot.NewService(v11Store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	viewerStore, err := NewRealtimeViewerStore(pool, time.Hour)
+	if err != nil {
+		t.Fatal(err)
+	}
+	feed, err := realtime.NewFeedService(viewerStore)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	before := realtimeMaxSequence(t, ctx, pool)
+	visibility := slot.VisibilitySelected
+	draft, err := slotService.CreateDraft(ctx, host.User.ID, slot.CreateInput{
+		Title: "Selected Realtime", Activity: "coffee", PlaceText: "Center", Capacity: 3,
+		Visibility: &visibility, SelectedUserIDs: []string{selected.User.ID},
+	}, "v11-selected-realtime-draft-0001")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := slotService.PublishDraft(ctx, host.User.ID, draft.ID, draft.Version, "v11-selected-realtime-publish-0001"); err != nil {
+		t.Fatal(err)
+	}
+
+	strangerBatch, err := feed.Pull(ctx, stranger.User.ID, before, realtime.MaxViewerBatch)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if hasRealtimeType(strangerBatch.Events, "slot.created") {
+		t.Fatalf("a non-selected stranger must not see a SELECTED slot.created event: %#v", strangerBatch.Events)
+	}
+
+	selectedBatch, err := feed.Pull(ctx, selected.User.ID, before, realtime.MaxViewerBatch)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !hasRealtimeType(selectedBatch.Events, "slot.created") {
+		t.Fatalf("the selected user must see a SELECTED slot.created event: %#v", selectedBatch.Events)
 	}
 }

@@ -113,6 +113,15 @@ const cityRealtimeSQL = `
 						WHERE f.user_lo_id=LEAST(s.host_id,$1::uuid) AND f.user_hi_id=GREATEST(s.host_id,$1::uuid)
 					)
 				)
+				OR (
+					(
+						(e.payload->>'visibility'='SELECTED' AND e.payload->>'state' IN ('PUBLISHED','FILLING','FULL'))
+						OR (e.payload->>'previousVisibility'='SELECTED' AND e.payload->>'previousState' IN ('PUBLISHED','FILLING','FULL'))
+					)
+					AND EXISTS (
+						SELECT 1 FROM slot_selected_viewers v WHERE v.slot_id=s.id AND v.user_id=$1::uuid
+					)
+				)
 			)
 			AND NOT EXISTS (
 				SELECT 1 FROM user_blocks b
