@@ -185,7 +185,7 @@ private fun MapHeader() {
             )
             Spacer(Modifier.weight(1f))
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                Box(Modifier.size(7.dp).clip(CircleShape).background(LinkUpSuccess))
+                LinkUpPulseDot(LinkUpSuccess, size = 7.dp)
                 Text(stringResource(R.string.map_server_live), color = LinkUpSuccess, fontFamily = LinkUpDesign.monoFont, fontSize = 9.sp)
             }
         }

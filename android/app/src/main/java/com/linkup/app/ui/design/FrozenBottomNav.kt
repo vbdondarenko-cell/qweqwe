@@ -1,5 +1,11 @@
 package com.linkup.app.ui.design
 
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -16,9 +22,11 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -56,11 +64,27 @@ fun FrozenBottomNav(
             modifier = Modifier.offset(y = (-14).dp).clickable { onSelect(FrozenMainTab.CREATE) },
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Box(
-                Modifier.size(56.dp).clip(CircleShape).background(LinkUpRed),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text("LINK", color = Color.White, fontFamily = LinkUpDesign.displayFont, fontSize = 14.sp, fontWeight = FontWeight.Black)
+            // Frozen reference's `animate-pulse-ring` (expanding ring behind
+            // the button) + `animate-glow-pulse` (pulsing shadow) -- see
+            // BottomNav.tsx's own create button.
+            val glowTransition = rememberInfiniteTransition(label = "createButtonGlow")
+            val glowElevation by glowTransition.animateFloat(
+                initialValue = 12f,
+                targetValue = 24f,
+                animationSpec = infiniteRepeatable(tween(1250, easing = FastOutSlowInEasing), RepeatMode.Reverse),
+                label = "createButtonGlowElevation",
+            )
+            Box(Modifier.size(56.dp), contentAlignment = Alignment.Center) {
+                LinkUpPulseRing(color = LinkUpRed.copy(alpha = .3f), size = 56.dp)
+                Box(
+                    Modifier.size(56.dp)
+                        .shadow(elevation = glowElevation.dp, shape = CircleShape, ambientColor = LinkUpRed, spotColor = LinkUpRed)
+                        .clip(CircleShape)
+                        .background(LinkUpRed),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text("LINK", color = Color.White, fontFamily = LinkUpDesign.displayFont, fontSize = 14.sp, fontWeight = FontWeight.Black)
+                }
             }
             Text(stringResource(R.string.nav_create), color = LinkUpTextMuted, fontFamily = LinkUpDesign.bodyFont, fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
         }

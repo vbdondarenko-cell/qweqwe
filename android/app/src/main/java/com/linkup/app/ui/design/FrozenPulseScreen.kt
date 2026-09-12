@@ -207,7 +207,7 @@ private fun FrozenPulseHeader(query: String, onQueryChange: (String) -> Unit, on
                 }
                 Spacer(Modifier.height(5.dp))
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Box(Modifier.size(8.dp).clip(CircleShape).background(LinkUpRed))
+                    LinkUpPulseDot(LinkUpRed, size = 8.dp)
                     Text(stringResource(R.string.pulse_live_data), color = LinkUpTextDimmed, fontFamily = LinkUpDesign.monoFont, fontSize = 12.sp)
                 }
             }

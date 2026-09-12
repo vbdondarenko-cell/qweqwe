@@ -1,5 +1,12 @@
 package com.linkup.app.ui.design
 
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -22,11 +29,15 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -281,6 +292,67 @@ fun LinkUpProgressBar(
     }
 }
 
+/**
+ * The frozen reference's `animate-bpm-beat` keyframe: scale 1→1.3, opacity
+ * 1→0.7, 0.6s each way (1.2s full cycle), ease-in-out, looping forever --
+ * the small "live" heartbeat dot used throughout the Bolt design wherever
+ * something is happening right now.
+ */
+@Composable
+fun LinkUpPulseDot(color: Color, modifier: Modifier = Modifier, size: Dp = 6.dp) {
+    val transition = rememberInfiniteTransition(label = "bpmBeat")
+    val scale by transition.animateFloat(
+        initialValue = 1f,
+        targetValue = 1.3f,
+        animationSpec = infiniteRepeatable(tween(600, easing = FastOutSlowInEasing), RepeatMode.Reverse),
+        label = "bpmBeatScale",
+    )
+    val alpha by transition.animateFloat(
+        initialValue = 1f,
+        targetValue = 0.7f,
+        animationSpec = infiniteRepeatable(tween(600, easing = FastOutSlowInEasing), RepeatMode.Reverse),
+        label = "bpmBeatAlpha",
+    )
+    Box(
+        modifier
+            .size(size)
+            .graphicsLayer { scaleX = scale; scaleY = scale; this.alpha = alpha }
+            .clip(CircleShape)
+            .background(color),
+    )
+}
+
+/**
+ * The frozen reference's `animate-pulse-ring` keyframe: an expanding, fading
+ * ring behind a "live" marker -- scale 0.85→1.6, opacity 0.8→0, 2s
+ * ease-out, restarting forever. Draw this as a sibling behind the marker
+ * it belongs to (see [com.linkup.app.ui.design.FrozenBottomNav]'s create
+ * button for the reference usage).
+ */
+@Composable
+fun LinkUpPulseRing(color: Color, modifier: Modifier = Modifier, size: Dp = 56.dp) {
+    val transition = rememberInfiniteTransition(label = "pulseRing")
+    val scale by transition.animateFloat(
+        initialValue = 0.85f,
+        targetValue = 1.6f,
+        animationSpec = infiniteRepeatable(tween(2000, easing = FastOutSlowInEasing), RepeatMode.Restart),
+        label = "pulseRingScale",
+    )
+    val alpha by transition.animateFloat(
+        initialValue = 0.8f,
+        targetValue = 0f,
+        animationSpec = infiniteRepeatable(tween(2000, easing = FastOutSlowInEasing), RepeatMode.Restart),
+        label = "pulseRingAlpha",
+    )
+    Box(
+        modifier
+            .size(size)
+            .graphicsLayer { scaleX = scale; scaleY = scale; this.alpha = alpha }
+            .clip(CircleShape)
+            .background(color),
+    )
+}
+
 enum class LinkUpVisualStatus { LIVE, OPEN, FULL, APPROVAL }
 
 @Composable
@@ -301,7 +373,7 @@ fun LinkUpStatusBadge(status: LinkUpVisualStatus, modifier: Modifier = Modifier)
         horizontalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         if (status == LinkUpVisualStatus.LIVE) {
-            Box(Modifier.size(6.dp).clip(CircleShape).background(LinkUpSuccess))
+            LinkUpPulseDot(LinkUpSuccess, size = 6.dp)
         }
         Text(
             status.name,
@@ -386,9 +458,32 @@ fun LinkUpErrorState(
     }
 }
 
+/**
+ * The frozen reference's `.skeleton-shimmer` + `animate-shimmer`: a soft
+ * gradient sweeping left to right, 1.8s linear, looping forever.
+ */
 @Composable
 fun LinkUpSkeleton(modifier: Modifier = Modifier) {
-    Box(modifier.clip(RoundedCornerShape(12.dp)).background(LinkUpBorder.copy(alpha = .65f)))
+    val transition = rememberInfiniteTransition(label = "shimmer")
+    val sweep by transition.animateFloat(
+        initialValue = -1f,
+        targetValue = 2f,
+        animationSpec = infiniteRepeatable(tween(1800, easing = LinearEasing), RepeatMode.Restart),
+        label = "shimmerSweep",
+    )
+    val base = LinkUpBorder.copy(alpha = .40f)
+    val highlight = LinkUpBorder.copy(alpha = .85f)
+    Box(
+        modifier
+            .clip(RoundedCornerShape(12.dp))
+            .background(
+                Brush.linearGradient(
+                    colors = listOf(base, highlight, base),
+                    start = Offset(sweep * 300f, 0f),
+                    end = Offset(sweep * 300f + 300f, 0f),
+                ),
+            ),
+    )
 }
 
 @Composable
