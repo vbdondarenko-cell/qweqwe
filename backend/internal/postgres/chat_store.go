@@ -155,6 +155,58 @@ func (s *ChatStore) ListRecent(ctx context.Context, actorID, slotID string, limi
 	return items, nil
 }
 
+// SplitBillRoster authorizes actorID with the exact same boundary as
+// Send/ListRecent, then returns the host plus every currently-accepted
+// member (block-excluded from the actor's own view, same as ListRecent) so
+// chat.Service.SplitBill can validate a requested participant list against
+// real Slot membership.
+func (s *ChatStore) SplitBillRoster(ctx context.Context, actorID, slotID string) ([]chat.Author, error) {
+	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.ReadCommitted})
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	if err := authorizeChatTx(ctx, tx, actorID, slotID); err != nil {
+		return nil, err
+	}
+
+	rows, err := tx.Query(ctx, `
+		SELECT u.id,u.username,u.display_name,u.avatar_url
+		FROM app_users u
+		WHERE u.id IN (
+			SELECT host_id FROM slots WHERE id=$1
+			UNION
+			SELECT user_id FROM slot_memberships WHERE slot_id=$1
+		)
+		AND NOT EXISTS (
+			SELECT 1 FROM user_blocks b
+			WHERE (b.blocker_id=$2 AND b.blocked_id=u.id)
+			   OR (b.blocker_id=u.id AND b.blocked_id=$2)
+		)
+		ORDER BY u.id`, slotID, actorID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	items := make([]chat.Author, 0)
+	for rows.Next() {
+		var item chat.Author
+		if err := rows.Scan(&item.ID, &item.Username, &item.DisplayName, &item.AvatarURL); err != nil {
+			return nil, err
+		}
+		items = append(items, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 func authorizeChatTx(ctx context.Context, tx pgx.Tx, actorID, slotID string) error {
 	var hostID, state string
 	if err := tx.QueryRow(ctx, `SELECT host_id,state FROM slots WHERE id=$1 FOR SHARE`, slotID).Scan(&hostID, &state); errors.Is(err, pgx.ErrNoRows) {

@@ -157,6 +157,7 @@ func New(deps Dependencies) *Server {
 	mux.Handle("POST /v1/slots/{slotID}/complete", s.requireAuth(http.HandlerFunc(s.completeSlot)))
 	mux.Handle("GET /v1/slots/{slotID}/chat/messages", s.requireAuth(http.HandlerFunc(s.listChatMessages)))
 	mux.Handle("POST /v1/slots/{slotID}/chat/messages", s.requireAuth(http.HandlerFunc(s.sendChatMessage)))
+	mux.Handle("POST /v1/slots/{slotID}/bill-split", s.requireAuth(http.HandlerFunc(s.splitBill)))
 
 	s.handler = s.requestMeta(mux)
 	return s

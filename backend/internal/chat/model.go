@@ -65,7 +65,31 @@ type Message struct {
 	CreatedAt       time.Time        `json:"createdAt"`
 }
 
+// ParticipantShare is one person's amount from a Bill Splitter calculation
+// (README §6.18). AmountMinor is in the same minor-currency-unit scale as
+// TotalMinor — this package never handles float currency.
+type ParticipantShare struct {
+	UserID      string `json:"userId"`
+	AmountMinor int    `json:"amountMinor"`
+}
+
+// BillSplit is the deterministic result of Service.SplitBill. It is a pure
+// calculation, never persisted or transmitted to any payment processor —
+// README §6.18's own guardrail ("Bill Splitter is not a payment
+// processor").
+type BillSplit struct {
+	SlotID     string             `json:"slotId"`
+	TotalMinor int                `json:"totalMinor"`
+	Shares     []ParticipantShare `json:"shares"`
+}
+
 type Store interface {
 	Send(ctx context.Context, actorID, slotID, messageID, idempotencyKey, text string) (Message, error)
 	ListRecent(ctx context.Context, actorID, slotID string, limit int) ([]Message, error)
+	// SplitBillRoster authorizes actorID against slotID with the same
+	// boundary as Send/ListRecent (host or a currently-accepted member,
+	// not blocked by the host) and returns the full current roster (host +
+	// accepted members) so Service.SplitBill can validate the caller's
+	// requested participant list against real Slot membership.
+	SplitBillRoster(ctx context.Context, actorID, slotID string) ([]Author, error)
 }

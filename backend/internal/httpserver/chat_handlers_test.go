@@ -15,10 +15,12 @@ import (
 )
 
 type chatHTTPStore struct {
-	sendErr error
-	listErr error
-	items   []chat.Message
-	byKey   map[string]chat.Message
+	sendErr   error
+	listErr   error
+	items     []chat.Message
+	byKey     map[string]chat.Message
+	roster    []chat.Author
+	rosterErr error
 }
 
 func (s *chatHTTPStore) Send(_ context.Context, actorID, slotID, messageID, key, text string) (chat.Message, error) {
@@ -51,6 +53,13 @@ func (s *chatHTTPStore) ListRecent(_ context.Context, _, _ string, _ int) ([]cha
 		return nil, s.listErr
 	}
 	return s.items, nil
+}
+
+func (s *chatHTTPStore) SplitBillRoster(_ context.Context, _, _ string) ([]chat.Author, error) {
+	if s.rosterErr != nil {
+		return nil, s.rosterErr
+	}
+	return s.roster, nil
 }
 
 func TestChatSendAndReadHTTP(t *testing.T) {
@@ -161,6 +170,62 @@ func TestChatForbiddenAndClosedAreExplicit(t *testing.T) {
 				t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
 			}
 		})
+	}
+}
+
+func TestSplitBillHTTPReturnsDeterministicShares(t *testing.T) {
+	accounts, err := account.NewService(&authTestStore{}, password.OWASPMinimum(), time.Hour)
+	if err != nil {
+		t.Fatal(err)
+	}
+	chats, err := chat.NewService(&chatHTTPStore{roster: []chat.Author{{ID: "a"}, {ID: "b"}, {ID: "c"}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	server := New(Dependencies{Accounts: accounts, Chats: chats})
+	token := registerHTTPUser(t, server)
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/slots/slot-1/bill-split", bytes.NewBufferString(`{"totalMinor":100}`))
+	req.Header.Set("Authorization", "Bearer "+token)
+	rec := httptest.NewRecorder()
+	server.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
+	}
+	var got chat.BillSplit
+	if err := json.NewDecoder(rec.Body).Decode(&got); err != nil {
+		t.Fatal(err)
+	}
+	if got.TotalMinor != 100 || len(got.Shares) != 3 {
+		t.Fatalf("unexpected split: %#v", got)
+	}
+	sum := 0
+	for _, share := range got.Shares {
+		sum += share.AmountMinor
+	}
+	if sum != 100 {
+		t.Fatalf("shares must sum to the total, got %d", sum)
+	}
+}
+
+func TestSplitBillHTTPRejectsInvalidTotal(t *testing.T) {
+	accounts, err := account.NewService(&authTestStore{}, password.OWASPMinimum(), time.Hour)
+	if err != nil {
+		t.Fatal(err)
+	}
+	chats, err := chat.NewService(&chatHTTPStore{roster: []chat.Author{{ID: "a"}, {ID: "b"}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	server := New(Dependencies{Accounts: accounts, Chats: chats})
+	token := registerHTTPUser(t, server)
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/slots/slot-1/bill-split", bytes.NewBufferString(`{"totalMinor":0}`))
+	req.Header.Set("Authorization", "Bearer "+token)
+	rec := httptest.NewRecorder()
+	server.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
 	}
 }
 
