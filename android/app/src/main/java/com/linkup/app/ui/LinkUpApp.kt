@@ -58,6 +58,7 @@ import com.linkup.app.core.network.MySlotsView
 import com.linkup.app.core.network.SlotModel
 import com.linkup.app.core.network.SlotOrganizer
 import com.linkup.app.core.network.SlotViewerState
+import com.linkup.app.core.notifications.NotificationsCoordinator
 import com.linkup.app.core.session.SessionCoordinator
 import com.linkup.app.core.session.SessionState
 import com.linkup.app.core.social.LoadState
@@ -71,6 +72,7 @@ import com.linkup.app.ui.design.FrozenFlyScreen
 import com.linkup.app.ui.design.FrozenMainTab
 import com.linkup.app.ui.design.CapabilityMapScreen
 import com.linkup.app.ui.design.FrozenMeScreen
+import com.linkup.app.ui.design.FrozenNotificationsPanel
 import com.linkup.app.ui.design.FrozenPulseScreen
 import com.linkup.app.ui.design.LinkUpButton
 import com.linkup.app.ui.design.LinkUpButtonVariant
@@ -110,6 +112,7 @@ fun LinkUpApp(
     capabilities: CapabilityCoordinator,
     cityContext: CityContextCoordinator,
     city: CityNetworkCoordinator,
+    notifications: NotificationsCoordinator,
     resetToken: String? = null,
     onResetTokenConsumed: () -> Unit,
 ) {
@@ -118,9 +121,11 @@ fun LinkUpApp(
     var authBusy by remember { mutableStateOf(false) }
     var authError by remember { mutableStateOf<String?>(null) }
     var authInfo by remember { mutableStateOf<String?>(null) }
+    var showNotifications by remember { mutableStateOf(false) }
     val genericError = stringResource(R.string.common_request_failed)
     val recoveryRequested = stringResource(R.string.recovery_request_info)
     val passwordChanged = stringResource(R.string.recovery_changed_info)
+    val notificationInbox by notifications.inbox.collectAsState()
 
     LaunchedEffect(Unit) { sessions.bootstrap() }
 
@@ -555,6 +560,11 @@ private fun SignedInRoot(
                                 onSlotClick = ::openDesignedSlot,
                                 onPrimaryAction = ::handleDesignedPrimaryAction,
                                 waitlistEnabled = waitlistEnabled,
+                                onOpenNotifications = {
+                                    showNotifications = true
+                                    scope.launch { notifications.refresh() }
+                                },
+                                unreadNotificationCount = (notificationInbox as? LoadState.Content)?.value?.unreadCount ?: 0,
                             )
                             MainTab.LINK -> CreateLinkScreen(
                                 submitting = hostingBusy,
@@ -694,6 +704,13 @@ private fun SignedInRoot(
                 }
             }
         }
+        FrozenNotificationsPanel(
+            open = showNotifications,
+            onClose = { showNotifications = false },
+            state = notificationInbox,
+            onMarkAllRead = { scope.launch { notifications.markAllRead() } },
+            onRetry = { scope.launch { notifications.refresh() } },
+        )
     }
 }
 

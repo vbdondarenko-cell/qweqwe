@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -69,6 +70,7 @@ fun FrozenPulseScreen(
     waitlistEnabled: Boolean = false,
     modifier: Modifier = Modifier,
     onOpenNotifications: () -> Unit = onRefresh,
+    unreadNotificationCount: Int = 0,
 ) {
     var query by remember { mutableStateOf("") }
     var time by remember { mutableStateOf(PulseTimeFilter.ALL) }
@@ -80,7 +82,7 @@ fun FrozenPulseScreen(
     val happeningNow = source.firstOrNull { it.state == SlotState.ACTIVE }
 
     Column(modifier.fillMaxSize().background(Color(0xFF050506))) {
-        FrozenPulseHeader(query, { query = it.take(120) }, onOpenNotifications)
+        FrozenPulseHeader(query, { query = it.take(120) }, onOpenNotifications, unreadNotificationCount)
         LazyRow(
             contentPadding = PaddingValues(horizontal = 20.dp, vertical = 10.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -194,7 +196,12 @@ private fun primaryActionLabel(action: FrozenPrimaryAction): String = stringReso
 )
 
 @Composable
-private fun FrozenPulseHeader(query: String, onQueryChange: (String) -> Unit, onOpenNotifications: () -> Unit) {
+private fun FrozenPulseHeader(
+    query: String,
+    onQueryChange: (String) -> Unit,
+    onOpenNotifications: () -> Unit,
+    unreadNotificationCount: Int,
+) {
     Column(
         Modifier.fillMaxWidth().background(Color(0xF20D0E10)).border(1.dp, LinkUpBorder)
             .padding(start = 20.dp, end = 20.dp, top = 56.dp, bottom = 12.dp),
@@ -211,11 +218,27 @@ private fun FrozenPulseHeader(query: String, onQueryChange: (String) -> Unit, on
                     Text(stringResource(R.string.pulse_live_data), color = LinkUpTextDimmed, fontFamily = LinkUpDesign.monoFont, fontSize = 12.sp)
                 }
             }
-            Box(
-                Modifier.size(40.dp).clip(RoundedCornerShape(12.dp)).background(LinkUpElevated)
-                    .border(1.dp, LinkUpBorder, RoundedCornerShape(12.dp)).clickable(onClick = onOpenNotifications),
-                contentAlignment = Alignment.Center,
-            ) { FrozenLineIcon(FrozenIconKind.PULSE, LinkUpTextDimmed, Modifier.size(18.dp)) }
+            Box(contentAlignment = Alignment.TopEnd) {
+                Box(
+                    Modifier.size(40.dp).clip(RoundedCornerShape(12.dp)).background(LinkUpElevated)
+                        .border(1.dp, LinkUpBorder, RoundedCornerShape(12.dp)).clickable(onClick = onOpenNotifications),
+                    contentAlignment = Alignment.Center,
+                ) { FrozenLineIcon(FrozenIconKind.BELL, LinkUpTextDimmed, Modifier.size(18.dp)) }
+                if (unreadNotificationCount > 0) {
+                    Box(
+                        Modifier.offset(x = 4.dp, y = (-4).dp).size(18.dp).clip(CircleShape).background(LinkUpRed),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            if (unreadNotificationCount > 9) "9+" else unreadNotificationCount.toString(),
+                            color = LinkUpTextPrimary,
+                            fontFamily = LinkUpDesign.monoFont,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 9.sp,
+                        )
+                    }
+                }
+            }
         }
         Spacer(Modifier.height(12.dp))
         Row(

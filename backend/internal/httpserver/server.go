@@ -46,6 +46,7 @@ type Dependencies struct {
 	Monetization            *monetization.Service
 	Push                    *push.Service
 	NotificationPreferences *notification.PreferencesService
+	NotificationInbox       *notification.InboxService
 	Bump                    *bump.Service
 	Friends                 *friend.Service
 	Guardians               *guardian.Service
@@ -123,6 +124,8 @@ func New(deps Dependencies) *Server {
 	mux.Handle("DELETE /v1/me/push/android/{installationID}", s.requireAuth(s.requireCapability(capability.Notifications, http.HandlerFunc(s.revokeAndroidPush))))
 	mux.Handle("GET /v1/me/notifications/preferences", s.requireAuth(s.requireCapability(capability.Notifications, http.HandlerFunc(s.getNotificationPreferences))))
 	mux.Handle("PUT /v1/me/notifications/preferences", s.requireAuth(s.requireCapability(capability.Notifications, http.HandlerFunc(s.updateNotificationPreferences))))
+	mux.Handle("GET /v1/me/notifications", s.requireAuth(s.requireCapability(capability.Notifications, http.HandlerFunc(s.listNotifications))))
+	mux.Handle("POST /v1/me/notifications/read", s.requireAuth(s.requireCapability(capability.Notifications, http.HandlerFunc(s.markNotificationsRead))))
 	mux.Handle("POST /v1/slots/{slotID}/bump/challenge", s.requireAuth(s.requireCapability(capability.Bump, http.HandlerFunc(s.issueBumpChallenge))))
 	mux.Handle("POST /v1/slots/{slotID}/bump/confirm", s.requireAuth(s.requireCapability(capability.Bump, http.HandlerFunc(s.confirmBump))))
 	mux.Handle("GET /v1/me/reliability", s.requireAuth(s.requireCapability(capability.Bump, http.HandlerFunc(s.getReliability))))

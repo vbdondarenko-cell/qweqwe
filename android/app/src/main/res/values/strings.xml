@@ -221,4 +221,10 @@
     <string name="app_update_allow_unknown_sources">Allow LinkUp to install updates</string>
     <string name="app_update_allow_unknown_sources_body">Android requires one-time permission before LinkUp can install a downloaded update.</string>
     <string name="app_update_open_settings">Open settings</string>
+
+    <string name="notifications_title">Notifications</string>
+    <string name="notifications_mark_all_read">Mark all read</string>
+    <string name="notifications_empty_title">All caught up</string>
+    <string name="notifications_empty_body">No new notifications right now.</string>
+    <string name="notifications_footer">No engagement bait. Only events that matter.</string>
 </resources>

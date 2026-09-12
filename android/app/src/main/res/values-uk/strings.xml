@@ -221,4 +221,10 @@
     <string name="app_update_allow_unknown_sources">Дозволь LinkUp встановлювати оновлення</string>
     <string name="app_update_allow_unknown_sources_body">Android вимагає одноразовий дозвіл, перш ніж LinkUp зможе встановити завантажене оновлення.</string>
     <string name="app_update_open_settings">Відкрити налаштування</string>
+
+    <string name="notifications_title">Сповіщення</string>
+    <string name="notifications_mark_all_read">Позначити всі прочитаними</string>
+    <string name="notifications_empty_title">Все переглянуто</string>
+    <string name="notifications_empty_body">Наразі немає нових сповіщень.</string>
+    <string name="notifications_footer">Ніякого engagement bait. Тільки те, що справді важливо.</string>
 </resources>

@@ -40,10 +40,12 @@ import com.linkup.app.core.network.CapabilityKey
 import com.linkup.app.core.network.CityContextApiClient
 import com.linkup.app.core.network.CityRealtimeApiClient
 import com.linkup.app.core.network.LinkUpApiClient
+import com.linkup.app.core.network.NotificationsApiClient
 import com.linkup.app.core.network.PushApiClient
 import com.linkup.app.core.network.RealtimeApiClient
 import com.linkup.app.core.network.SlotViewerState
 import com.linkup.app.core.network.passwordResetToken
+import com.linkup.app.core.notifications.NotificationsCoordinator
 import com.linkup.app.core.push.PushCoordinator
 import com.linkup.app.core.update.AppUpdateCoordinator
 import com.linkup.app.core.realtime.CityRealtimeCoordinator
@@ -143,6 +145,7 @@ class MainActivity : ComponentActivity() {
         )
         val pushCoordinator = PushCoordinator(applicationContext, PushApiClient(apiBaseUrl, sessionStore))
         val pushConfigured = pushCoordinator.configure()
+        val notificationsCoordinator = NotificationsCoordinator(NotificationsApiClient(apiBaseUrl, sessionStore))
         val appUpdateCoordinator = AppUpdateCoordinator(applicationContext, AppUpdateApiClient(apiBaseUrl))
         this.appUpdateCoordinator = appUpdateCoordinator
         appUpdateCoordinator.register()
@@ -223,6 +226,7 @@ class MainActivity : ComponentActivity() {
                     cityContextCoordinator.clear()
                     cityNetworkCoordinator.clearAll()
                     capabilityCoordinator.reset()
+                    notificationsCoordinator.clear()
                 }
             }
         }
@@ -290,6 +294,7 @@ class MainActivity : ComponentActivity() {
                         capabilities = capabilityCoordinator,
                         cityContext = cityContextCoordinator,
                         city = cityNetworkCoordinator,
+                        notifications = notificationsCoordinator,
                         resetToken = pendingResetToken,
                         onResetTokenConsumed = { pendingResetToken = null },
                     )

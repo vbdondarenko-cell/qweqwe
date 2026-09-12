@@ -223,6 +223,17 @@ func main() {
 		os.Exit(1)
 	}
 
+	notificationInboxStore, err := postgres.NewNotificationInboxStore(pool)
+	if err != nil {
+		slog.Error("notification inbox store init failed", "error", err)
+		os.Exit(1)
+	}
+	notificationInboxService, err := notification.NewInboxService(notificationInboxStore)
+	if err != nil {
+		slog.Error("notification inbox service init failed", "error", err)
+		os.Exit(1)
+	}
+
 	bumpStore, err := postgres.NewBumpStore(pool)
 	if err != nil {
 		slog.Error("bump store init failed", "error", err)
@@ -287,6 +298,7 @@ func main() {
 		Monetization:            monetizationService,
 		Push:                    pushService,
 		NotificationPreferences: notificationPreferencesService,
+		NotificationInbox:       notificationInboxService,
 		Bump:                    bumpService,
 		Friends:                 friendService,
 		Guardians:               guardianService,
