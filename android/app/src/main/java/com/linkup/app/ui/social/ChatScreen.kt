@@ -16,7 +16,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -38,6 +37,7 @@ import com.linkup.app.R
 import com.linkup.app.core.network.ChatMessage
 import com.linkup.app.core.social.LoadState
 import com.linkup.app.core.social.MutationState
+import com.linkup.app.ui.design.LinkUpTextField
 import com.linkup.app.ui.theme.LinkUpBorder
 import com.linkup.app.ui.theme.LinkUpElevated
 import com.linkup.app.ui.theme.LinkUpRed
@@ -128,13 +128,12 @@ fun ChatScreen(
             Modifier.fillMaxWidth().border(1.dp, LinkUpBorder).padding(horizontal = 12.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            OutlinedTextField(
+            LinkUpTextField(
                 value = text,
                 onValueChange = { if (it.length <= 2000) text = it },
                 modifier = Modifier.weight(1f),
-                placeholder = { Text(stringResource(R.string.chat_message_hint), color = LinkUpTextMuted) },
-                maxLines = 4,
-                shape = RoundedCornerShape(14.dp),
+                placeholder = stringResource(R.string.chat_message_hint),
+                singleLine = false,
             )
             Spacer(Modifier.width(8.dp))
             TextButton(

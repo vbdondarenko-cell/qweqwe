@@ -6,7 +6,7 @@ import android.text.format.DateFormat
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.material3.AlertDialog
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -16,15 +16,22 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
 import com.linkup.app.R
 import com.linkup.app.core.scheduling.scheduleInstants
 import com.linkup.app.core.scheduling.scheduleLabel
+import com.linkup.app.ui.design.LinkUpButton
+import com.linkup.app.ui.design.LinkUpButtonVariant
+import com.linkup.app.ui.design.LinkUpCard
 import com.linkup.app.ui.theme.LinkUpRed
 import com.linkup.app.ui.theme.LinkUpTextDimmed
+import com.linkup.app.ui.theme.LinkUpTextPrimary
 import com.linkup.app.ui.theme.LinkUpWarning
 import java.time.Instant
 import java.time.LocalDate
@@ -88,22 +95,25 @@ fun SlotScheduleField(value: Long?, enabled: Boolean, onChange: (Long?) -> Unit)
     }
 
     if (choices.isNotEmpty() && enabled) {
-        AlertDialog(
-            onDismissRequest = { choices = emptyList() },
-            title = { Text(stringResource(R.string.schedule_offset_title)) },
-            text = { Text(stringResource(R.string.schedule_offset_body)) },
-            confirmButton = {
-                Column {
-                    choices.forEach { instant ->
-                        TextButton(onClick = { onChange(instant); choices = emptyList() }) {
-                            Text(scheduleLabel(instant, zone), color = LinkUpRed)
-                        }
-                    }
+        Dialog(onDismissRequest = { choices = emptyList() }) {
+            LinkUpCard(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(stringResource(R.string.schedule_offset_title), color = LinkUpTextPrimary, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                Text(stringResource(R.string.schedule_offset_body), color = LinkUpTextDimmed, fontSize = 13.sp)
+                choices.forEach { instant ->
+                    LinkUpButton(
+                        label = scheduleLabel(instant, zone),
+                        onClick = { onChange(instant); choices = emptyList() },
+                        modifier = Modifier.fillMaxWidth(),
+                        variant = LinkUpButtonVariant.SECONDARY,
+                    )
                 }
-            },
-            dismissButton = {
-                TextButton(onClick = { choices = emptyList() }) { Text(stringResource(R.string.common_cancel)) }
-            },
-        )
+                LinkUpButton(
+                    label = stringResource(R.string.common_cancel),
+                    onClick = { choices = emptyList() },
+                    modifier = Modifier.fillMaxWidth(),
+                    variant = LinkUpButtonVariant.GHOST,
+                )
+            }
+        }
     }
 }

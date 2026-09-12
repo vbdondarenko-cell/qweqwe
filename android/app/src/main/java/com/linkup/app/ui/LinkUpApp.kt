@@ -16,7 +16,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -37,6 +36,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
 import androidx.lifecycle.Lifecycle
 import com.linkup.app.R
 import com.linkup.app.core.capability.CapabilityCoordinator
@@ -72,6 +72,9 @@ import com.linkup.app.ui.design.FrozenMainTab
 import com.linkup.app.ui.design.CapabilityMapScreen
 import com.linkup.app.ui.design.FrozenMeScreen
 import com.linkup.app.ui.design.FrozenPulseScreen
+import com.linkup.app.ui.design.LinkUpButton
+import com.linkup.app.ui.design.LinkUpButtonVariant
+import com.linkup.app.ui.design.LinkUpCard
 import com.linkup.app.ui.design.canParticipate
 import com.linkup.app.ui.me.EditProfileScreen
 import com.linkup.app.ui.social.ChatPollingEffect
@@ -649,37 +652,47 @@ private fun SignedInRoot(
             }
         }
         blockTarget?.let { target ->
-            AlertDialog(
-                onDismissRequest = { if (!blockBusy) blockTarget = null },
-                title = { Text(stringResource(R.string.block_confirm_title, target.username)) },
-                text = {
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text(stringResource(R.string.block_relationship_body))
-                        blockError?.let { Text(it, color = LinkUpRed) }
+            Dialog(onDismissRequest = { if (!blockBusy) blockTarget = null }) {
+                LinkUpCard(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        stringResource(R.string.block_confirm_title, target.username),
+                        color = LinkUpTextPrimary,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 18.sp,
+                    )
+                    Text(stringResource(R.string.block_relationship_body), color = LinkUpTextDimmed, fontSize = 13.sp)
+                    blockError?.let { Text(it, color = LinkUpRed, fontSize = 12.sp) }
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        LinkUpButton(
+                            label = stringResource(R.string.common_cancel),
+                            onClick = { blockTarget = null },
+                            modifier = Modifier.weight(1f),
+                            variant = LinkUpButtonVariant.SECONDARY,
+                            enabled = !blockBusy,
+                        )
+                        LinkUpButton(
+                            label = if (blockBusy) stringResource(R.string.block_busy) else stringResource(R.string.common_block),
+                            onClick = {
+                                if (!blockBusy) scope.launch {
+                                    blockBusy = true; blockError = null
+                                    try {
+                                        api.blockUser(target.id)
+                                        social.clearAll()
+                                        detailOpen = false; chatSlotId = null; editTarget = null
+                                        blockTarget = null; tab = MainTab.PULSE
+                                        blockedState = LoadState.Idle
+                                        social.refreshPulse()
+                                    } catch (error: Exception) { blockError = error.userMessage(genericError) }
+                                    finally { blockBusy = false }
+                                }
+                            },
+                            modifier = Modifier.weight(1f),
+                            variant = LinkUpButtonVariant.DANGER,
+                            enabled = !blockBusy,
+                        )
                     }
-                },
-                confirmButton = {
-                    TextButton(enabled = !blockBusy, onClick = {
-                        if (!blockBusy) scope.launch {
-                            blockBusy = true; blockError = null
-                            try {
-                                api.blockUser(target.id)
-                                social.clearAll()
-                                detailOpen = false; chatSlotId = null; editTarget = null
-                                blockTarget = null; tab = MainTab.PULSE
-                                blockedState = LoadState.Idle
-                                social.refreshPulse()
-                            } catch (error: Exception) { blockError = error.userMessage(genericError) }
-                            finally { blockBusy = false }
-                        }
-                    }) {
-                        Text(if (blockBusy) stringResource(R.string.block_busy) else stringResource(R.string.common_block), color = LinkUpRed)
-                    }
-                },
-                dismissButton = {
-                    TextButton(enabled = !blockBusy, onClick = { blockTarget = null }) { Text(stringResource(R.string.common_cancel)) }
-                },
-            )
+                }
+            }
         }
     }
 }

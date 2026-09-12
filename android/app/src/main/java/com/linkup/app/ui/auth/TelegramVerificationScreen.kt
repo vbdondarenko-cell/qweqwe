@@ -8,8 +8,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -26,6 +24,9 @@ import com.linkup.app.R
 import com.linkup.app.core.network.telegramNativeDeepLink
 import com.linkup.app.core.network.telegramVerificationCommandDeepLink
 import com.linkup.app.core.session.SessionState
+import com.linkup.app.ui.design.LinkUpButton
+import com.linkup.app.ui.design.LinkUpButtonSize
+import com.linkup.app.ui.design.LinkUpButtonVariant
 import com.linkup.app.ui.theme.LinkUpBackground
 import com.linkup.app.ui.theme.LinkUpRed
 import com.linkup.app.ui.theme.LinkUpTextDimmed
@@ -65,7 +66,8 @@ fun TelegramVerificationScreen(
             Text(stringResource(R.string.onboarding_teen_mode), color = LinkUpTextDimmed, fontSize = 12.sp)
         }
         Spacer(Modifier.height(20.dp))
-        Button(
+        LinkUpButton(
+            label = stringResource(R.string.telegram_open_bot),
             onClick = {
                 val native = telegramNativeDeepLink(state.start.telegramDeepLink, state.start.verificationToken)
                 val nativeOpened = native?.let { runCatching { uriHandler.openUri(it) }.isSuccess } ?: false
@@ -73,12 +75,12 @@ fun TelegramVerificationScreen(
             },
             enabled = !busy,
             modifier = Modifier.fillMaxWidth().height(50.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = LinkUpRed, contentColor = LinkUpTextPrimary),
-        ) {
-            Text(stringResource(R.string.telegram_open_bot), fontWeight = FontWeight.Bold)
-        }
+            variant = LinkUpButtonVariant.PRIMARY,
+            size = LinkUpButtonSize.LG,
+        )
         Spacer(Modifier.height(10.dp))
-        Button(
+        LinkUpButton(
+            label = stringResource(R.string.telegram_open_with_command),
             onClick = {
                 val commandLink = telegramVerificationCommandDeepLink(
                     state.start.telegramDeepLink,
@@ -88,19 +90,20 @@ fun TelegramVerificationScreen(
             },
             enabled = !busy,
             modifier = Modifier.fillMaxWidth().height(50.dp),
-        ) {
-            Text(stringResource(R.string.telegram_open_with_command), fontWeight = FontWeight.Bold)
-        }
+            variant = LinkUpButtonVariant.SECONDARY,
+            size = LinkUpButtonSize.LG,
+        )
         Spacer(Modifier.height(6.dp))
         Text(stringResource(R.string.telegram_command_hint), color = LinkUpTextDimmed, fontSize = 12.sp)
         Spacer(Modifier.height(10.dp))
-        Button(
+        LinkUpButton(
+            label = stringResource(R.string.telegram_check_status),
             onClick = onRefresh,
             enabled = !busy,
             modifier = Modifier.fillMaxWidth().height(50.dp),
-        ) {
-            Text(stringResource(R.string.telegram_check_status), fontWeight = FontWeight.Bold)
-        }
+            variant = LinkUpButtonVariant.SECONDARY,
+            size = LinkUpButtonSize.LG,
+        )
         if (busy) {
             Spacer(Modifier.height(12.dp))
             CircularProgressIndicator(color = LinkUpRed, modifier = Modifier.align(Alignment.CenterHorizontally))

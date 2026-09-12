@@ -9,9 +9,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -33,6 +31,7 @@ import androidx.compose.ui.unit.sp
 import com.linkup.app.R
 import com.linkup.app.core.network.EditSlotInput
 import com.linkup.app.core.network.SlotModel
+import com.linkup.app.ui.design.LinkUpTextField
 import com.linkup.app.ui.theme.LinkUpBorder
 import com.linkup.app.ui.theme.LinkUpRed
 import com.linkup.app.ui.theme.LinkUpTextDimmed
@@ -116,15 +115,12 @@ fun EditSlotScreen(
 
 @Composable
 private fun EditField(label: String, value: String, onChange: (String) -> Unit, singleLine: Boolean = true) {
-    Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
-        Text(label, color = LinkUpTextDimmed, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-        OutlinedTextField(
-            value = value,
-            onValueChange = onChange,
-            modifier = Modifier.fillMaxWidth(),
-            singleLine = singleLine,
-            minLines = if (singleLine) 1 else 3,
-            shape = RoundedCornerShape(12.dp),
-        )
-    }
+    LinkUpTextField(
+        value = value,
+        onValueChange = onChange,
+        label = label,
+        singleLine = singleLine,
+        minLines = if (singleLine) 1 else 3,
+        modifier = Modifier.fillMaxWidth(),
+    )
 }

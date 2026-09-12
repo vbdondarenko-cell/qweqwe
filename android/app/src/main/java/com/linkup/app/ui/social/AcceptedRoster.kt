@@ -6,9 +6,9 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -25,12 +25,17 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
 import com.linkup.app.R
 import com.linkup.app.core.network.SlotOrganizer
 import com.linkup.app.core.social.LoadState
+import com.linkup.app.ui.design.LinkUpButton
+import com.linkup.app.ui.design.LinkUpButtonVariant
+import com.linkup.app.ui.design.LinkUpCard
 import com.linkup.app.ui.theme.LinkUpBorder
 import com.linkup.app.ui.theme.LinkUpElevated
 import com.linkup.app.ui.theme.LinkUpRed
+import com.linkup.app.ui.theme.LinkUpTextDimmed
 import com.linkup.app.ui.theme.LinkUpTextMuted
 import com.linkup.app.ui.theme.LinkUpTextPrimary
 import com.linkup.app.ui.theme.LinkUpWarning
@@ -47,20 +52,36 @@ internal fun AcceptedRoster(
 ) {
     var removeTarget by remember(slotId, version) { mutableStateOf<SlotOrganizer?>(null) }
     removeTarget?.let { target ->
-        AlertDialog(
-            onDismissRequest = { removeTarget = null },
-            title = { Text(stringResource(R.string.accepted_remove_title, target.username)) },
-            text = { Text(stringResource(R.string.accepted_remove_body)) },
-            confirmButton = {
-                TextButton(enabled = !busy, onClick = {
-                    removeTarget = null
-                    onRemove(slotId, target.id, version)
-                }) { Text(stringResource(R.string.common_remove), color = LinkUpWarning) }
-            },
-            dismissButton = {
-                TextButton(onClick = { removeTarget = null }) { Text(stringResource(R.string.common_cancel)) }
-            },
-        )
+        Dialog(onDismissRequest = { if (!busy) removeTarget = null }) {
+            LinkUpCard(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(
+                    stringResource(R.string.accepted_remove_title, target.username),
+                    color = LinkUpTextPrimary,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp,
+                )
+                Text(stringResource(R.string.accepted_remove_body), color = LinkUpTextDimmed, fontSize = 13.sp)
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    LinkUpButton(
+                        label = stringResource(R.string.common_cancel),
+                        onClick = { removeTarget = null },
+                        modifier = Modifier.weight(1f),
+                        variant = LinkUpButtonVariant.SECONDARY,
+                        enabled = !busy,
+                    )
+                    LinkUpButton(
+                        label = stringResource(R.string.common_remove),
+                        onClick = {
+                            removeTarget = null
+                            onRemove(slotId, target.id, version)
+                        },
+                        modifier = Modifier.weight(1f),
+                        variant = LinkUpButtonVariant.DANGER,
+                        enabled = !busy,
+                    )
+                }
+            }
+        }
     }
     Row(verticalAlignment = Alignment.CenterVertically) {
         Text(stringResource(R.string.slot_accepted_participants), color = LinkUpTextPrimary, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))

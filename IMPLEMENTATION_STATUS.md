@@ -1935,3 +1935,27 @@ Real Android Gradle build (`compileDebugKotlin`, `testDebugUnitTest`, `lintDebug
 Not done or claimed in this block: the remaining design-retrofit screens named in §71's own gap list are still pending (`MySlotsScreen.kt` is now done, as described above; the rest are not); this is still the **debug** APK (`LINKUP_BUILD_RELEASE=0`) — a real signed release build is still blocked on the missing Privacy Policy / Terms of Service URLs (§71); no attempt was made to exercise the OTA download/install flow from inside a real running Android client (still no device/emulator reachable from this session) — the verification above covers the server side and the raw bytes only, not the Kotlin `AppUpdateCoordinator` code path itself executing.
 
 Next: continue the design retrofit on the remaining named screens; if the user supplies real legal-document URLs, wire them in for a signed release build.
+
+## 73. 2026-09-12 — design-consistency pass completes: every remaining §71-named screen retrofitted onto the Frozen atoms
+
+**Context:** direct continuation of §71/§72's design-retrofit work, per the user's explicit "continue with the rest of the design screens." Closes every item §71 named as still pending.
+
+### Implemented
+
+- **`ui/social/ChatScreen.kt`**: message-input `OutlinedTextField` → `LinkUpTextField` (multi-line, no fixed max — the flat `BasicTextField` primitive has no Material3-style `maxLines` cap; it now grows with content the same way `CreateLinkScreen`'s description field already does).
+- **`ui/social/EditSlotScreen.kt`**: `EditField`'s `OutlinedTextField` → `LinkUpTextField`, mirroring `CreateLinkScreen`'s own `StyledField` retrofit from §71.
+- **`ui/social/SlotScheduleField.kt`**: the multi-choice "which local time did you mean" `AlertDialog` → `Dialog` + `LinkUpCard`, one `LinkUpButton` per candidate instant plus a ghost-variant cancel button. (The native `DatePickerDialog`/`TimePickerDialog` system pickers are untouched — they're OS chrome, not a themed Compose surface, same reasoning `AuthScreen`'s birth-date picker already established in §71.)
+- **`ui/social/AcceptedRoster.kt`**: the remove-participant confirmation `AlertDialog` → `Dialog` + `LinkUpCard` + a `LinkUpButton` row (secondary cancel / danger confirm).
+- **`ui/auth/TelegramVerificationScreen.kt`**: its three raw Material3 `Button`s (open bot / open-with-command / check-status) → `LinkUpButton` (primary for the main action, secondary for the other two).
+- **`ui/LinkUpApp.kt`**: the block-user confirmation `AlertDialog` (the app's own top-level dialog, not inside any screen file) → `Dialog` + `LinkUpCard` + `LinkUpButton` row, same pattern as `AcceptedRoster`.
+
+Re-audited the entire `ui/` tree afterward for every raw Material3 `Button`/`OutlinedTextField`/`FilterChip`/`AlertDialog`/`Card`/`Scaffold`/`TopAppBar`/`Switch`/`Checkbox`/`RadioButton`/`Slider`/`NavigationBar`. Two matches remain, both already known and deliberately left: `EditProfileScreen.kt`'s `RadioButton` (visibility/language selection) — left as-is because `LinkUpTheme`'s `darkColorScheme` already routes Material3's own `primary` color through it, so it renders red-filled rather than a default Material color, and there is no `LinkUpRadio` atom to retrofit onto yet; and `AppUpdateOverlay.kt`'s one match, which is only its own doc comment explaining what it replaced in §71, not real code. `CanonicalPlacePicker.kt` and `SlotDetailScreen.kt` were re-checked and confirmed to have never used a raw Material3 widget in the first place (both already hand-built on the same flat/bordered/token recipe throughout) — nothing to change there.
+
+### Evidence
+
+- Manual review: confirmed no leftover references to any removed import (`OutlinedTextField`, `FilterChip`, `AlertDialog`, raw `Button`/`ButtonDefaults`) via grep in every file this block touched; confirmed brace/paren balance on every edited file.
+- Could not be compiled directly in this sandbox (same standing limitation as §70-§72 — no Android SDK reachable here). Not yet run through the real server-side Gradle build this block, unlike §72 — that is the next step, given §71/§72 already demonstrated real compiler-caught mistakes (an invalid XML comment, then a cross-file dead-code reference) that a manual read-through alone did not catch. This block's own changes carry that same unverified-until-built caveat honestly, not silently.
+
+Not done or claimed in this block: no real device/emulator run of any retrofitted screen exists; a `LinkUpRadio` atom was not built (the one remaining `RadioButton` usage was judged acceptable, not silently ignored); the Outfit/Inter/JetBrains Mono font-bundling gap named in §71 is still open, unrelated to this block's scope.
+
+Next: run this block's changes through the real build → promote → deploy cycle (§72's own pattern) to get actual compiler verification before calling the design retrofit finished; then return to §71's other open threads (real font bundling, a signed release build once legal-document URLs are supplied).
