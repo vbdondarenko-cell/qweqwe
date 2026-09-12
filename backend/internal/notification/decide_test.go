@@ -133,6 +133,69 @@ func TestDecideFrequencyCapMaxZeroOrNegativeDisablesCap(t *testing.T) {
 	}
 }
 
+func TestDecideGroupingSuppressesWithinWindow(t *testing.T) {
+	now := time.Date(2026, 3, 10, 12, 0, 0, 0, time.UTC)
+	anchor := now.Add(-time.Minute)
+	got := Decide(DecisionInput{
+		Type: TypeMessage, Now: now, ExpiresAt: now.Add(time.Hour), Preferences: DefaultPreferences(),
+		LastGroupAnchorAt: &anchor, GroupWindow: 5 * time.Minute,
+	})
+	if got != OutcomeSuppressedGrouped {
+		t.Fatalf("expected SUPPRESSED_GROUPED within the window, got %q", got)
+	}
+}
+
+func TestDecideGroupingDeliversOnceWindowElapses(t *testing.T) {
+	now := time.Date(2026, 3, 10, 12, 0, 0, 0, time.UTC)
+	anchor := now.Add(-6 * time.Minute) // just past a 5-minute window
+	got := Decide(DecisionInput{
+		Type: TypeMessage, Now: now, ExpiresAt: now.Add(time.Hour), Preferences: DefaultPreferences(),
+		LastGroupAnchorAt: &anchor, GroupWindow: 5 * time.Minute,
+	})
+	if got != "" {
+		t.Fatalf("expected deliver once the window has elapsed, got %q", got)
+	}
+}
+
+func TestDecideGroupingNoAnchorAlwaysDelivers(t *testing.T) {
+	now := time.Date(2026, 3, 10, 12, 0, 0, 0, time.UTC)
+	got := Decide(DecisionInput{
+		Type: TypeMessage, Now: now, ExpiresAt: now.Add(time.Hour), Preferences: DefaultPreferences(),
+		LastGroupAnchorAt: nil, GroupWindow: 5 * time.Minute,
+	})
+	if got != "" {
+		t.Fatalf("expected deliver with no prior anchor, got %q", got)
+	}
+}
+
+func TestDecideGroupingWindowZeroOrNegativeDisablesGrouping(t *testing.T) {
+	now := time.Date(2026, 3, 10, 12, 0, 0, 0, time.UTC)
+	anchor := now.Add(-time.Second)
+	for _, window := range []time.Duration{0, -time.Minute} {
+		got := Decide(DecisionInput{
+			Type: TypeMessage, Now: now, ExpiresAt: now.Add(time.Hour), Preferences: DefaultPreferences(),
+			LastGroupAnchorAt: &anchor, GroupWindow: window,
+		})
+		if got != "" {
+			t.Fatalf("GroupWindow=%v must disable grouping, got %q", window, got)
+		}
+	}
+}
+
+func TestDecideGroupingDoesNotApplyToUngroupableTypes(t *testing.T) {
+	now := time.Date(2026, 3, 10, 12, 0, 0, 0, time.UTC)
+	anchor := now.Add(-time.Second)
+	for _, typ := range []Type{TypeFriendRequest, TypeFriendAccepted, TypeEventRecommendation, TypeSecurity, TypeAccount, TypeSystem, TypeEventReminder} {
+		got := Decide(DecisionInput{
+			Type: typ, Now: now, ExpiresAt: now.Add(time.Hour), Preferences: DefaultPreferences(),
+			LastGroupAnchorAt: &anchor, GroupWindow: 5 * time.Minute,
+		})
+		if got != "" {
+			t.Fatalf("%s must not be groupable, got %q", typ, got)
+		}
+	}
+}
+
 func TestDecidePrecedenceExpiryBeforePreferenceBeforeQuietHoursBeforeCap(t *testing.T) {
 	// A candidate that would fail every gate must report the first one,
 	// consistently, regardless of which others also apply.

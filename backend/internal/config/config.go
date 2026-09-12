@@ -44,6 +44,7 @@ type Config struct {
 	NotificationTTL                time.Duration
 	NotificationFrequencyCapMax    int
 	NotificationFrequencyCapWindow time.Duration
+	NotificationGroupWindow        time.Duration
 	NotificationPollInterval       time.Duration
 	NotificationBatchSize          int
 	BumpChallengeTTL               time.Duration
@@ -85,12 +86,19 @@ func Load() (Config, error) {
 		NotificationTTL:                14 * 24 * time.Hour,
 		NotificationFrequencyCapMax:    5,
 		NotificationFrequencyCapWindow: 24 * time.Hour,
-		NotificationPollInterval:       5 * time.Second,
-		NotificationBatchSize:          200,
-		BumpChallengeTTL:               10 * time.Minute,
-		EventReminderLeadTime:          30 * time.Minute,
-		EventReminderPollInterval:      time.Minute,
-		EventReminderBatchSize:         100,
+		// README §6.8 grouping/collapse: a burst of same-(user,Slot,Type)
+		// notifications collapses to one within this window. 5 minutes is
+		// long enough to absorb a realistic rapid-fire chat burst without
+		// meaningfully delaying a genuinely new conversation's first
+		// notification, and short enough that a real EVENT state change an
+		// hour later is never mistaken for the same burst.
+		NotificationGroupWindow:   5 * time.Minute,
+		NotificationPollInterval:  5 * time.Second,
+		NotificationBatchSize:     200,
+		BumpChallengeTTL:          10 * time.Minute,
+		EventReminderLeadTime:     30 * time.Minute,
+		EventReminderPollInterval: time.Minute,
+		EventReminderBatchSize:    100,
 	}
 	if cfg.DatabaseURL == "" {
 		return Config{}, errors.New("DATABASE_URL is required")
@@ -119,6 +127,9 @@ func Load() (Config, error) {
 		return Config{}, err
 	}
 	if cfg.NotificationFrequencyCapWindow, err = durationEnv("LINKUP_NOTIFICATION_FREQUENCY_CAP_WINDOW", cfg.NotificationFrequencyCapWindow); err != nil {
+		return Config{}, err
+	}
+	if cfg.NotificationGroupWindow, err = durationEnv("LINKUP_NOTIFICATION_GROUP_WINDOW", cfg.NotificationGroupWindow); err != nil {
 		return Config{}, err
 	}
 	if cfg.NotificationPollInterval, err = durationEnv("LINKUP_NOTIFICATION_POLL_INTERVAL", cfg.NotificationPollInterval); err != nil {

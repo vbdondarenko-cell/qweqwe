@@ -103,7 +103,7 @@ func TestFriendStoreRequestCreatesPendingAndNotifiesTarget(t *testing.T) {
 	}
 
 	recorder := &recordingPusher{}
-	projector, err := NewNotificationProjector(f.pool, f.capService, recorder, 14*24*time.Hour, 24*time.Hour, 5)
+	projector, err := NewNotificationProjector(f.pool, f.capService, recorder, 14*24*time.Hour, 24*time.Hour, 5, 5*time.Minute)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -171,7 +171,7 @@ func TestFriendStoreReverseRequestAutoAcceptsAndNotifiesOriginalRequester(t *tes
 	// The original requester (a) is the one who gets FRIEND_ACCEPTED, not b
 	// (who just completed the match by requesting back).
 	recorder := &recordingPusher{}
-	projector, err := NewNotificationProjector(f.pool, f.capService, recorder, 14*24*time.Hour, 24*time.Hour, 5)
+	projector, err := NewNotificationProjector(f.pool, f.capService, recorder, 14*24*time.Hour, 24*time.Hour, 5, 5*time.Minute)
 	if err != nil {
 		t.Fatal(err)
 	}

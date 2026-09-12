@@ -4,10 +4,11 @@
 //	domain transaction
 //	-> transactional outbox            (db/migrations/000014_v11_realtime_outbox.sql)
 //	-> notification projector/worker   (internal/postgres.NotificationProjector)
-//	-> dedupe(idempotency key)         (notification_deliveries.source_event_id UNIQUE)
+//	-> dedupe(idempotency key)         (notification_deliveries (source_event_id,user_id) UNIQUE)
 //	-> TTL check                       (Decide)
 //	-> quiet-hours check                (Decide / Preferences.InQuietHours)
 //	-> frequency-cap check               (Decide)
+//	-> grouping/collapse check           (Decide / Type.Groupable)
 //	-> FCM/APNs adapter                 (internal/push.Service.NotifyUser)
 //
 // This package owns everything between "dedupe" and the adapter call: it has
@@ -93,6 +94,21 @@ func (t Type) FrequencyCapped() bool {
 // default quiet-hours description is scoped to "non-critical notifications".
 func (t Type) QuietHoursExempt() bool {
 	return t.Category() == CategoryCritical
+}
+
+// Groupable reports whether Type is subject to README §6.8's
+// grouping/collapse rule: "multiple MESSAGE notifications from the same
+// sender/thread collapse into one grouped surface; repeated event state
+// changes collapse by Slot/event identity when the newest state
+// supersedes the older one." Both bullets describe the same underlying
+// shape — a burst of same-(user,slot,type) notifications should read as
+// one, not spam a push per occurrence — so both are implemented through
+// the identical mechanism (Decide's grouping window), scoped per
+// (recipient, Slot, Type). Only MESSAGE and EVENT are groupable:
+// EVENT_REMINDER is a scheduled one-shot, not a rapid-fire burst, and
+// every other type has no natural "same thread" identity to collapse by.
+func (t Type) Groupable() bool {
+	return t == TypeMessage || t == TypeEvent
 }
 
 // DeepLink returns the canonical deep link for a notification, matching

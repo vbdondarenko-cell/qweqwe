@@ -11,6 +11,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/account"
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/capability"
+	"github.com/vbdondarenko-cell/qweqwe/backend/internal/chat"
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/identifier"
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/migrate"
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/password"
@@ -51,6 +52,16 @@ func (r *recordingPusher) callsFor(userID string) []recordedPush {
 		}
 	}
 	return out
+}
+
+// reset discards every recorded call so far — used when a test needs to
+// drive unrelated setup events (e.g. slot approval, which pushes its own
+// real "You're in!" notification) through the projector before asserting
+// on calls a later, specific action produces.
+func (r *recordingPusher) reset() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.calls = nil
 }
 
 func enableNotificationsForAll(t *testing.T, ctx context.Context, pool *pgxpool.Pool) {
@@ -129,7 +140,7 @@ func TestNotificationProjectorApprovalAndRequestCreated(t *testing.T) {
 	}
 
 	recorder := &recordingPusher{}
-	projector, err := NewNotificationProjector(pool, capService, recorder, 14*24*time.Hour, 24*time.Hour, 5)
+	projector, err := NewNotificationProjector(pool, capService, recorder, 14*24*time.Hour, 24*time.Hour, 5, 5*time.Minute)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -197,7 +208,7 @@ func TestNotificationProjectorSuppressedByPreference(t *testing.T) {
 	}
 
 	recorder := &recordingPusher{}
-	projector, err := NewNotificationProjector(pool, capService, recorder, 14*24*time.Hour, 24*time.Hour, 5)
+	projector, err := NewNotificationProjector(pool, capService, recorder, 14*24*time.Hour, 24*time.Hour, 5, 5*time.Minute)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -224,7 +235,7 @@ func TestNotificationProjectorSuppressedByQuietHours(t *testing.T) {
 	}
 
 	recorder := &recordingPusher{}
-	projector, err := NewNotificationProjector(pool, capService, recorder, 14*24*time.Hour, 24*time.Hour, 5)
+	projector, err := NewNotificationProjector(pool, capService, recorder, 14*24*time.Hour, 24*time.Hour, 5, 5*time.Minute)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -253,7 +264,7 @@ func TestNotificationProjectorCapabilityDisabledCreatesNoRow(t *testing.T) {
 	}
 
 	recorder := &recordingPusher{}
-	projector, err := NewNotificationProjector(pool, capService, recorder, 14*24*time.Hour, 24*time.Hour, 5)
+	projector, err := NewNotificationProjector(pool, capService, recorder, 14*24*time.Hour, 24*time.Hour, 5, 5*time.Minute)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -287,7 +298,7 @@ func TestNotificationProjectorNoPusherConfigured(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	projector, err := NewNotificationProjector(pool, capService, nil, 14*24*time.Hour, 24*time.Hour, 5)
+	projector, err := NewNotificationProjector(pool, capService, nil, 14*24*time.Hour, 24*time.Hour, 5, 5*time.Minute)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -297,7 +308,7 @@ func TestNotificationProjectorNoPusherConfigured(t *testing.T) {
 
 func TestNotificationProjectorRecentFrequencyCappedCount(t *testing.T) {
 	ctx, pool, _, capService, host, _ := newNotificationFixture(t)
-	projector, err := NewNotificationProjector(pool, capService, nil, 14*24*time.Hour, 24*time.Hour, 5)
+	projector, err := NewNotificationProjector(pool, capService, nil, 14*24*time.Hour, 24*time.Hour, 5, 5*time.Minute)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -386,7 +397,7 @@ func TestNotificationProjectorEventReminder(t *testing.T) {
 	}
 
 	recorder := &recordingPusher{}
-	projector, err := NewNotificationProjector(pool, capService, recorder, 14*24*time.Hour, 24*time.Hour, 5)
+	projector, err := NewNotificationProjector(pool, capService, recorder, 14*24*time.Hour, 24*time.Hour, 5, 5*time.Minute)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -449,5 +460,125 @@ func assertNotificationRow(t *testing.T, ctx context.Context, pool *pgxpool.Pool
 	}
 	if deepLinkCheck != nil && !deepLinkCheck(deepLink) {
 		t.Fatalf("user %s: unexpected deep link %q", userID, deepLink)
+	}
+}
+
+// TestNotificationProjectorChatMessageFanOutAndGrouping is this session's
+// own added coverage for two real gaps found while auditing buildCandidate
+// (now buildCandidates) before assuming chat notifications already
+// existed: (1) no candidate builder ever produced notification.TypeMessage
+// at all, so a chat message never generated a push notification; (2)
+// README §6.8's grouping/collapse rule ("multiple MESSAGE notifications
+// from the same sender/thread collapse into one grouped surface") had no
+// implementation. This test proves both against a real chat send, real
+// Slot membership, and a real block relationship — not a synthetic event.
+func TestNotificationProjectorChatMessageFanOutAndGrouping(t *testing.T) {
+	ctx, pool, slotService, capService, host, memberA := newNotificationFixture(t)
+	enableNotificationsForAll(t, ctx, pool)
+
+	accountService, err := account.NewService(NewAccountStore(pool), password.OWASPMinimum(), time.Hour)
+	if err != nil {
+		t.Fatal(err)
+	}
+	suffix := fmt.Sprintf("%x", time.Now().UnixNano())
+	memberB := registerIntegrationUser(t, ctx, accountService, "nb", suffix)
+	t.Cleanup(func() { cleanupIntegrationRows(pool, []string{memberB.User.ID}) })
+
+	created, err := slotService.Create(ctx, host.User.ID, slot.CreateInput{
+		Title: "Chat Notify Coffee", Activity: "coffee", PlaceText: "Center", Capacity: 4,
+	}, "notif-chat-create-0001")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := slotService.Request(ctx, memberA.User.ID, created.ID, "notif-chat-request-a-0001"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := slotService.Approve(ctx, host.User.ID, created.ID, memberA.User.ID, "notif-chat-approve-a-0001"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := slotService.Request(ctx, memberB.User.ID, created.ID, "notif-chat-request-b-0001"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := slotService.Approve(ctx, host.User.ID, created.ID, memberB.User.ID, "notif-chat-approve-b-0001"); err != nil {
+		t.Fatal(err)
+	}
+
+	chatService, err := chat.NewService(NewChatStore(pool))
+	if err != nil {
+		t.Fatal(err)
+	}
+	recorder := &recordingPusher{}
+	projector, err := NewNotificationProjector(pool, capService, recorder, 14*24*time.Hour, 24*time.Hour, 5, 5*time.Minute)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t0 := time.Date(2026, 6, 1, 12, 0, 0, 0, time.UTC) // clearly outside default quiet hours
+
+	// Drain and discard the setup events first, strictly before t0:
+	// Request/Approve above already produced their own real EVENT-type
+	// notifications (a "New request" push to the host, a "You're in!"
+	// push to each approved member) — correct behavior, but not what this
+	// test is about. A strictly earlier fake clock (not just "reset the
+	// recorder") matters too: assertNotificationRow below picks the most
+	// recently created row per user with no secondary tie-breaker, so a
+	// setup event sharing message 1's exact created_at could otherwise be
+	// picked non-deterministically ahead of it.
+	projector.now = func() time.Time { return t0.Add(-time.Hour) }
+	drainProjector(t, ctx, projector, 200)
+	recorder.reset()
+	projector.now = func() time.Time { return t0 }
+
+	// (1) Host sends the first message: fans out to BOTH other
+	// participants (memberA, memberB), never to the sender.
+	if _, err := chatService.Send(ctx, host.User.ID, created.ID, "notif-chat-msg-one-000001", "hey team"); err != nil {
+		t.Fatal(err)
+	}
+	drainProjector(t, ctx, projector, 200)
+	assertNotificationRow(t, ctx, pool, memberA.User.ID, "MESSAGE", "SENT", nil)
+	assertNotificationRow(t, ctx, pool, memberB.User.ID, "MESSAGE", "SENT", nil)
+	if len(recorder.callsFor(memberA.User.ID)) != 1 || len(recorder.callsFor(memberB.User.ID)) != 1 {
+		t.Fatalf("expected exactly one push each to memberA/memberB, got %d/%d", len(recorder.callsFor(memberA.User.ID)), len(recorder.callsFor(memberB.User.ID)))
+	}
+	if len(recorder.callsFor(host.User.ID)) != 0 {
+		t.Fatalf("the sender must never be notified about their own message, got %d pushes", len(recorder.callsFor(host.User.ID)))
+	}
+
+	// (2) A block from memberB toward the host: from this point on,
+	// memberB must never be notified about the host's messages again,
+	// even though memberA still is.
+	if _, err := pool.Exec(ctx, `INSERT INTO user_blocks (blocker_id, blocked_id) VALUES ($1,$2)`, memberB.User.ID, host.User.ID); err != nil {
+		t.Fatal(err)
+	}
+
+	// (3) A second message shortly after: within the grouping window, so
+	// memberA's notification collapses (SUPPRESSED_GROUPED, no second
+	// push) rather than spamming a second one.
+	projector.now = func() time.Time { return t0.Add(time.Minute) }
+	if _, err := chatService.Send(ctx, host.User.ID, created.ID, "notif-chat-msg-two-000002", "you there?"); err != nil {
+		t.Fatal(err)
+	}
+	drainProjector(t, ctx, projector, 200)
+	assertNotificationRow(t, ctx, pool, memberA.User.ID, "MESSAGE", "SUPPRESSED_GROUPED", nil)
+	if len(recorder.callsFor(memberA.User.ID)) != 1 {
+		t.Fatalf("expected still exactly one push to memberA (second message grouped), got %d", len(recorder.callsFor(memberA.User.ID)))
+	}
+	var memberBRows int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM notification_deliveries WHERE user_id=$1 AND notification_type='MESSAGE'`, memberB.User.ID).Scan(&memberBRows); err != nil {
+		t.Fatal(err)
+	}
+	if memberBRows != 1 {
+		t.Fatalf("expected memberB to have no new MESSAGE row after blocking the host (still just the first), got %d rows", memberBRows)
+	}
+
+	// (4) A third message after the grouping window has elapsed: memberA
+	// is notified again, a real second push, not another collapse.
+	projector.now = func() time.Time { return t0.Add(6 * time.Minute) }
+	if _, err := chatService.Send(ctx, host.User.ID, created.ID, "notif-chat-msg-three-000003", "ping"); err != nil {
+		t.Fatal(err)
+	}
+	drainProjector(t, ctx, projector, 200)
+	assertNotificationRow(t, ctx, pool, memberA.User.ID, "MESSAGE", "SENT", nil)
+	if len(recorder.callsFor(memberA.User.ID)) != 2 {
+		t.Fatalf("expected a real second push to memberA once the grouping window elapsed, got %d", len(recorder.callsFor(memberA.User.ID)))
 	}
 }

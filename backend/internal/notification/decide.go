@@ -14,6 +14,7 @@ const (
 	OutcomeSuppressedPreference   PushOutcome = "SUPPRESSED_PREFERENCE"
 	OutcomeSuppressedQuietHours   PushOutcome = "SUPPRESSED_QUIET_HOURS"
 	OutcomeSuppressedFrequencyCap PushOutcome = "SUPPRESSED_FREQUENCY_CAP"
+	OutcomeSuppressedGrouped      PushOutcome = "SUPPRESSED_GROUPED"
 	OutcomeSkippedNoDevice        PushOutcome = "SKIPPED_NO_DEVICE"
 	OutcomeSendFailed             PushOutcome = "SEND_FAILED"
 )
@@ -40,6 +41,20 @@ type DecisionInput struct {
 	// disables the cap entirely (treated as "not configured", not as
 	// "cap everything").
 	FrequencyCapMax int
+	// LastGroupAnchorAt is when this recipient's most recent NON-grouped
+	// (i.e. actually decided, whether sent or suppressed for another
+	// reason) notification of this exact (Slot, Type) pair was created —
+	// nil if there isn't one. Only consulted when Type.Groupable(). The
+	// caller (the postgres projector) is responsible for finding this: it
+	// is the anchor of a fixed-size, non-overlapping grouping window, not
+	// a rolling one — once one notification in a burst is let through, an
+	// arbitrarily-fast burst inside the same GroupWindow always collapses
+	// to that single one, and the window resets from whichever
+	// notification is the next one Decide lets through.
+	LastGroupAnchorAt *time.Time
+	// GroupWindow is how long a burst collapses for. <= 0 disables
+	// grouping entirely (treated as "not configured").
+	GroupWindow time.Duration
 }
 
 // Decide resolves a candidate notification against expiry, preference,
@@ -67,6 +82,10 @@ func Decide(in DecisionInput) PushOutcome {
 	}
 	if in.Type.FrequencyCapped() && in.FrequencyCapMax > 0 && in.RecentFrequencyCappedCount >= in.FrequencyCapMax {
 		return OutcomeSuppressedFrequencyCap
+	}
+	if in.Type.Groupable() && in.GroupWindow > 0 && in.LastGroupAnchorAt != nil &&
+		in.Now.Before(in.LastGroupAnchorAt.Add(in.GroupWindow)) {
+		return OutcomeSuppressedGrouped
 	}
 	return ""
 }

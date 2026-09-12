@@ -49,6 +49,20 @@ func TestFrequencyCappedOnlyRecommendationAndPromo(t *testing.T) {
 	}
 }
 
+func TestGroupableOnlyMessageAndEvent(t *testing.T) {
+	groupable := map[Type]bool{
+		TypeMessage: true, TypeEvent: true,
+		TypeEventReminder: false, TypeFriendRequest: false, TypeFriendAccepted: false,
+		TypeSecurity: false, TypeAccount: false, TypeSystem: false,
+		TypeEventRecommendation: false, TypePromo: false, TypeAdvertisement: false,
+	}
+	for typ, want := range groupable {
+		if got := typ.Groupable(); got != want {
+			t.Errorf("%s.Groupable() = %v, want %v", typ, got, want)
+		}
+	}
+}
+
 func TestQuietHoursExemptOnlyCritical(t *testing.T) {
 	for _, typ := range []Type{TypeSecurity, TypeAccount, TypeSystem} {
 		if !typ.QuietHoursExempt() {

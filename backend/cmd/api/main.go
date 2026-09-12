@@ -126,9 +126,9 @@ func main() {
 	// genuinely nil interface is passed when push isn't configured.
 	var notificationProjector *postgres.NotificationProjector
 	if pushService != nil {
-		notificationProjector, err = postgres.NewNotificationProjector(pool, capabilityService, pushService, cfg.NotificationTTL, cfg.NotificationFrequencyCapWindow, cfg.NotificationFrequencyCapMax)
+		notificationProjector, err = postgres.NewNotificationProjector(pool, capabilityService, pushService, cfg.NotificationTTL, cfg.NotificationFrequencyCapWindow, cfg.NotificationFrequencyCapMax, cfg.NotificationGroupWindow)
 	} else {
-		notificationProjector, err = postgres.NewNotificationProjector(pool, capabilityService, nil, cfg.NotificationTTL, cfg.NotificationFrequencyCapWindow, cfg.NotificationFrequencyCapMax)
+		notificationProjector, err = postgres.NewNotificationProjector(pool, capabilityService, nil, cfg.NotificationTTL, cfg.NotificationFrequencyCapWindow, cfg.NotificationFrequencyCapMax, cfg.NotificationGroupWindow)
 	}
 	if err != nil { slog.Error("notification projector init failed", "error", err); os.Exit(1) }
 
