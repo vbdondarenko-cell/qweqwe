@@ -50,7 +50,7 @@ func TestV11WaitlistExpiredRequestReadsAsNone(t *testing.T) {
 	}
 
 	// Pulse: same Slot, same viewer, same expectation.
-	pulse, err := service.ListPulse(ctx, users[2].User.ID)
+	pulse, err := service.ListPulse(ctx, users[2].User.ID, "")
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -11,6 +11,21 @@ type AccessMode string
 type Visibility string
 type ViewerState string
 
+// PulseSort selects ListPulse's ordering. RECENCY (the long-standing
+// default, unchanged behavior) is pure s.created_at DESC. RELEVANCE
+// additively applies README §6.10's Recommendation/ranking pipeline
+// "Layer 2 — deterministic ranking from explicit user signals" — see
+// internal/postgres's listV11PulseRelevanceSQL doc comment for exactly
+// which signal this first implements (activity/category match against
+// the viewer's own explicit interests) and which valid Layer 2 signals
+// are not attempted yet.
+type PulseSort string
+
+const (
+	PulseSortRecency   PulseSort = "RECENCY"
+	PulseSortRelevance PulseSort = "RELEVANCE"
+)
+
 const (
 	StateDraft     State = "DRAFT"
 	StatePublished State = "PUBLISHED"
@@ -252,7 +267,7 @@ type Store interface {
 	ListMine(ctx context.Context, actorID, view string, limit int) ([]Slot, error)
 	Create(ctx context.Context, actorID string, candidate Slot, idempotencyKey string, requestHash []byte) (Slot, error)
 	Get(ctx context.Context, actorID, slotID string) (Slot, error)
-	ListPulse(ctx context.Context, actorID string, limit int) ([]Slot, error)
+	ListPulse(ctx context.Context, actorID string, limit int, sort PulseSort) ([]Slot, error)
 	Edit(ctx context.Context, actorID, slotID string, patch EditInput, idempotencyKey string, requestHash []byte, now time.Time) (Slot, error)
 	Cancel(ctx context.Context, actorID, slotID string, expectedVersion int64, idempotencyKey string, requestHash []byte, now time.Time) (Slot, error)
 	Request(ctx context.Context, actorID, slotID, idempotencyKey string, requestHash []byte, now time.Time) (Slot, error)

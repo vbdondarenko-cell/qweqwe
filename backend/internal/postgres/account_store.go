@@ -34,7 +34,7 @@ func (s *AccountStore) Register(ctx context.Context, u account.User, passwordHas
 
 func (s *AccountStore) FindByLogin(ctx context.Context, identifier string) (account.UserWithPassword, error) {
 	var out account.UserWithPassword
-	err := s.pool.QueryRow(ctx, `SELECT id,email,username,display_name,password_hash,avatar_url,profile_visibility,language,created_at,updated_at FROM app_users WHERE lower(email)=lower($1) OR lower(username)=lower($1) LIMIT 1`, identifier).Scan(&out.ID, &out.Email, &out.Username, &out.DisplayName, &out.PasswordHash, &out.AvatarURL, &out.ProfileVisibility, &out.Language, &out.CreatedAt, &out.UpdatedAt)
+	err := s.pool.QueryRow(ctx, `SELECT id,email,username,display_name,password_hash,avatar_url,profile_visibility,language,interests,created_at,updated_at FROM app_users WHERE lower(email)=lower($1) OR lower(username)=lower($1) LIMIT 1`, identifier).Scan(&out.ID, &out.Email, &out.Username, &out.DisplayName, &out.PasswordHash, &out.AvatarURL, &out.ProfileVisibility, &out.Language, &out.Interests, &out.CreatedAt, &out.UpdatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return out, account.ErrNotFound
 	}
@@ -69,7 +69,7 @@ func (s *AccountStore) CreateSession(ctx context.Context, sess account.Session, 
 func (s *AccountStore) Authenticate(ctx context.Context, tokenHash []byte, now time.Time) (account.User, string, error) {
 	var u account.User
 	var sessionID string
-	err := s.pool.QueryRow(ctx, `SELECT u.id,u.email,u.username,u.display_name,u.avatar_url,u.profile_visibility,u.language,u.created_at,u.updated_at,s.id FROM user_sessions s JOIN app_users u ON u.id=s.user_id WHERE s.token_hash=$1 AND s.revoked_at IS NULL AND s.expires_at>$2 LIMIT 1`, tokenHash, now).Scan(&u.ID, &u.Email, &u.Username, &u.DisplayName, &u.AvatarURL, &u.ProfileVisibility, &u.Language, &u.CreatedAt, &u.UpdatedAt, &sessionID)
+	err := s.pool.QueryRow(ctx, `SELECT u.id,u.email,u.username,u.display_name,u.avatar_url,u.profile_visibility,u.language,u.interests,u.created_at,u.updated_at,s.id FROM user_sessions s JOIN app_users u ON u.id=s.user_id WHERE s.token_hash=$1 AND s.revoked_at IS NULL AND s.expires_at>$2 LIMIT 1`, tokenHash, now).Scan(&u.ID, &u.Email, &u.Username, &u.DisplayName, &u.AvatarURL, &u.ProfileVisibility, &u.Language, &u.Interests, &u.CreatedAt, &u.UpdatedAt, &sessionID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return u, "", account.ErrUnauthorized
 	}
@@ -109,7 +109,12 @@ func (s *AccountStore) UpdateProfile(ctx context.Context, userID string, p accou
 	if p.Language != nil {
 		language = *p.Language
 	}
-	err := s.pool.QueryRow(ctx, `UPDATE app_users SET display_name=CASE WHEN $2 THEN $3 ELSE display_name END, avatar_url=CASE WHEN $4 THEN NULLIF($5,'') ELSE avatar_url END, profile_visibility=CASE WHEN $6 THEN $7 ELSE profile_visibility END, language=CASE WHEN $8 THEN $9 ELSE language END, updated_at=$10 WHERE id=$1 RETURNING id,email,username,display_name,avatar_url,profile_visibility,language,created_at,updated_at`, userID, displaySet, display, avatarSet, avatar, visibilitySet, visibility, languageSet, language, now).Scan(&out.ID, &out.Email, &out.Username, &out.DisplayName, &out.AvatarURL, &out.ProfileVisibility, &out.Language, &out.CreatedAt, &out.UpdatedAt)
+	interestsSet := p.Interests != nil
+	var interests []string
+	if p.Interests != nil {
+		interests = *p.Interests
+	}
+	err := s.pool.QueryRow(ctx, `UPDATE app_users SET display_name=CASE WHEN $2 THEN $3 ELSE display_name END, avatar_url=CASE WHEN $4 THEN NULLIF($5,'') ELSE avatar_url END, profile_visibility=CASE WHEN $6 THEN $7 ELSE profile_visibility END, language=CASE WHEN $8 THEN $9 ELSE language END, interests=CASE WHEN $10 THEN $11 ELSE interests END, updated_at=$12 WHERE id=$1 RETURNING id,email,username,display_name,avatar_url,profile_visibility,language,interests,created_at,updated_at`, userID, displaySet, display, avatarSet, avatar, visibilitySet, visibility, languageSet, language, interestsSet, interests, now).Scan(&out.ID, &out.Email, &out.Username, &out.DisplayName, &out.AvatarURL, &out.ProfileVisibility, &out.Language, &out.Interests, &out.CreatedAt, &out.UpdatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return out, account.ErrNotFound
 	}

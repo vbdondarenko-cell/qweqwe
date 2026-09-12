@@ -3,6 +3,7 @@ package account
 import (
 	"context"
 	"errors"
+	"sort"
 	"strings"
 	"time"
 
@@ -10,6 +11,11 @@ import (
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/password"
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/session"
 )
+
+// maxInterests mirrors the DB-side app_users_interests_size_check ceiling
+// (a second line of defense, not the source of truth -- see that
+// migration's comment).
+const maxInterests = 20
 
 type Service struct {
 	store       Store
@@ -149,6 +155,13 @@ func (s *Service) UpdateProfile(ctx context.Context, userID string, patch Profil
 	if patch.Language != nil && *patch.Language != "uk" && *patch.Language != "en" {
 		return User{}, ErrInvalidInput
 	}
+	if patch.Interests != nil {
+		v, err := normalizeInterests(*patch.Interests)
+		if err != nil {
+			return User{}, err
+		}
+		patch.Interests = &v
+	}
 	return s.store.UpdateProfile(ctx, userID, patch, s.now().UTC())
 }
 
@@ -215,6 +228,32 @@ func validEmail(v string) bool {
 	}
 	at := strings.LastIndexByte(v, '@')
 	return at > 0 && at < len(v)-3 && strings.Contains(v[at+1:], ".")
+}
+
+// normalizeInterests validates the optional interest-tag list: each tag is
+// lowercased/trimmed the same way slot.Service normalizes a Slot's Activity
+// (the field it's ranked against), deduplicated, and capped at maxInterests.
+// An empty (or nil) result is valid -- unlike slot.normalizeSelectedUserIDs,
+// a user is allowed to declare no interests at all.
+func normalizeInterests(raw []string) ([]string, error) {
+	seen := make(map[string]bool, len(raw))
+	out := make([]string, 0, len(raw))
+	for _, v := range raw {
+		tag := strings.ToLower(strings.TrimSpace(v))
+		if len([]rune(tag)) < 1 || len([]rune(tag)) > 64 {
+			return nil, ErrInvalidInput
+		}
+		if seen[tag] {
+			continue
+		}
+		seen[tag] = true
+		out = append(out, tag)
+	}
+	if len(out) > maxInterests {
+		return nil, ErrInvalidInput
+	}
+	sort.Strings(out)
+	return out, nil
 }
 
 func validUsername(v string) bool {

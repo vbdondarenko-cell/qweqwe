@@ -91,8 +91,12 @@ func (s *V11SlotStore) Get(ctx context.Context, actorID, slotID string) (slot.Sl
 	return out, nil
 }
 
-func (s *V11SlotStore) ListPulse(ctx context.Context, actorID string, limit int) ([]slot.Slot, error) {
-	rows, err := s.pool.Query(ctx, listV11PulseSQL, actorID, limit, s.waitlistExpiryCutoff())
+func (s *V11SlotStore) ListPulse(ctx context.Context, actorID string, limit int, sort slot.PulseSort) ([]slot.Slot, error) {
+	query := listV11PulseSQL
+	if sort == slot.PulseSortRelevance {
+		query = listV11PulseRelevanceSQL
+	}
+	rows, err := s.pool.Query(ctx, query, actorID, limit, s.waitlistExpiryCutoff())
 	if err != nil {
 		return nil, err
 	}
@@ -593,7 +597,14 @@ WHERE s.id=$1 AND (
 // IN ('PUBLIC','LINKS','SELECTED') would be simpler text but cannot express
 // "and, for LINKS/SELECTED, require a friendship/allow-list membership"
 // without a CASE, so this stays explicit branches like getV11SlotSQL above it.
-const listV11PulseSQL = `SELECT ` + v11SlotColumns + `,
+// listV11PulseSelectAndWhere is shared by listV11PulseSQL (recency, the
+// long-standing default) and listV11PulseRelevanceSQL (README §6.10's
+// Layer 2 explicit-signal ranking, additive — see that constant's own doc
+// comment): both need the identical CASE/FROM/WHERE, and only the
+// ORDER BY should ever differ between them. Factored out so the two can
+// never drift apart the way two hand-duplicated copies of this WHERE
+// clause eventually would as new visibility modes are added.
+const listV11PulseSelectAndWhere = `SELECT ` + v11SlotColumns + `,
 	CASE
 		WHEN s.host_id=$1 THEN 'HOST'
 		WHEN EXISTS(SELECT 1 FROM slot_memberships m WHERE m.slot_id=s.id AND m.user_id=$1) THEN 'ACCEPTED'
@@ -655,7 +666,34 @@ WHERE (
 	WHERE (b.blocker_id=$1 AND b.blocked_id=s.host_id)
 	   OR (b.blocker_id=s.host_id AND b.blocked_id=$1)
   )
-ORDER BY s.created_at DESC,s.id
+`
+
+const listV11PulseSQL = listV11PulseSelectAndWhere + `ORDER BY s.created_at DESC,s.id
+LIMIT $2`
+
+// listV11PulseRelevanceSQL implements README §6.10's Recommendation/
+// ranking pipeline "Layer 2 — deterministic ranking from explicit user
+// signals", specifically "activity/category match": a Slot whose
+// activity is in the viewer's own explicitly-set interests (account
+// profile, migration 000037) sorts first, ties broken by the same
+// recency listV11PulseSQL always used. This is the ONLY Layer 2 signal
+// implemented so far — City Context/locality relevance, NOW-vs-Scheduled
+// time-window relevance and freshness/distance buckets are all valid
+// per README but not attempted in this block (stated here rather than
+// silently assumed complete). Deliberately additive, not a replacement:
+// callers opt in via Service.ListPulse's sort parameter, so nothing
+// about the long-standing default recency behavior (or any test relying
+// on it) changes unless a caller explicitly asks for RELEVANCE.
+//
+// The viewer's interests are read via a scalar subquery keyed on $1
+// rather than an extra JOIN, so this stays byte-for-byte identical to
+// listV11PulseSQL everywhere except ORDER BY — reproducible and
+// inspectable (README §6.10's own requirement for this layer): given the
+// same viewer interests and the same candidate set, the ordering is
+// always the same, computed from nothing but those two canonical inputs.
+const listV11PulseRelevanceSQL = listV11PulseSelectAndWhere + `
+ORDER BY (s.activity = ANY(COALESCE((SELECT interests FROM app_users WHERE id=$1),'{}'::text[]))) DESC,
+         s.created_at DESC,s.id
 LIMIT $2`
 
 const getV11SlotInternalSQL = `SELECT ` + v11SlotColumns + `,

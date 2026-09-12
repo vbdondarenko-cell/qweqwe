@@ -99,7 +99,7 @@ func TestV1SocialCorePostgresIntegration(t *testing.T) {
 			t.Fatalf("unexpected created slot: %#v", created)
 		}
 
-		pulse, err := slotService.ListPulse(ctx, memberA.User.ID)
+		pulse, err := slotService.ListPulse(ctx, memberA.User.ID, "")
 		if err != nil {
 			t.Fatal(err)
 		}

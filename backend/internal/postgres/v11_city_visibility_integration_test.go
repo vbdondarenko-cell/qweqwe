@@ -143,7 +143,7 @@ func TestV11CityVisibilitySlot(t *testing.T) {
 	if _, err := slotService.Get(ctx, otherCity.User.ID, published.ID); !errors.Is(err, slot.ErrNotFound) {
 		t.Fatalf("expected ErrNotFound for a viewer locked to a different city, got %v", err)
 	}
-	otherPulse, err := slotService.ListPulse(ctx, otherCity.User.ID)
+	otherPulse, err := slotService.ListPulse(ctx, otherCity.User.ID, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -161,7 +161,7 @@ func TestV11CityVisibilitySlot(t *testing.T) {
 	if sameView.ViewerState != slot.ViewerNone {
 		t.Fatalf("a same-city viewer with no other relationship should read ViewerNone, got %s", sameView.ViewerState)
 	}
-	samePulse, err := slotService.ListPulse(ctx, sameCity.User.ID)
+	samePulse, err := slotService.ListPulse(ctx, sameCity.User.ID, "")
 	if err != nil {
 		t.Fatal(err)
 	}

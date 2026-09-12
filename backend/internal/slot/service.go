@@ -94,12 +94,25 @@ func (s *Service) Get(ctx context.Context, actorID, slotID string) (Slot, error)
 	return s.store.Get(ctx, actorID, slotID)
 }
 
-func (s *Service) ListPulse(ctx context.Context, actorID string) ([]Slot, error) {
+// ListPulse's sort defaults to PulseSortRecency when rawSort is empty —
+// the long-standing, unchanged behavior — and accepts "RELEVANCE"
+// (case-insensitive) to opt into README §6.10's Layer 2 ranking. Any
+// other value is a clear input error, not a silent fallback to recency.
+func (s *Service) ListPulse(ctx context.Context, actorID, rawSort string) ([]Slot, error) {
 	actorID = strings.TrimSpace(actorID)
 	if actorID == "" {
 		return nil, ErrInvalidInput
 	}
-	return s.store.ListPulse(ctx, actorID, 100)
+	sort := PulseSortRecency
+	if trimmed := strings.ToUpper(strings.TrimSpace(rawSort)); trimmed != "" {
+		switch PulseSort(trimmed) {
+		case PulseSortRecency, PulseSortRelevance:
+			sort = PulseSort(trimmed)
+		default:
+			return nil, ErrInvalidInput
+		}
+	}
+	return s.store.ListPulse(ctx, actorID, 100, sort)
 }
 
 func (s *Service) Edit(ctx context.Context, actorID, slotID string, patch EditInput, idempotencyKey string) (Slot, error) {

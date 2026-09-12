@@ -83,7 +83,7 @@ func TestV11SelectedVisibilitySlot(t *testing.T) {
 	}
 
 	// (1) A non-selected stranger: excluded from ListPulse, Get 404s.
-	pulse, err := slotService.ListPulse(ctx, other.User.ID)
+	pulse, err := slotService.ListPulse(ctx, other.User.ID, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -97,7 +97,7 @@ func TestV11SelectedVisibilitySlot(t *testing.T) {
 	}
 
 	// (2) The selected user: included in ListPulse, Get succeeds.
-	pulseSelected, err := slotService.ListPulse(ctx, selected.User.ID)
+	pulseSelected, err := slotService.ListPulse(ctx, selected.User.ID, "")
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -75,6 +75,9 @@ func (s *authTestStore) UpdateProfile(_ context.Context, id string, patch accoun
 	if patch.Language != nil {
 		s.user.Language = *patch.Language
 	}
+	if patch.Interests != nil {
+		s.user.Interests = *patch.Interests
+	}
 	s.user.UpdatedAt = now
 	return s.user.User, nil
 }
@@ -128,6 +131,69 @@ func TestExistingAccountMeLogoutFlow(t *testing.T) {
 	server.Handler().ServeHTTP(after, afterReq)
 	if after.Code != http.StatusUnauthorized {
 		t.Fatalf("revoked token status=%d", after.Code)
+	}
+}
+
+func TestPatchMeNormalizesAndPersistsInterests(t *testing.T) {
+	store := &authTestStore{}
+	accounts, err := account.NewService(store, password.OWASPMinimum(), time.Hour)
+	if err != nil {
+		t.Fatal(err)
+	}
+	auth, err := accounts.Register(context.Background(), account.Registration{
+		Email: "a@example.com", Username: "alice", DisplayName: "Alice",
+		Password: "correct horse battery staple", Language: "uk",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	server := New(Dependencies{Accounts: accounts, Ready: func(context.Context) error { return nil }})
+
+	req := httptest.NewRequest(http.MethodPatch, "/v1/me", bytes.NewBufferString(`{"interests":["Hiking"," board games ","hiking"]}`))
+	req.Header.Set("Authorization", "Bearer "+auth.Token)
+	rec := httptest.NewRecorder()
+	server.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
+	}
+	if got := store.user.Interests; len(got) != 2 || got[0] != "board games" || got[1] != "hiking" {
+		t.Fatalf("stored interests = %v", got)
+	}
+
+	// A non-nil empty list clears interests back out.
+	clearReq := httptest.NewRequest(http.MethodPatch, "/v1/me", bytes.NewBufferString(`{"interests":[]}`))
+	clearReq.Header.Set("Authorization", "Bearer "+auth.Token)
+	clearRec := httptest.NewRecorder()
+	server.Handler().ServeHTTP(clearRec, clearReq)
+	if clearRec.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", clearRec.Code, clearRec.Body.String())
+	}
+	if len(store.user.Interests) != 0 {
+		t.Fatalf("expected cleared interests, got %v", store.user.Interests)
+	}
+}
+
+func TestPatchMeRejectsBlankInterestTag(t *testing.T) {
+	store := &authTestStore{}
+	accounts, err := account.NewService(store, password.OWASPMinimum(), time.Hour)
+	if err != nil {
+		t.Fatal(err)
+	}
+	auth, err := accounts.Register(context.Background(), account.Registration{
+		Email: "a@example.com", Username: "alice", DisplayName: "Alice",
+		Password: "correct horse battery staple", Language: "uk",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	server := New(Dependencies{Accounts: accounts, Ready: func(context.Context) error { return nil }})
+
+	req := httptest.NewRequest(http.MethodPatch, "/v1/me", bytes.NewBufferString(`{"interests":["  "]}`))
+	req.Header.Set("Authorization", "Bearer "+auth.Token)
+	rec := httptest.NewRecorder()
+	server.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
 	}
 }
 

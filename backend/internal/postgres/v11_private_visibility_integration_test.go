@@ -128,7 +128,7 @@ func TestV11PrivateVisibilitySlot(t *testing.T) {
 	}
 
 	// (1a) ListPulse must never surface a PRIVATE slot to a stranger.
-	pulse, err := slotService.ListPulse(ctx, stranger.User.ID)
+	pulse, err := slotService.ListPulse(ctx, stranger.User.ID, "")
 	if err != nil {
 		t.Fatal(err)
 	}

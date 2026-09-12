@@ -112,7 +112,7 @@ func TestV11LassoVisibilitySlot(t *testing.T) {
 	if _, err := slotService.Get(ctx, outside.User.ID, published.ID); !errors.Is(err, slot.ErrNotFound) {
 		t.Fatalf("expected ErrNotFound for a viewer outside the lasso polygon, got %v", err)
 	}
-	outsidePulse, err := slotService.ListPulse(ctx, outside.User.ID)
+	outsidePulse, err := slotService.ListPulse(ctx, outside.User.ID, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -131,7 +131,7 @@ func TestV11LassoVisibilitySlot(t *testing.T) {
 	if insideView.LassoPolygonWKT != nil {
 		t.Fatalf("a non-host viewer must never see the host's lasso polygon, got %#v", insideView.LassoPolygonWKT)
 	}
-	insidePulse, err := slotService.ListPulse(ctx, inside.User.ID)
+	insidePulse, err := slotService.ListPulse(ctx, inside.User.ID, "")
 	if err != nil {
 		t.Fatal(err)
 	}

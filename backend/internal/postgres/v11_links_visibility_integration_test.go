@@ -89,7 +89,7 @@ func TestV11LinksVisibilitySlot(t *testing.T) {
 	}
 
 	// (1) Not yet friends: ListPulse must exclude it, Get must 404.
-	pulse, err := slotService.ListPulse(ctx, other.User.ID)
+	pulse, err := slotService.ListPulse(ctx, other.User.ID, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -110,7 +110,7 @@ func TestV11LinksVisibilitySlot(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	pulseAfter, err := slotService.ListPulse(ctx, other.User.ID)
+	pulseAfter, err := slotService.ListPulse(ctx, other.User.ID, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -138,7 +138,7 @@ func TestV11LinksVisibilitySlot(t *testing.T) {
 	if _, err := slotService.Get(ctx, other.User.ID, published.ID); !errors.Is(err, slot.ErrNotFound) {
 		t.Fatalf("expected a block to override LINKS friendship visibility, got %v", err)
 	}
-	pulseBlocked, err := slotService.ListPulse(ctx, other.User.ID)
+	pulseBlocked, err := slotService.ListPulse(ctx, other.User.ID, "")
 	if err != nil {
 		t.Fatal(err)
 	}

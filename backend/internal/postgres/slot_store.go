@@ -72,7 +72,12 @@ func (s *SlotStore) Get(ctx context.Context, actorID, slotID string) (slot.Slot,
 	return scanSlot(s.pool.QueryRow(ctx, getSlotSQL, slotID, actorID))
 }
 
-func (s *SlotStore) ListPulse(ctx context.Context, actorID string, limit int) ([]slot.Slot, error) {
+// sort is accepted (to satisfy slot.Store) but ignored: this v1.0 base
+// store only ever surfaces PUBLIC Slots, and README §6.10's ranking
+// pipeline is v1.1 scope — V11SlotStore.ListPulse is where sort actually
+// does something; this legacy path always stays pure recency, matching
+// how it already has no visibility-mode concept beyond PUBLIC either.
+func (s *SlotStore) ListPulse(ctx context.Context, actorID string, limit int, sort slot.PulseSort) ([]slot.Slot, error) {
 	rows, err := s.pool.Query(ctx, listPulseSQL, actorID, limit)
 	if err != nil {
 		return nil, err

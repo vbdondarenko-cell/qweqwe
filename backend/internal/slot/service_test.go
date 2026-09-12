@@ -9,13 +9,14 @@ import (
 )
 
 type memoryStore struct {
-	created     Slot
-	createKey   string
-	createHash  []byte
-	lastEdit    EditInput
-	lastEditKey string
-	pending     map[string]PendingRequest
-	members     map[string]bool
+	created       Slot
+	createKey     string
+	createHash    []byte
+	lastEdit      EditInput
+	lastEditKey   string
+	pending       map[string]PendingRequest
+	members       map[string]bool
+	lastPulseSort PulseSort
 }
 
 func (m *memoryStore) ensure() {
@@ -47,8 +48,9 @@ func (m *memoryStore) Get(_ context.Context, actorID, slotID string) (Slot, erro
 	return out, nil
 }
 
-func (m *memoryStore) ListPulse(_ context.Context, actorID string, _ int) ([]Slot, error) {
+func (m *memoryStore) ListPulse(_ context.Context, actorID string, _ int, sort PulseSort) ([]Slot, error) {
 	m.ensure()
+	m.lastPulseSort = sort
 	if m.created.ID == "" || m.created.State == StateCancelled || m.created.State == StateCompleted || m.created.State == StateActive {
 		return []Slot{}, nil
 	}
@@ -505,6 +507,47 @@ func (m *memoryStore) ListMine(_ context.Context, actorID, view string, _ int) (
 		return []Slot{}, nil
 	}
 	return []Slot{out}, nil
+}
+
+func TestListPulseDefaultsToRecencySort(t *testing.T) {
+	store := &memoryStore{created: Slot{ID: "slot", Organizer: Organizer{ID: "host"}, State: StateFilling}}
+	svc, err := NewService(store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.ListPulse(context.Background(), "viewer", ""); err != nil {
+		t.Fatal(err)
+	}
+	if store.lastPulseSort != PulseSortRecency {
+		t.Fatalf("expected default sort RECENCY, got %q", store.lastPulseSort)
+	}
+}
+
+func TestListPulseAcceptsRelevanceSortCaseInsensitively(t *testing.T) {
+	store := &memoryStore{created: Slot{ID: "slot", Organizer: Organizer{ID: "host"}, State: StateFilling}}
+	svc, err := NewService(store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, raw := range []string{"relevance", "RELEVANCE", " Relevance "} {
+		if _, err := svc.ListPulse(context.Background(), "viewer", raw); err != nil {
+			t.Fatal(err)
+		}
+		if store.lastPulseSort != PulseSortRelevance {
+			t.Fatalf("raw=%q: expected sort RELEVANCE, got %q", raw, store.lastPulseSort)
+		}
+	}
+}
+
+func TestListPulseRejectsUnknownSort(t *testing.T) {
+	store := &memoryStore{created: Slot{ID: "slot", Organizer: Organizer{ID: "host"}, State: StateFilling}}
+	svc, err := NewService(store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.ListPulse(context.Background(), "viewer", "TRENDING"); !errors.Is(err, ErrInvalidInput) {
+		t.Fatalf("expected ErrInvalidInput for an unknown sort, got %v", err)
+	}
 }
 
 func TestListMineIncludesActiveRelationships(t *testing.T) {

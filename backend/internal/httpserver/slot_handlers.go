@@ -107,8 +107,12 @@ func (s *Server) listPulse(w http.ResponseWriter, r *http.Request) {
 		writeProblem(w, r, http.StatusServiceUnavailable, "not_ready", "slot service is unavailable")
 		return
 	}
-	items, err := s.deps.Slots.ListPulse(r.Context(), auth.User.ID)
+	items, err := s.deps.Slots.ListPulse(r.Context(), auth.User.ID, r.URL.Query().Get("sort"))
 	if err != nil {
+		if errors.Is(err, slot.ErrInvalidInput) {
+			writeProblem(w, r, http.StatusBadRequest, "invalid_sort", "invalid pulse sort")
+			return
+		}
 		writeProblem(w, r, http.StatusInternalServerError, "internal_error", "request failed")
 		return
 	}

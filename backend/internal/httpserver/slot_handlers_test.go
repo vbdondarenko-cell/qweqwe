@@ -29,7 +29,7 @@ func (s *slotHTTPStore) Get(_ context.Context, _, slotID string) (slot.Slot, err
 	if s.current.ID != slotID { return slot.Slot{}, slot.ErrNotFound }
 	return s.current, nil
 }
-func (s *slotHTTPStore) ListPulse(_ context.Context, _ string, _ int) ([]slot.Slot, error) {
+func (s *slotHTTPStore) ListPulse(_ context.Context, _ string, _ int, _ slot.PulseSort) ([]slot.Slot, error) {
 	if s.current.ID == "" || s.current.State == slot.StateCancelled || s.current.State == slot.StateCompleted || s.current.State == slot.StateActive { return []slot.Slot{}, nil }
 	return []slot.Slot{s.current}, nil
 }

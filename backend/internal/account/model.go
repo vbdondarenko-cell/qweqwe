@@ -3,15 +3,20 @@ package account
 import "time"
 
 type User struct {
-	ID                string    `json:"id"`
-	Email             string    `json:"email"`
-	Username          string    `json:"username"`
-	DisplayName       string    `json:"displayName"`
-	AvatarURL         *string   `json:"avatarUrl,omitempty"`
-	ProfileVisibility string    `json:"profileVisibility"`
-	Language          string    `json:"language"`
-	CreatedAt         time.Time `json:"createdAt"`
-	UpdatedAt         time.Time `json:"updatedAt"`
+	ID                string  `json:"id"`
+	Email             string  `json:"email"`
+	Username          string  `json:"username"`
+	DisplayName       string  `json:"displayName"`
+	AvatarURL         *string `json:"avatarUrl,omitempty"`
+	ProfileVisibility string  `json:"profileVisibility"`
+	Language          string  `json:"language"`
+	// Interests is the explicit-signal input to README §6.10's Pulse
+	// relevance ranking (slot.PulseSortRelevance) -- a Slot whose activity
+	// matches one of these tags ranks ahead of one that doesn't. Never nil;
+	// defaults to an empty slice for a user who hasn't set any yet.
+	Interests []string  `json:"interests"`
+	CreatedAt time.Time `json:"createdAt"`
+	UpdatedAt time.Time `json:"updatedAt"`
 }
 
 type Registration struct {
@@ -56,6 +61,11 @@ type ProfilePatch struct {
 	AvatarURL         *string
 	ProfileVisibility *string
 	Language          *string
+	// Interests replaces the user's interest-tag list wholesale when
+	// non-nil; a non-nil empty slice clears it. Unlike SELECTED visibility's
+	// allow-list, an empty result is valid here -- a user is allowed to have
+	// no declared interests.
+	Interests *[]string
 }
 
 type AuthResult struct {
