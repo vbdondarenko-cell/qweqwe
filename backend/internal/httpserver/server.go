@@ -20,6 +20,7 @@ import (
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/citycontext"
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/citymap"
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/friend"
+	"github.com/vbdondarenko-cell/qweqwe/backend/internal/guardian"
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/identifier"
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/monetization"
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/notification"
@@ -46,6 +47,7 @@ type Dependencies struct {
 	NotificationPreferences *notification.PreferencesService
 	Bump                    *bump.Service
 	Friends                 *friend.Service
+	Guardians               *guardian.Service
 	Onboarding              *onboarding.Service
 	Telegram                onboarding.ContactPrompter
 	TelegramWebhookSecret   string
@@ -158,6 +160,9 @@ func New(deps Dependencies) *Server {
 	mux.Handle("GET /v1/slots/{slotID}/chat/messages", s.requireAuth(http.HandlerFunc(s.listChatMessages)))
 	mux.Handle("POST /v1/slots/{slotID}/chat/messages", s.requireAuth(http.HandlerFunc(s.sendChatMessage)))
 	mux.Handle("POST /v1/slots/{slotID}/bill-split", s.requireAuth(http.HandlerFunc(s.splitBill)))
+	mux.Handle("POST /v1/slots/{slotID}/guardian-links", s.requireAuth(http.HandlerFunc(s.createGuardianLink)))
+	mux.Handle("DELETE /v1/slots/{slotID}/guardian-links/{linkID}", s.requireAuth(http.HandlerFunc(s.revokeGuardianLink)))
+	mux.Handle("GET /v1/guardian-links/{token}", s.guardianAccessRateLimit(http.HandlerFunc(s.accessGuardianLink)))
 
 	s.handler = s.requestMeta(mux)
 	return s
@@ -249,6 +254,30 @@ func (s *Server) monetizationRateLimit(next http.Handler) http.Handler {
 			if !allowed {
 				writeRetryAfter(w, retry)
 				writeProblem(w, r, http.StatusTooManyRequests, "rate_limited", "too many monetization requests")
+				return
+			}
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+// guardianAccessRateLimit throttles unauthenticated guardian-link token
+// lookups by remote IP, guarding against token brute-forcing. It reuses
+// AuthLimiter rather than adding a new dependency/config tier — this
+// endpoint is the same shape of risk (unauthenticated, secret-bearing
+// lookup) as login/recovery. It deliberately keys on a fixed logical
+// suffix, not r.URL.Path: unlike authRateLimit's fixed-path routes, this
+// route's path contains the very token being guessed, so keying on the
+// literal path would give every guessed token its own fresh rate-limit
+// bucket and defeat the limiter entirely.
+func (s *Server) guardianAccessRateLimit(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if s.deps.AuthLimiter != nil {
+			key := remoteIP(r.RemoteAddr) + ":guardian-access"
+			allowed, retry := s.deps.AuthLimiter.Allow(key)
+			if !allowed {
+				writeRetryAfter(w, retry)
+				writeProblem(w, r, http.StatusTooManyRequests, "rate_limited", "too many guardian link attempts")
 				return
 			}
 		}

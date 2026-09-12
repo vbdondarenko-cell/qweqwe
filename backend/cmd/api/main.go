@@ -19,6 +19,7 @@ import (
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/citymap"
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/config"
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/friend"
+	"github.com/vbdondarenko-cell/qweqwe/backend/internal/guardian"
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/httpserver"
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/monetization"
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/notification"
@@ -147,6 +148,9 @@ func main() {
 	friendService, err := friend.NewService(friendStore)
 	if err != nil { slog.Error("friend service init failed", "error", err); os.Exit(1) }
 
+	guardianService, err := guardian.NewService(postgres.NewGuardianStore(pool))
+	if err != nil { slog.Error("guardian service init failed", "error", err); os.Exit(1) }
+
 	reminderScanner, err := postgres.NewReminderScanner(pool, cfg.EventReminderLeadTime)
 	if err != nil { slog.Error("reminder scanner init failed", "error", err); os.Exit(1) }
 
@@ -173,6 +177,7 @@ func main() {
 		NotificationPreferences: notificationPreferencesService,
 		Bump: bumpService,
 		Friends: friendService,
+		Guardians: guardianService,
 		Onboarding: onboardingService,
 		Telegram: telegramBot,
 		TelegramWebhookSecret: cfg.TelegramWebhookSecret,
