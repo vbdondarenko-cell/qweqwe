@@ -1959,3 +1959,24 @@ Re-audited the entire `ui/` tree afterward for every raw Material3 `Button`/`Out
 Not done or claimed in this block: no real device/emulator run of any retrofitted screen exists; a `LinkUpRadio` atom was not built (the one remaining `RadioButton` usage was judged acceptable, not silently ignored); the Outfit/Inter/JetBrains Mono font-bundling gap named in §71 is still open, unrelated to this block's scope.
 
 Next: run this block's changes through the real build → promote → deploy cycle (§72's own pattern) to get actual compiler verification before calling the design retrofit finished; then return to §71's other open threads (real font bundling, a signed release build once legal-document URLs are supplied).
+
+## 74. 2026-09-12 — §73's design retrofit built, promoted, deployed and verified live; new debug APK delivered
+
+**Context:** the real build → promote → deploy → verify cycle §73 left pending, following the same pattern §72 established. One more real compiler-caught mistake along the way.
+
+### What happened
+
+- Triggered `ops/build_v1.sh` on the production server. Failed for a real, third reason this stretch: `Unresolved reference 'Arrangement'` in `ui/social/AcceptedRoster.kt` — §73's retrofit of the remove-participant dialog used `Arrangement.spacedBy(...)` without adding the corresponding import (the file had never needed `Arrangement` before). Fixed by adding `import androidx.compose.foundation.layout.Arrangement` and, while there, removing an accidental duplicate `fillMaxWidth` import from the same edit. Cross-checked every other file touched in §73 (`ChatScreen.kt`, `EditSlotScreen.kt`, `SlotScheduleField.kt`, `TelegramVerificationScreen.kt`, `LinkUpApp.kt`) for the same class of mistake (every newly-used top-level symbol has a matching import) before re-running the build, rather than fixing one file and hoping the rest were fine.
+- Rebuilt: **`BUILD SUCCESSFUL`** in ~2 minutes — `compileDebugKotlin`, `testDebugUnitTest`, `lintDebug`, `assembleDebug` all passed. Candidate `eabacd361eae639d0adaf52eaefc01291a56e817`.
+- `ops/promote_v1.sh` → promoted to stable, checksums re-verified.
+- `ops/deploy_v1.sh` → backend redeployed, health check passed, OTA manifest+APK republished to the fixed path.
+- Verified live against the real production domain: `GET https://linkupapp-ua.duckdns.org/v1/app-update/latest` and `.../download` both correct, downloaded APK's SHA-256 matches the manifest exactly (`34bb4eb41e0e4191bf1a741f0093948a98676b30fbd47210b2fcfa8334c3dee4`).
+- Delivered the new APK to the user's own `~/Downloads/LinkUp-update.apk` via the Desktop-Commander relay `scp`, independently re-verified the same checksum on their machine.
+
+### Evidence
+
+Real Android Gradle build passing end to end for §73's exact diff; live HTTP verification against the production domain; byte-for-byte checksum match confirmed on both the server and the user's own machine — same evidentiary bar as §72.
+
+Not done or claimed in this block: still the debug APK (`LINKUP_BUILD_RELEASE=0`), still blocked on the same missing Privacy Policy / Terms of Service URLs; no real device/emulator exercised any of the retrofitted screens' actual rendered output, only the server-side bytes.
+
+Next: real font bundling (Outfit/Inter/JetBrains Mono) if the user can supply the font files (this sandbox cannot fetch them from Google Fonts); a signed release build once legal-document URLs are supplied.
