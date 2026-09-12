@@ -46,6 +46,75 @@ func TestViewportValidationAndBuckets(t *testing.T) {
 	}
 }
 
+func TestValidHistoricalAllowsWiderWindowAtCoarseZoom(t *testing.T) {
+	from := time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC)
+	wide := Viewport{
+		WestE6: 30_000_000, SouthE6: 49_000_000,
+		EastE6: 31_000_000, NorthE6: 51_000_000,
+		Zoom: HistoricalMaxZoom, From: from, To: from.Add(30 * 24 * time.Hour), Limit: 100,
+	}
+	if !wide.ValidHistorical() {
+		t.Fatal("a coarse-zoom, wide historical window should be valid")
+	}
+	if wide.Valid() {
+		t.Fatal("the same query must be rejected by the free Valid() -- its span exceeds LiveWindowMax")
+	}
+
+	tooFine := wide
+	tooFine.Zoom = HistoricalMaxZoom + 1
+	if tooFine.ValidHistorical() {
+		t.Fatal("a too-fine zoom over a wide span must be rejected -- route reconstruction risk")
+	}
+
+	tooWide := wide
+	tooWide.To = tooWide.From.Add(HistoricalWindowMax + time.Hour)
+	if tooWide.ValidHistorical() {
+		t.Fatal("a span wider than HistoricalWindowMax must be rejected")
+	}
+
+	// A query whose span fits inside LiveWindowMax may still use a fine
+	// zoom via ValidHistorical, no matter how far in the past it starts --
+	// the coarse-zoom requirement is keyed on the span, not recency, since
+	// Valid() already lets the free map query any short window regardless
+	// of age.
+	narrowButOld := wide
+	narrowButOld.To = narrowButOld.From.Add(24 * time.Hour)
+	narrowButOld.Zoom = 18
+	if !narrowButOld.ValidHistorical() {
+		t.Fatal("a fine-zoom, narrow-span historical query should remain valid regardless of age")
+	}
+}
+
+func TestHistoricalViewportRequiresPremium(t *testing.T) {
+	store := &recordingStore{}
+	service, err := NewService(store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	from := time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC)
+	query := Viewport{
+		WestE6: 30_000_000, SouthE6: 49_000_000,
+		EastE6: 31_000_000, NorthE6: 51_000_000,
+		Zoom: HistoricalMaxZoom, From: from, To: from.Add(30 * 24 * time.Hour), Limit: 100,
+	}
+	viewerID := "00000000-0000-0000-0000-000000000001"
+	localityID := "00000000-0000-0000-0000-000000000002"
+
+	if _, err := service.HistoricalViewport(context.Background(), viewerID, localityID, query, false); err != ErrPremiumRequired {
+		t.Fatalf("expected ErrPremiumRequired, got %v", err)
+	}
+	if store.viewportCalls != 0 {
+		t.Fatal("store must not be touched when the caller isn't premium")
+	}
+
+	if _, err := service.HistoricalViewport(context.Background(), viewerID, localityID, query, true); err != nil {
+		t.Fatal(err)
+	}
+	if store.viewportCalls != 1 {
+		t.Fatalf("expected the store to be called once premium is active, got %d", store.viewportCalls)
+	}
+}
+
 func TestServiceRequiresCanonicalLocality(t *testing.T) {
 	store := &recordingStore{}
 	service, err := NewService(store)

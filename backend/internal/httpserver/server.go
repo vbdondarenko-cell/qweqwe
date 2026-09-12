@@ -138,6 +138,7 @@ func New(deps Dependencies) *Server {
 	mux.Handle("POST /v1/city-context/resolve", s.requireAuth(s.requireCapability(capability.CityContext, http.HandlerFunc(s.resolveCityContext))))
 	mux.Handle("GET /v1/places/search", s.requireAuth(http.HandlerFunc(s.searchPlaces)))
 	mux.Handle("GET /v1/map", s.requireAuth(s.requireCapability(capability.Map, s.requireCapability(capability.CityContext, http.HandlerFunc(s.mapViewport)))))
+	mux.Handle("GET /v1/map/history", s.requireAuth(s.requireCapability(capability.Map, s.requireCapability(capability.CityContext, http.HandlerFunc(s.mapHistoricalViewport)))))
 	mux.Handle("GET /v1/map/places/{placeID}/slots", s.requireAuth(s.requireCapability(capability.Map, s.requireCapability(capability.CityContext, http.HandlerFunc(s.mapPlaceSlots)))))
 	mux.Handle("POST /v1/slots/drafts", s.requireAuth(http.HandlerFunc(s.createDraftSlot)))
 	mux.Handle("POST /v1/slots/{slotID}/publish", s.requireAuth(http.HandlerFunc(s.publishDraftSlot)))

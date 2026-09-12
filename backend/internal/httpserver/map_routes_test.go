@@ -9,6 +9,7 @@ import (
 
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/citycontext"
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/citymap"
+	"github.com/vbdondarenko-cell/qweqwe/backend/internal/monetization"
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/slot"
 )
 
@@ -116,6 +117,76 @@ func TestMapPlaceSlotsUsesServerDerivedLocality(t *testing.T) {
 	if mapStore.placeSlotsCalls != 1 || mapStore.placeSlotsLocalityID != localityID {
 		t.Fatalf("server locality was not enforced for place detail: calls=%d locality=%q", mapStore.placeSlotsCalls, mapStore.placeSlotsLocalityID)
 	}
+}
+
+func TestMapHistoricalViewportRequiresPremium(t *testing.T) {
+	localityID := "00000000-0000-0000-0000-000000000777"
+	cityService, err := citycontext.NewService(&fakeCityContextStore{result: citycontext.Context{
+		Locality:        citycontext.Locality{ID: localityID, Name: "Kyiv", CountryCode: "UA", Timezone: "Europe/Kyiv"},
+		PermissionClass: citycontext.PermissionApproximate,
+		AccuracyM:       1000,
+		ObservedAt:      time.Now().UTC(),
+		ExpiresAt:       time.Now().UTC().Add(time.Hour),
+	}}, citycontext.DefaultPolicy())
+	if err != nil {
+		t.Fatal(err)
+	}
+	mapStore := &recordingMapStore{}
+	mapService, err := citymap.NewService(mapStore)
+	if err != nil {
+		t.Fatal(err)
+	}
+	monetizationService := monetization.NewService(&fakeMonetizationStore{})
+	server := &Server{deps: Dependencies{CityContext: cityService, Map: mapService, Monetization: monetizationService}}
+	req := authenticatedRequest(http.MethodGet, validHistoricalMapTarget(), nil)
+	rr := httptest.NewRecorder()
+
+	server.mapHistoricalViewport(rr, req)
+
+	if rr.Code != http.StatusForbidden {
+		t.Fatalf("status=%d body=%s", rr.Code, rr.Body.String())
+	}
+	if mapStore.viewportCalls != 0 {
+		t.Fatalf("map store must not be called without an active subscription: %d", mapStore.viewportCalls)
+	}
+}
+
+func TestMapHistoricalViewportSucceedsForActiveSubscriber(t *testing.T) {
+	localityID := "00000000-0000-0000-0000-000000000777"
+	cityService, err := citycontext.NewService(&fakeCityContextStore{result: citycontext.Context{
+		Locality:        citycontext.Locality{ID: localityID, Name: "Kyiv", CountryCode: "UA", Timezone: "Europe/Kyiv"},
+		PermissionClass: citycontext.PermissionApproximate,
+		AccuracyM:       1000,
+		ObservedAt:      time.Now().UTC(),
+		ExpiresAt:       time.Now().UTC().Add(time.Hour),
+	}}, citycontext.DefaultPolicy())
+	if err != nil {
+		t.Fatal(err)
+	}
+	mapStore := &recordingMapStore{}
+	mapService, err := citymap.NewService(mapStore)
+	if err != nil {
+		t.Fatal(err)
+	}
+	premiumUntil := time.Now().UTC().Add(24 * time.Hour)
+	monetizationService := monetization.NewService(&fakeMonetizationStore{status: monetization.StoreStatus{PremiumUntil: &premiumUntil}})
+	server := &Server{deps: Dependencies{CityContext: cityService, Map: mapService, Monetization: monetizationService}}
+	req := authenticatedRequest(http.MethodGet, validHistoricalMapTarget(), nil)
+	rr := httptest.NewRecorder()
+
+	server.mapHistoricalViewport(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", rr.Code, rr.Body.String())
+	}
+	if mapStore.viewportCalls != 1 || mapStore.viewportLocalityID != localityID {
+		t.Fatalf("server locality was not enforced: calls=%d locality=%q", mapStore.viewportCalls, mapStore.viewportLocalityID)
+	}
+}
+
+func validHistoricalMapTarget() string {
+	return "/v1/map/history?westE6=30000000&southE6=50000000&eastE6=31000000&northE6=51000000&zoom=" +
+		"12&from=2026-06-01T00:00:00Z&to=2026-06-30T00:00:00Z&limit=20"
 }
 
 func validMapTarget() string {
