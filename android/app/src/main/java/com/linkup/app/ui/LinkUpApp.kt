@@ -121,11 +121,9 @@ fun LinkUpApp(
     var authBusy by remember { mutableStateOf(false) }
     var authError by remember { mutableStateOf<String?>(null) }
     var authInfo by remember { mutableStateOf<String?>(null) }
-    var showNotifications by remember { mutableStateOf(false) }
     val genericError = stringResource(R.string.common_request_failed)
     val recoveryRequested = stringResource(R.string.recovery_request_info)
     val passwordChanged = stringResource(R.string.recovery_changed_info)
-    val notificationInbox by notifications.inbox.collectAsState()
 
     LaunchedEffect(Unit) { sessions.bootstrap() }
 
@@ -242,7 +240,7 @@ fun LinkUpApp(
                 },
             )
             is SessionState.SignedIn -> key(state.user.id) {
-                SignedInRoot(state.user, api, sessions, social, hosting, capabilities, cityContext, city, lifecycle)
+                SignedInRoot(state.user, api, sessions, social, hosting, capabilities, cityContext, city, notifications, lifecycle)
             }
             is SessionState.OfflineSession -> OfflineSessionSurface(
                 expiresAt = state.expiresAtEpochMillis,
@@ -269,9 +267,12 @@ private fun SignedInRoot(
     capabilities: CapabilityCoordinator,
     cityContext: CityContextCoordinator,
     city: CityNetworkCoordinator,
+    notifications: NotificationsCoordinator,
     lifecycle: Lifecycle,
 ) {
     val scope = rememberCoroutineScope()
+    var showNotifications by remember { mutableStateOf(false) }
+    val notificationInbox by notifications.inbox.collectAsState()
     val capabilitySnapshot by capabilities.snapshot.collectAsState()
     val mapEnabled = capabilitySnapshot.enabled(CapabilityKey.MAP)
     val cityContextEnabled = capabilitySnapshot.enabled(CapabilityKey.CITY_CONTEXT)
