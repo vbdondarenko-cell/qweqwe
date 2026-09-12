@@ -125,6 +125,145 @@ func TestCreateDraftPreservesConfiguredCityVisibility(t *testing.T) {
 	}
 }
 
+func TestCreateDraftPreservesConfiguredLassoVisibility(t *testing.T) {
+	store := &hostingStoreStub{}
+	service, err := NewService(store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	visibility := VisibilityLasso
+	wkt := "POLYGON((30 50,31 50,31 51,30 50))"
+	out, err := service.CreateDraft(context.Background(), "host-id", CreateInput{
+		Title: "Lasso meetup", Activity: "coffee", PlaceText: "Central Cafe", Capacity: 4,
+		Visibility: &visibility, LassoPolygonWKT: &wkt,
+	}, "00000000-0000-0000-0000-00000000000b")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out.Visibility != VisibilityLasso || out.LassoPolygonWKT == nil || *out.LassoPolygonWKT != wkt {
+		t.Fatalf("draft lasso polygon lost: out=%#v", out)
+	}
+	if store.created.LassoPolygonWKT == nil || *store.created.LassoPolygonWKT != wkt {
+		t.Fatalf("stored lasso polygon lost: %#v", store.created.LassoPolygonWKT)
+	}
+}
+
+func TestCreateDraftRejectsLassoVisibilityWithoutPolygon(t *testing.T) {
+	store := &hostingStoreStub{}
+	service, err := NewService(store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	visibility := VisibilityLasso
+	if _, err := service.CreateDraft(context.Background(), "host-id", CreateInput{
+		Title: "Lasso meetup", Activity: "coffee", PlaceText: "Central Cafe", Capacity: 4, Visibility: &visibility,
+	}, "00000000-0000-0000-0000-00000000000c"); !errors.Is(err, ErrInvalidInput) {
+		t.Fatalf("expected ErrInvalidInput for LASSO with no polygon, got %v", err)
+	}
+}
+
+func TestCreateDraftRejectsLassoVisibilityWithImplausibleWKT(t *testing.T) {
+	store := &hostingStoreStub{}
+	service, err := NewService(store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	visibility := VisibilityLasso
+	bogus := "not a polygon"
+	if _, err := service.CreateDraft(context.Background(), "host-id", CreateInput{
+		Title: "Lasso meetup", Activity: "coffee", PlaceText: "Central Cafe", Capacity: 4,
+		Visibility: &visibility, LassoPolygonWKT: &bogus,
+	}, "00000000-0000-0000-0000-00000000000d"); !errors.Is(err, ErrInvalidInput) {
+		t.Fatalf("expected ErrInvalidInput for an implausible lasso WKT, got %v", err)
+	}
+}
+
+func TestCreateDraftPreservesConfiguredTravelCorridorVisibility(t *testing.T) {
+	store := &hostingStoreStub{}
+	service, err := NewService(store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	visibility := VisibilityTravelCorridor
+	line := "LINESTRING(30 50,31 51)"
+	radius := 500
+	out, err := service.CreateDraft(context.Background(), "host-id", CreateInput{
+		Title: "Travel corridor meetup", Activity: "coffee", PlaceText: "Central Cafe", Capacity: 4,
+		Visibility: &visibility, CorridorLineWKT: &line, CorridorRadiusM: &radius,
+	}, "00000000-0000-0000-0000-00000000000e")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out.Visibility != VisibilityTravelCorridor || out.CorridorLineWKT == nil || *out.CorridorLineWKT != line ||
+		out.CorridorRadiusM == nil || *out.CorridorRadiusM != radius {
+		t.Fatalf("draft travel corridor lost: out=%#v", out)
+	}
+}
+
+func TestCreateDraftRejectsTravelCorridorVisibilityWithOnlyOneOfLineOrRadius(t *testing.T) {
+	store := &hostingStoreStub{}
+	service, err := NewService(store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	visibility := VisibilityTravelCorridor
+	line := "LINESTRING(30 50,31 51)"
+	if _, err := service.CreateDraft(context.Background(), "host-id", CreateInput{
+		Title: "Travel corridor meetup", Activity: "coffee", PlaceText: "Central Cafe", Capacity: 4,
+		Visibility: &visibility, CorridorLineWKT: &line,
+	}, "00000000-0000-0000-0000-00000000000f"); !errors.Is(err, ErrInvalidInput) {
+		t.Fatalf("expected ErrInvalidInput for TRAVEL_CORRIDOR with a line but no radius, got %v", err)
+	}
+	radius := 500
+	if _, err := service.CreateDraft(context.Background(), "host-id", CreateInput{
+		Title: "Travel corridor meetup", Activity: "coffee", PlaceText: "Central Cafe", Capacity: 4,
+		Visibility: &visibility, CorridorRadiusM: &radius,
+	}, "00000000-0000-0000-0000-000000000010"); !errors.Is(err, ErrInvalidInput) {
+		t.Fatalf("expected ErrInvalidInput for TRAVEL_CORRIDOR with a radius but no line, got %v", err)
+	}
+}
+
+func TestCreateDraftRejectsTravelCorridorVisibilityWithRadiusOutOfRange(t *testing.T) {
+	store := &hostingStoreStub{}
+	service, err := NewService(store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	visibility := VisibilityTravelCorridor
+	line := "LINESTRING(30 50,31 51)"
+	tooLarge := 50001
+	if _, err := service.CreateDraft(context.Background(), "host-id", CreateInput{
+		Title: "Travel corridor meetup", Activity: "coffee", PlaceText: "Central Cafe", Capacity: 4,
+		Visibility: &visibility, CorridorLineWKT: &line, CorridorRadiusM: &tooLarge,
+	}, "00000000-0000-0000-0000-000000000011"); !errors.Is(err, ErrInvalidInput) {
+		t.Fatalf("expected ErrInvalidInput for an out-of-range corridor radius, got %v", err)
+	}
+}
+
+func TestCreateDraftIgnoresLassoAndCorridorFieldsForOtherVisibilities(t *testing.T) {
+	store := &hostingStoreStub{}
+	service, err := NewService(store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wkt := "POLYGON((30 50,31 50,31 51,30 50))"
+	line := "LINESTRING(30 50,31 51)"
+	radius := 500
+	out, err := service.CreateDraft(context.Background(), "host-id", CreateInput{
+		Title: "Coffee later", Activity: "coffee", PlaceText: "Central Cafe", Capacity: 4,
+		LassoPolygonWKT: &wkt, CorridorLineWKT: &line, CorridorRadiusM: &radius,
+	}, "00000000-0000-0000-0000-000000000012")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out.Visibility != VisibilityPublic {
+		t.Fatalf("expected default PUBLIC visibility, got %s", out.Visibility)
+	}
+	if out.LassoPolygonWKT != nil || out.CorridorLineWKT != nil || out.CorridorRadiusM != nil {
+		t.Fatalf("expected lasso/corridor fields dropped for PUBLIC visibility, got %#v", out)
+	}
+}
+
 func TestCreateDraftPreservesSelectedVisibilityAndAllowList(t *testing.T) {
 	store := &hostingStoreStub{}
 	service, err := NewService(store)

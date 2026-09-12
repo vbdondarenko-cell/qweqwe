@@ -38,10 +38,9 @@ const (
 	// and calls Request/Join directly — Request/Join never check
 	// visibility, matching an "invite by sharing the ID" model. The other
 	// five modes README §4.3 lists (LINKS/SELECTED/CITY/LASSO/
-	// TRAVEL_CORRIDOR) — LINKS and SELECTED are now also implemented, see
-	// their own constants below; CITY/LASSO/TRAVEL_CORRIDOR remain
-	// unimplemented; see internal/slot's own validation for the closed set
-	// this API actually accepts.
+	// TRAVEL_CORRIDOR) are now all implemented too — see their own
+	// constants below; see internal/slot's own validation for the closed
+	// set this API actually accepts.
 	VisibilityPrivate Visibility = "PRIVATE"
 	// VisibilityLinks is README §4.3's "Friends/Links" mode: discoverable
 	// only to the host's accepted friends (internal/friend.Store.AreFriends),
@@ -76,6 +75,30 @@ const (
 	// friendship/allow-list checks LINKS/SELECTED added needed new
 	// tables; this one needs none — city_context_locks already exists.
 	VisibilityCity Visibility = "CITY"
+	// VisibilityLasso is README §4.3's "Lasso/geo-scoped" mode: the host
+	// draws an arbitrary polygon at creation time (CreateInput.
+	// LassoPolygonWKT, a WKT POLYGON), and a viewer is discoverable only
+	// while their own current, live, coarse position (internal/
+	// citycontext's city_context_points — see that package's own doc
+	// comment for why this needed a new, explicitly user-approved
+	// privacy-safe storage layer distinct from city_context_locks) falls
+	// inside it. Same "fail closed" default as CITY: no live point, no
+	// visibility. Configured once at creation; not editable yet (matches
+	// SELECTED's own original first-block scope) — see EditInput's
+	// comment. This first block covers only Get/ListPulse discovery; see
+	// this constant's introducing worklog entry for the explicit,
+	// deliberate Map/realtime/idempotency-replay gap this leaves open.
+	VisibilityLasso Visibility = "LASSO"
+	// VisibilityTravelCorridor is README §4.3's "Travel corridor" mode:
+	// the host draws a route (CreateInput.CorridorLineWKT, a WKT
+	// LINESTRING) plus a buffer radius in meters
+	// (CreateInput.CorridorRadiusM), and a viewer is discoverable only
+	// while their own current, live, coarse position falls within that
+	// buffer — the same city_context_points source LASSO uses, tested
+	// with a distance/buffer predicate instead of polygon containment.
+	// Same scope limits as VisibilityLasso: Get/ListPulse only in this
+	// block, not editable yet.
+	VisibilityTravelCorridor Visibility = "TRAVEL_CORRIDOR"
 
 	ViewerNone     ViewerState = "NONE"
 	ViewerPending  ViewerState = "PENDING"
@@ -127,7 +150,14 @@ type Slot struct {
 	// the host's private curation list, not a roster anyone selected (or
 	// anyone else who reaches the Slot) is shown. Always empty for every
 	// other viewer and every other visibility.
-	SelectedUserIDs []string    `json:"selectedUserIds,omitempty"`
+	SelectedUserIDs []string `json:"selectedUserIds,omitempty"`
+	// LassoPolygonWKT/CorridorLineWKT/CorridorRadiusM mirror
+	// SelectedUserIDs's own host-only-echo contract for their respective
+	// visibility modes: populated on Create/Get/ListPulse/ListMine only
+	// for the Slot's own host, always empty otherwise.
+	LassoPolygonWKT *string     `json:"lassoPolygonWkt,omitempty"`
+	CorridorLineWKT *string     `json:"corridorLineWkt,omitempty"`
+	CorridorRadiusM *int        `json:"corridorRadiusM,omitempty"`
 	ViewerState     ViewerState `json:"viewerState"`
 	Version         int64       `json:"version"`
 	CreatedAt       time.Time   `json:"createdAt"`
@@ -173,6 +203,15 @@ type CreateInput struct {
 	// VisibilitySelected, ignored otherwise. Each entry must be a valid
 	// UUID; duplicates are silently deduplicated by normalizeCreate.
 	SelectedUserIDs []string
+	// LassoPolygonWKT is required when Visibility is VisibilityLasso,
+	// ignored otherwise: a WKT POLYGON the host draws at creation time.
+	LassoPolygonWKT *string
+	// CorridorLineWKT + CorridorRadiusM are required together when
+	// Visibility is VisibilityTravelCorridor, ignored otherwise:
+	// CorridorLineWKT is a WKT LINESTRING route, CorridorRadiusM the
+	// buffer width around it in meters.
+	CorridorLineWKT *string
+	CorridorRadiusM *int
 }
 
 type EditInput struct {

@@ -26,15 +26,15 @@ enum class SlotAccessMode { INSTANT, APPROVAL, WAITLIST }
 // PRIVATE/LINKS Slot response would crash parsing instead of just failing
 // to render one unsupported field.
 // A real, live client bug found and fixed here, not just new capability:
-// the backend has emitted SELECTED since backend worklog §59 and CITY
-// since this same backend block — both were missing from this enum
-// entirely. SlotVisibility.valueOf(json.getString("visibility")) (both
-// call sites: LinkUpApiClient.kt and DurableSocialApi.kt) throws for any
-// value not listed here, so any build against the real backend would
-// have crashed parsing the very first SELECTED or CITY Slot it
-// encountered — found by reading the existing code before writing
-// anything, not by running it (no SDK/Gradle access in this environment).
-enum class SlotVisibility { PUBLIC, PRIVATE, LINKS, SELECTED, CITY }
+// the backend has emitted SELECTED and CITY since earlier work this
+// session, and now LASSO/TRAVEL_CORRIDOR too — none were in this enum.
+// SlotVisibility.valueOf(json.getString("visibility")) (both call sites:
+// LinkUpApiClient.kt and DurableSocialApi.kt) throws for any value not
+// listed here, so any build against the real backend would have crashed
+// parsing the first such Slot it encountered — found by reading the
+// existing code before writing anything, not by running it (no
+// SDK/Gradle access in this environment).
+enum class SlotVisibility { PUBLIC, PRIVATE, LINKS, SELECTED, CITY, LASSO, TRAVEL_CORRIDOR }
 enum class SlotViewerState { NONE, PENDING, ACCEPTED, HOST }
 
 data class SlotOrganizer(

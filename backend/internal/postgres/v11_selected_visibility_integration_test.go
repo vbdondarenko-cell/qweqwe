@@ -543,3 +543,49 @@ func TestV11SelectedVisibilityAllowListEditableWhileDraft(t *testing.T) {
 		t.Fatalf("expected ErrInvalidInput editing SELECTED with an empty allow-list, got %v", err)
 	}
 }
+
+// TestV11SlotSelectedViewersLinkupApiPrivileges is a regression guard for a
+// real bug this session found and fixed (migration 000033): the original
+// 000032 migration granted linkup_api only SELECT/INSERT on
+// slot_selected_viewers, but Edit's allow-list-replacement code (added in
+// an earlier block) issues a DELETE against this table before
+// re-inserting. Every test for that feature passed anyway because this
+// repository's test harness connects as the postgres superuser, not
+// linkup_api — this test is the first one that actually checks the grant
+// itself, so a future regression here would be caught directly instead of
+// silently passing again.
+func TestV11SlotSelectedViewersLinkupApiPrivileges(t *testing.T) {
+	dsn := os.Getenv("LINKUP_TEST_DATABASE_URL")
+	if dsn == "" || os.Getenv("LINKUP_TEST_DATABASE_DESTRUCTIVE") != "1" {
+		t.Skip("disposable PostgreSQL requires LINKUP_TEST_DATABASE_URL and LINKUP_TEST_DATABASE_DESTRUCTIVE=1")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+	pool, err := pgxpool.New(ctx, dsn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer pool.Close()
+	if err := migrate.Apply(ctx, pool, migrationDir(t)); err != nil {
+		t.Fatal(err)
+	}
+	var roleExists bool
+	if err := pool.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='linkup_api')`).Scan(&roleExists); err != nil {
+		t.Fatal(err)
+	}
+	if !roleExists {
+		t.Skip("linkup_api role is not present in disposable PostgreSQL")
+	}
+	var selectOK, insertOK, deleteOK bool
+	err = pool.QueryRow(ctx, `SELECT
+		has_table_privilege('linkup_api','public.slot_selected_viewers','SELECT'),
+		has_table_privilege('linkup_api','public.slot_selected_viewers','INSERT'),
+		has_table_privilege('linkup_api','public.slot_selected_viewers','DELETE')`).
+		Scan(&selectOK, &insertOK, &deleteOK)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !selectOK || !insertOK || !deleteOK {
+		t.Fatalf("linkup_api must have SELECT+INSERT+DELETE on slot_selected_viewers (Edit's allow-list replacement needs DELETE), got select=%v insert=%v delete=%v", selectOK, insertOK, deleteOK)
+	}
+}

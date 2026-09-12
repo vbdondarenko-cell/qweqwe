@@ -81,10 +81,62 @@ func (s *CityContextStore) Apply(
 	if err != nil {
 		return citycontext.Context{}, err
 	}
+
+	// LASSO/TRAVEL_CORRIDOR visibility (README §4.3) needs some form of
+	// the viewer's own approximate position to test containment against
+	// an arbitrary host-drawn shape -- a locality id alone (all
+	// city_context_locks stores) cannot express that. Per the user's own
+	// explicit choice of how to close this gap: persist only a COARSENED
+	// point, at the identical freshness/expiry discipline the lock above
+	// already uses (same expires_at, same upsert-per-user shape), never
+	// the raw observation. This runs unconditionally on every successful
+	// resolve, in the same transaction as the lock -- the two can never
+	// drift out of sync with each other.
+	roundedLat, roundedLng := roundToPointGrid(observation.LatitudeE6, observation.LongitudeE6)
+	_, err = tx.Exec(ctx, `
+		INSERT INTO city_context_points (
+			user_id, latitude_e6, longitude_e6, permission_class, accuracy_m, observed_at, expires_at, updated_at
+		) VALUES ($1::uuid,$2,$3,$4,$5,$6,$7,$8)
+		ON CONFLICT (user_id) DO UPDATE SET
+			latitude_e6=EXCLUDED.latitude_e6,
+			longitude_e6=EXCLUDED.longitude_e6,
+			permission_class=EXCLUDED.permission_class,
+			accuracy_m=EXCLUDED.accuracy_m,
+			observed_at=EXCLUDED.observed_at,
+			expires_at=EXCLUDED.expires_at,
+			updated_at=EXCLUDED.updated_at`,
+		next.UserID, roundedLat, roundedLng, string(next.PermissionClass), next.AccuracyM,
+		next.ObservedAt, next.ExpiresAt, now.UTC(),
+	)
+	if err != nil {
+		return citycontext.Context{}, err
+	}
+
 	if err := tx.Commit(ctx); err != nil {
 		return citycontext.Context{}, err
 	}
 	return next.Public(), nil
+}
+
+// pointGridE6 coarsens a raw coordinate to a ~111m grid (1000 E6 units is
+// 0.001 degrees of latitude; longitude is coarser than this away from the
+// equator, which is an acceptable, stated approximation -- the goal is
+// "coarse," not "precisely 111m everywhere"). Never store the raw
+// observation this rounds away.
+const pointGridE6 = 1000
+
+// roundToPointGrid rounds toward the nearest grid line rather than always
+// down, so the coarsening error is bounded at +/- half a grid cell
+// instead of up to a full cell.
+func roundToPointGrid(latitudeE6, longitudeE6 int) (int, int) {
+	return roundToGrid(latitudeE6, pointGridE6), roundToGrid(longitudeE6, pointGridE6)
+}
+
+func roundToGrid(value, grid int) int {
+	if value >= 0 {
+		return ((value + grid/2) / grid) * grid
+	}
+	return -((-value + grid/2) / grid) * grid
 }
 
 func (s *CityContextStore) Current(ctx context.Context, userID string, now time.Time) (citycontext.Context, error) {

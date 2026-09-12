@@ -85,6 +85,9 @@ func (s *V11SlotStore) Get(ctx context.Context, actorID, slotID string) (slot.Sl
 	if err := attachSelectedUserIDsForHost(ctx, s.pool, &out, actorID); err != nil {
 		return slot.Slot{}, err
 	}
+	if err := attachLassoAndCorridorForHost(ctx, s.pool, &out, actorID); err != nil {
+		return slot.Slot{}, err
+	}
 	return out, nil
 }
 
@@ -107,6 +110,9 @@ func (s *V11SlotStore) ListPulse(ctx context.Context, actorID string, limit int)
 	}
 	for i := range items {
 		if err := attachSelectedUserIDsForHost(ctx, s.pool, &items[i], actorID); err != nil {
+			return nil, err
+		}
+		if err := attachLassoAndCorridorForHost(ctx, s.pool, &items[i], actorID); err != nil {
 			return nil, err
 		}
 	}
@@ -147,6 +153,9 @@ func (s *V11SlotStore) ListMine(ctx context.Context, actorID, view string, limit
 	}
 	for i := range items {
 		if err := attachSelectedUserIDsForHost(ctx, s.pool, &items[i], actorID); err != nil {
+			return nil, err
+		}
+		if err := attachLassoAndCorridorForHost(ctx, s.pool, &items[i], actorID); err != nil {
 			return nil, err
 		}
 	}
@@ -229,6 +238,9 @@ func (s *V11SlotStore) Edit(ctx context.Context, actorID, slotID string, patch s
 			return slot.Slot{}, err
 		}
 		if err := attachSelectedUserIDsTx(ctx, tx, &out); err != nil {
+			return slot.Slot{}, err
+		}
+		if err := attachLassoAndCorridorTx(ctx, tx, &out); err != nil {
 			return slot.Slot{}, err
 		}
 		if err := tx.Commit(ctx); err != nil {
@@ -390,6 +402,9 @@ func (s *V11SlotStore) Edit(ctx context.Context, actorID, slotID string, patch s
 	if err := attachSelectedUserIDsTx(ctx, tx, &out); err != nil {
 		return slot.Slot{}, err
 	}
+	if err := attachLassoAndCorridorTx(ctx, tx, &out); err != nil {
+		return slot.Slot{}, err
+	}
 	if err := tx.Commit(ctx); err != nil {
 		return slot.Slot{}, err
 	}
@@ -537,6 +552,41 @@ WHERE s.id=$1 AND (
 			   OR (b.blocker_id=s.host_id AND b.blocked_id=$2)
 		)
 	)
+	OR (
+		s.visibility='LASSO'
+		AND s.state IN ('PUBLISHED','FILLING','FULL')
+		AND EXISTS(
+			SELECT 1 FROM city_context_points cp
+			WHERE cp.user_id=$2 AND cp.expires_at>now()
+			  AND public.st_contains(
+				public.st_geomfromtext(s.lasso_polygon_wkt,4326),
+				public.st_setsrid(public.st_makepoint(cp.longitude_e6/1000000.0, cp.latitude_e6/1000000.0),4326)
+			  )
+		)
+		AND NOT EXISTS(
+			SELECT 1 FROM user_blocks b
+			WHERE (b.blocker_id=$2 AND b.blocked_id=s.host_id)
+			   OR (b.blocker_id=s.host_id AND b.blocked_id=$2)
+		)
+	)
+	OR (
+		s.visibility='TRAVEL_CORRIDOR'
+		AND s.state IN ('PUBLISHED','FILLING','FULL')
+		AND EXISTS(
+			SELECT 1 FROM city_context_points cp
+			WHERE cp.user_id=$2 AND cp.expires_at>now()
+			  AND public.st_dwithin(
+				public.st_geomfromtext(s.corridor_line_wkt,4326)::geography,
+				public.st_setsrid(public.st_makepoint(cp.longitude_e6/1000000.0, cp.latitude_e6/1000000.0),4326)::geography,
+				s.corridor_radius_m
+			  )
+		)
+		AND NOT EXISTS(
+			SELECT 1 FROM user_blocks b
+			WHERE (b.blocker_id=$2 AND b.blocked_id=s.host_id)
+			   OR (b.blocker_id=s.host_id AND b.blocked_id=$2)
+		)
+	)
 )`
 
 // listV11PulseSQL's visibility gate is the OR of three branches — s.visibility
@@ -573,6 +623,29 @@ WHERE (
 			JOIN city_context_locks hcl ON hcl.locality_id=vcl.locality_id
 			WHERE vcl.user_id=$1 AND vcl.expires_at>now()
 			  AND hcl.user_id=s.host_id AND hcl.expires_at>now()
+		)
+	)
+	OR (
+		s.visibility='LASSO'
+		AND EXISTS(
+			SELECT 1 FROM city_context_points cp
+			WHERE cp.user_id=$1 AND cp.expires_at>now()
+			  AND public.st_contains(
+				public.st_geomfromtext(s.lasso_polygon_wkt,4326),
+				public.st_setsrid(public.st_makepoint(cp.longitude_e6/1000000.0, cp.latitude_e6/1000000.0),4326)
+			  )
+		)
+	)
+	OR (
+		s.visibility='TRAVEL_CORRIDOR'
+		AND EXISTS(
+			SELECT 1 FROM city_context_points cp
+			WHERE cp.user_id=$1 AND cp.expires_at>now()
+			  AND public.st_dwithin(
+				public.st_geomfromtext(s.corridor_line_wkt,4326)::geography,
+				public.st_setsrid(public.st_makepoint(cp.longitude_e6/1000000.0, cp.latitude_e6/1000000.0),4326)::geography,
+				s.corridor_radius_m
+			  )
 		)
 	)
   )

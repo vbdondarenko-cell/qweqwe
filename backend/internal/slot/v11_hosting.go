@@ -47,6 +47,9 @@ func (s *Service) CreateDraft(ctx context.Context, actorID string, in CreateInpu
 		AccessMode:       effectiveAccessMode(in.AccessMode),
 		Visibility:       effectiveVisibility(in.Visibility),
 		SelectedUserIDs:  in.SelectedUserIDs,
+		LassoPolygonWKT:  in.LassoPolygonWKT,
+		CorridorLineWKT:  in.CorridorLineWKT,
+		CorridorRadiusM:  in.CorridorRadiusM,
 		ViewerState:      ViewerHost,
 		Version:          1,
 		CreatedAt:        now,
@@ -64,8 +67,15 @@ func (s *Service) CreateDraft(ctx context.Context, actorID string, in CreateInpu
 		AccessMode       AccessMode
 		Visibility       Visibility
 		SelectedUserIDs  []string
+		LassoPolygonWKT  *string
+		CorridorLineWKT  *string
+		CorridorRadiusM  *int
 		Draft            bool
-	}{in.Title, in.Activity, in.Details, in.PlaceText, in.ZoneText, in.CanonicalPlaceID, in.StartAt, in.Capacity, effectiveAccessMode(in.AccessMode), effectiveVisibility(in.Visibility), in.SelectedUserIDs, true})
+	}{
+		in.Title, in.Activity, in.Details, in.PlaceText, in.ZoneText, in.CanonicalPlaceID, in.StartAt, in.Capacity,
+		effectiveAccessMode(in.AccessMode), effectiveVisibility(in.Visibility), in.SelectedUserIDs,
+		in.LassoPolygonWKT, in.CorridorLineWKT, in.CorridorRadiusM, true,
+	})
 	if err != nil {
 		return Slot{}, err
 	}

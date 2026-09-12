@@ -52,4 +52,23 @@ func TestV11CityContextRuntimePrivileges(t *testing.T) {
 		t.Fatalf("unexpected linkup_api City Context privileges localitySelect=%v localityWrite=%v placeSelect=%v placeWrite=%v lockSelect=%v lockInsert=%v lockUpdate=%v lockDelete=%v",
 			localitySelect, localityWrite, placeSelect, placeWrite, lockSelect, lockInsert, lockUpdate, lockDelete)
 	}
+
+	// city_context_points (migration 000034, this session): same
+	// SELECT/INSERT/UPDATE/no-DELETE shape as city_context_locks — it is
+	// an upsert-per-user row too, never an append-only log, and never
+	// deleted by application code.
+	var pointSelect, pointInsert, pointUpdate, pointDelete bool
+	err = pool.QueryRow(ctx, `SELECT
+		has_table_privilege('linkup_api','public.city_context_points','SELECT'),
+		has_table_privilege('linkup_api','public.city_context_points','INSERT'),
+		has_table_privilege('linkup_api','public.city_context_points','UPDATE'),
+		has_table_privilege('linkup_api','public.city_context_points','DELETE')`).
+		Scan(&pointSelect, &pointInsert, &pointUpdate, &pointDelete)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !pointSelect || !pointInsert || !pointUpdate || pointDelete {
+		t.Fatalf("unexpected linkup_api city_context_points privileges select=%v insert=%v update=%v delete=%v",
+			pointSelect, pointInsert, pointUpdate, pointDelete)
+	}
 }

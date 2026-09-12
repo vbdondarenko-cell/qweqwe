@@ -290,18 +290,78 @@ func normalizeCreate(in *CreateInput) error {
 		}
 		in.Visibility = &visibility
 	}
-	if effectiveVisibility(in.Visibility) == VisibilitySelected {
+	switch effectiveVisibility(in.Visibility) {
+	case VisibilitySelected:
 		ids, err := normalizeSelectedUserIDs(in.SelectedUserIDs)
 		if err != nil {
 			return err
 		}
 		in.SelectedUserIDs = ids
-	} else {
-		// Ignore any accidentally-provided list rather than silently storing
-		// it against a Slot whose visibility never actually reads it.
-		in.SelectedUserIDs = nil
+		in.LassoPolygonWKT, in.CorridorLineWKT, in.CorridorRadiusM = nil, nil, nil
+	case VisibilityLasso:
+		wkt, err := normalizeLassoPolygon(in.LassoPolygonWKT)
+		if err != nil {
+			return err
+		}
+		in.LassoPolygonWKT = &wkt
+		in.SelectedUserIDs, in.CorridorLineWKT, in.CorridorRadiusM = nil, nil, nil
+	case VisibilityTravelCorridor:
+		line, radius, err := normalizeCorridor(in.CorridorLineWKT, in.CorridorRadiusM)
+		if err != nil {
+			return err
+		}
+		in.CorridorLineWKT, in.CorridorRadiusM = &line, &radius
+		in.SelectedUserIDs, in.LassoPolygonWKT = nil, nil
+	default:
+		// Ignore any accidentally-provided geometry/allow-list rather than
+		// silently storing it against a Slot whose visibility never
+		// actually reads it.
+		in.SelectedUserIDs, in.LassoPolygonWKT, in.CorridorLineWKT, in.CorridorRadiusM = nil, nil, nil, nil
 	}
 	return nil
+}
+
+// maxGeometryWKTLength mirrors migration 000035's own
+// slots_lasso_polygon_wkt_length/slots_corridor_line_wkt_length CHECK
+// constraints — validated here too so a too-large payload is a clean
+// ErrInvalidInput at the domain boundary, not a database constraint
+// violation surfacing as an opaque 500.
+const maxGeometryWKTLength = 200000
+
+// normalizeLassoPolygon requires a plausible WKT POLYGON: non-empty,
+// within the same length bound migration 000035 enforces, and starting
+// with the POLYGON keyword (case-insensitive, ignoring leading
+// whitespace). Real geometry validity (closed ring, no self-intersection,
+// etc.) is PostGIS's job at query time via st_geomfromtext, not
+// reimplemented here — this is a shape-of-input check, not a geometry
+// parser.
+func normalizeLassoPolygon(raw *string) (string, error) {
+	if raw == nil {
+		return "", ErrInvalidInput
+	}
+	wkt := strings.TrimSpace(*raw)
+	if len(wkt) < 10 || len(wkt) > maxGeometryWKTLength || !strings.HasPrefix(strings.ToUpper(wkt), "POLYGON") {
+		return "", ErrInvalidInput
+	}
+	return wkt, nil
+}
+
+// normalizeCorridor requires both a plausible WKT LINESTRING and a radius
+// in the same 1..50000 meter range migration 000035 enforces — together
+// or not at all (an EditInput/CreateInput carrying only one of the two is
+// invalid input, not a silently-ignored partial configuration).
+func normalizeCorridor(rawLine *string, rawRadius *int) (string, int, error) {
+	if rawLine == nil || rawRadius == nil {
+		return "", 0, ErrInvalidInput
+	}
+	line := strings.TrimSpace(*rawLine)
+	if len(line) < 10 || len(line) > maxGeometryWKTLength || !strings.HasPrefix(strings.ToUpper(line), "LINESTRING") {
+		return "", 0, ErrInvalidInput
+	}
+	if *rawRadius < 1 || *rawRadius > 50000 {
+		return "", 0, ErrInvalidInput
+	}
+	return line, *rawRadius, nil
 }
 
 // normalizeSelectedUserIDs validates the VisibilitySelected allow-list: at
@@ -396,13 +456,22 @@ func normalizeEdit(in *EditInput) error {
 		if !validVisibility(visibility) {
 			return ErrInvalidInput
 		}
-		if visibility == VisibilitySelected {
+		switch visibility {
+		case VisibilitySelected:
 			ids, err := normalizeSelectedUserIDs(in.SelectedUserIDs)
 			if err != nil {
 				return err
 			}
 			in.SelectedUserIDs = ids
-		} else {
+		case VisibilityLasso, VisibilityTravelCorridor:
+			// EditInput has no field to configure a Lasso polygon or
+			// Travel Corridor route/radius — accepting either here would
+			// let a host switch a Slot to one of these modes with no
+			// shape at all, silently undiscoverable rather than a clear
+			// error. Matches SELECTED's own original first-block scope
+			// before EditInput.SelectedUserIDs existed.
+			return ErrInvalidInput
+		default:
 			// Ignore any accidentally-provided list rather than storing it
 			// against a Slot whose visibility this edit is not setting to
 			// SELECTED at all.
@@ -435,16 +504,16 @@ func effectiveVisibility(visibility *Visibility) Visibility {
 	return *visibility
 }
 
-// validVisibility is the closed set this API actually accepts today:
-// PUBLIC (v1.0 mandatory), PRIVATE, LINKS, SELECTED, and CITY (four of
-// README §4.3's additional v1.1 modes — see VisibilityPrivate's,
-// VisibilityLinks's, VisibilitySelected's and VisibilityCity's doc
-// comments). The remaining two (LASSO/TRAVEL_CORRIDOR) are rejected as
-// invalid input rather than silently accepted and ignored.
+// validVisibility is the closed set this API accepts: every README §4.3
+// mode now has a real implementation — see VisibilityPrivate's,
+// VisibilityLinks's, VisibilitySelected's, VisibilityCity's,
+// VisibilityLasso's and VisibilityTravelCorridor's own doc comments for
+// each mode's specific scope/limits.
 func validVisibility(visibility Visibility) bool {
 	return visibility == VisibilityPublic || visibility == VisibilityPrivate ||
 		visibility == VisibilityLinks || visibility == VisibilitySelected ||
-		visibility == VisibilityCity
+		visibility == VisibilityCity || visibility == VisibilityLasso ||
+		visibility == VisibilityTravelCorridor
 }
 
 func validUUID(value string) bool {

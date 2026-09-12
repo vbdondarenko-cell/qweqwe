@@ -396,13 +396,12 @@ func TestEditPassesVisibilityThroughToStore(t *testing.T) {
 func TestEditRejectsUnknownVisibility(t *testing.T) {
 	store := &memoryStore{created: Slot{ID: "slot-id", Organizer: Organizer{ID: "host-id"}, Version: 3, Capacity: 6}}
 	svc, _ := NewService(store)
-	// CITY used to be this test's example of an unimplemented mode (its
-	// own comment history: SELECTED filled that role before it, then was
-	// swapped for CITY once SELECTED shipped) — now CITY is implemented
-	// too (TestEditPassesCityVisibilityThroughToStore), so this uses
-	// LASSO, one of the two genuinely still-unimplemented README §4.3
-	// modes (validVisibility's own doc comment).
-	bogus := Visibility("LASSO")
+	// Every real README §4.3 mode is implemented now (validVisibility's
+	// own doc comment) — this test's previous examples (SELECTED, then
+	// CITY, then LASSO) were each swapped out the moment that mode
+	// shipped. There is no longer a real mode left to reuse, so this now
+	// uses a value that will never be a real visibility mode.
+	bogus := Visibility("BOGUS_MODE")
 	if _, err := svc.Edit(context.Background(), "host-id", "slot-id", EditInput{ExpectedVersion: 3, Visibility: &bogus}, "edit-slot-visibility-02"); !errors.Is(err, ErrInvalidInput) {
 		t.Fatalf("expected ErrInvalidInput for an unimplemented visibility mode, got %v", err)
 	}
@@ -424,6 +423,21 @@ func TestEditPassesCityVisibilityThroughToStore(t *testing.T) {
 	}
 	if store.lastEdit.SelectedUserIDs != nil {
 		t.Fatalf("CITY has no allow-list; expected none in the store patch, got %v", store.lastEdit.SelectedUserIDs)
+	}
+}
+
+// TestEditRejectsLassoAndTravelCorridorVisibility: both are real,
+// implemented Create-time modes but EditInput has no field to configure
+// either one's shape, so normalizeEdit rejects them as edit targets
+// outright — matching SELECTED's own original first-block scope.
+func TestEditRejectsLassoAndTravelCorridorVisibility(t *testing.T) {
+	for _, mode := range []Visibility{VisibilityLasso, VisibilityTravelCorridor} {
+		store := &memoryStore{created: Slot{ID: "slot-id", Organizer: Organizer{ID: "host-id"}, Version: 3, Capacity: 6}}
+		svc, _ := NewService(store)
+		visibility := mode
+		if _, err := svc.Edit(context.Background(), "host-id", "slot-id", EditInput{ExpectedVersion: 3, Visibility: &visibility}, "edit-slot-visibility-07-"+string(mode)); !errors.Is(err, ErrInvalidInput) {
+			t.Fatalf("%s: expected ErrInvalidInput editing to an unconfigurable-via-edit mode, got %v", mode, err)
+		}
 	}
 }
 

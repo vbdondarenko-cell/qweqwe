@@ -80,16 +80,23 @@ func TestV11CityVisibilitySlot(t *testing.T) {
 	sameCity := registerIntegrationUser(t, ctx, accountService, "cvs", suffix)
 	otherCity := registerIntegrationUser(t, ctx, accountService, "cvo", suffix)
 	noLock := registerIntegrationUser(t, ctx, accountService, "cvn", suffix)
-	t.Cleanup(func() {
-		cleanupIntegrationRows(pool, []string{host.User.ID, sameCity.User.ID, otherCity.User.ID, noLock.User.ID})
-	})
 
 	localityA := mustTestUUID(t)
 	localityB := mustTestUUID(t)
 	insertTestLocality(t, ctx, pool, localityA, "city-a-"+suffix)
 	insertTestLocality(t, ctx, pool, localityB, "city-b-"+suffix)
+	// Registered before cleanupIntegrationRows below on purpose (t.Cleanup
+	// runs LIFO): city_context_locks rows (inserted via lockCityContext
+	// below) reference these localities with ON DELETE RESTRICT, and only
+	// cascade away once the owning app_users row is deleted -- so the user
+	// cleanup must run FIRST (i.e. be registered LAST) or this delete
+	// silently no-ops on that FK restriction, permanently orphaning the
+	// locality row in this shared disposable database.
 	t.Cleanup(func() {
 		_, _ = pool.Exec(context.Background(), `DELETE FROM localities WHERE id=ANY($1::uuid[])`, []string{localityA, localityB})
+	})
+	t.Cleanup(func() {
+		cleanupIntegrationRows(pool, []string{host.User.ID, sameCity.User.ID, otherCity.User.ID, noLock.User.ID})
 	})
 
 	now := time.Now().UTC()
@@ -258,7 +265,6 @@ func TestV11CityVisibilityMapAndRealtimeViewer(t *testing.T) {
 	host := registerIntegrationUser(t, ctx, accountService, "cvm", suffix)
 	sameCity := registerIntegrationUser(t, ctx, accountService, "cvw", suffix)
 	stranger := registerIntegrationUser(t, ctx, accountService, "cvx", suffix)
-	t.Cleanup(func() { cleanupIntegrationRows(pool, []string{host.User.ID, sameCity.User.ID, stranger.User.ID}) })
 
 	localityA := mustTestUUID(t)
 	place := mustTestUUID(t)
@@ -272,12 +278,19 @@ func TestV11CityVisibilityMapAndRealtimeViewer(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// Registered before cleanupIntegrationRows below on purpose: t.Cleanup
+	// runs its funcs LIFO, and slots (deleted by cleanupIntegrationRows,
+	// keyed on host_id) reference canonical_places.id, which references
+	// localities.id — so the slot cleanup must run FIRST (i.e. be
+	// registered LAST) or this delete silently no-ops on an FK violation,
+	// permanently orphaning both rows in this shared disposable database.
 	t.Cleanup(func() {
 		cleanupCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 		defer cancel()
 		_, _ = pool.Exec(cleanupCtx, `DELETE FROM canonical_places WHERE id=$1`, place)
 		_, _ = pool.Exec(cleanupCtx, `DELETE FROM localities WHERE id=$1`, localityA)
 	})
+	t.Cleanup(func() { cleanupIntegrationRows(pool, []string{host.User.ID, sameCity.User.ID, stranger.User.ID}) })
 
 	now := time.Now().UTC()
 	lockCityContext(t, ctx, pool, host.User.ID, localityA, now)

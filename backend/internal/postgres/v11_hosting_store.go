@@ -40,6 +40,9 @@ func (s *V11SlotStore) CreateDraft(
 		if err := attachSelectedUserIDsTx(ctx, tx, &out); err != nil {
 			return slot.Slot{}, err
 		}
+		if err := attachLassoAndCorridorTx(ctx, tx, &out); err != nil {
+			return slot.Slot{}, err
+		}
 		if err := tx.Commit(ctx); err != nil {
 			return slot.Slot{}, err
 		}
@@ -52,11 +55,14 @@ func (s *V11SlotStore) CreateDraft(
 	_, err = tx.Exec(ctx, `
 		INSERT INTO slots (
 			id,host_id,title,activity,details,place_text,zone_text,canonical_place_id,start_at,
-			capacity,accepted_count,state,access_mode,visibility,version,created_at,updated_at
-		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8::uuid,$9,$10,0,'DRAFT',$11,$12,1,$13,$13)`,
+			capacity,accepted_count,state,access_mode,visibility,
+			lasso_polygon_wkt,corridor_line_wkt,corridor_radius_m,version,created_at,updated_at
+		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8::uuid,$9,$10,0,'DRAFT',$11,$12,$13,$14,$15,1,$16,$16)`,
 		candidate.ID, actorID, candidate.Title, candidate.Activity, candidate.Details,
 		candidate.PlaceText, candidate.ZoneText, nullableString(candidate.CanonicalPlaceID), candidate.StartAt,
-		candidate.Capacity, string(candidate.AccessMode), string(candidate.Visibility), candidate.CreatedAt,
+		candidate.Capacity, string(candidate.AccessMode), string(candidate.Visibility),
+		nullableString(candidate.LassoPolygonWKT), nullableString(candidate.CorridorLineWKT),
+		nullableInt(candidate.CorridorRadiusM), candidate.CreatedAt,
 	)
 	if err != nil {
 		return slot.Slot{}, err
@@ -81,10 +87,68 @@ func (s *V11SlotStore) CreateDraft(
 	if err := attachSelectedUserIDsTx(ctx, tx, &out); err != nil {
 		return slot.Slot{}, err
 	}
+	if err := attachLassoAndCorridorTx(ctx, tx, &out); err != nil {
+		return slot.Slot{}, err
+	}
 	if err := tx.Commit(ctx); err != nil {
 		return slot.Slot{}, err
 	}
 	return out, nil
+}
+
+// nullableInt is nullableString's *int counterpart.
+func nullableInt(value *int) any {
+	if value == nil {
+		return nil
+	}
+	return *value
+}
+
+// attachLassoAndCorridorTx populates out.LassoPolygonWKT/CorridorLineWKT/
+// CorridorRadiusM directly from the persisted slots row — unlike
+// SelectedUserIDs there is no side table, just three nullable columns on
+// slots itself (migration 000035) — for a VisibilityLasso/
+// VisibilityTravelCorridor Slot; a no-op otherwise. Callers gate who is
+// allowed to see the populated value themselves (see
+// attachLassoAndCorridorForHost for the host-only read-path gate,
+// mirroring attachSelectedUserIDsForHost).
+func attachLassoAndCorridorTx(ctx context.Context, q rowQuerier, out *slot.Slot) error {
+	if out.Visibility != slot.VisibilityLasso && out.Visibility != slot.VisibilityTravelCorridor {
+		return nil
+	}
+	rows, err := q.Query(ctx, `SELECT lasso_polygon_wkt,corridor_line_wkt,corridor_radius_m FROM slots WHERE id=$1`, out.ID)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	if !rows.Next() {
+		if err := rows.Err(); err != nil {
+			return err
+		}
+		return slot.ErrNotFound
+	}
+	var lasso, corridorLine *string
+	var corridorRadius *int
+	if err := rows.Scan(&lasso, &corridorLine, &corridorRadius); err != nil {
+		return err
+	}
+	out.LassoPolygonWKT = lasso
+	out.CorridorLineWKT = corridorLine
+	out.CorridorRadiusM = corridorRadius
+	return rows.Err()
+}
+
+// attachLassoAndCorridorForHost is the read-path (Get/ListPulse/ListMine)
+// counterpart of attachLassoAndCorridorTx: only populates the fields when
+// the requesting actor is the Slot's own host, mirroring
+// attachSelectedUserIDsForHost's identical privacy rationale — a lasso
+// polygon or travel corridor route is the host's own configuration, not a
+// detail shown to whoever the Slot happens to be visible to.
+func attachLassoAndCorridorForHost(ctx context.Context, q rowQuerier, out *slot.Slot, actorID string) error {
+	if out.Organizer.ID != actorID {
+		return nil
+	}
+	return attachLassoAndCorridorTx(ctx, q, out)
 }
 
 // rowQuerier is the common subset of *pgxpool.Pool and pgx.Tx this file
