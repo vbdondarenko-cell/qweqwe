@@ -21,6 +21,8 @@ import com.linkup.app.R
 import com.linkup.app.core.network.MySlotsView
 import com.linkup.app.core.network.SlotModel
 import com.linkup.app.core.social.LoadState
+import com.linkup.app.ui.design.FrozenSlotCard
+import com.linkup.app.ui.design.toFrozenSlot
 import com.linkup.app.ui.theme.LinkUpRed
 import com.linkup.app.ui.theme.LinkUpTextMuted
 import com.linkup.app.ui.theme.LinkUpTextPrimary
@@ -66,7 +68,13 @@ fun MySlotsScreen(
             }
             is LoadState.Content -> LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 items(state.value, key = { it.id }) { item ->
-                    SlotCard(item, onSlotClick = { onSlotClick(item) }, onPrimaryAction = { onSlotClick(item) })
+                    FrozenSlotCard(
+                        slot = item.toFrozenSlot(),
+                        onClick = { onSlotClick(item) },
+                        actionLabel = stringResource(R.string.common_open),
+                        actionEnabled = true,
+                        onPrimaryAction = { onSlotClick(item) },
+                    )
                 }
             }
         }
