@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/account"
+	"github.com/vbdondarenko-cell/qweqwe/backend/internal/appupdate"
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/blocklist"
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/bump"
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/capability"
@@ -48,12 +49,16 @@ type Dependencies struct {
 	Bump                    *bump.Service
 	Friends                 *friend.Service
 	Guardians               *guardian.Service
-	Onboarding              *onboarding.Service
-	Telegram                onboarding.ContactPrompter
-	TelegramWebhookSecret   string
-	Ready                   func(context.Context) error
-	AuthLimiter             *ratelimit.Limiter
-	UserLimiter             *ratelimit.Limiter
+	// AppUpdate configures the over-the-air update endpoints; a zero value
+	// (Configured()==false) fails those endpoints closed rather than
+	// serving anything.
+	AppUpdate             appupdate.Config
+	Onboarding            *onboarding.Service
+	Telegram              onboarding.ContactPrompter
+	TelegramWebhookSecret string
+	Ready                 func(context.Context) error
+	AuthLimiter           *ratelimit.Limiter
+	UserLimiter           *ratelimit.Limiter
 	// MonetizationLimiter enforces docs/LINKUP_PLUS_MONETIZATION.md §8.2's
 	// entitlement-sensitive rate limits (referral binding, rewarded-view
 	// submission, purchase verification) — a separate, tighter budget from
@@ -94,6 +99,8 @@ func New(deps Dependencies) *Server {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /livez", s.livez)
 	mux.HandleFunc("GET /healthz", s.healthz)
+	mux.Handle("GET /v1/app-update/latest", s.authRateLimit(http.HandlerFunc(s.getAppUpdateLatest)))
+	mux.Handle("GET /v1/app-update/download", s.authRateLimit(http.HandlerFunc(s.downloadAppUpdate)))
 	mux.Handle("POST /v1/auth/register", s.authRateLimit(http.HandlerFunc(s.startOnboarding)))
 	mux.Handle("POST /v1/auth/register/status", s.authRateLimit(http.HandlerFunc(s.onboardingStatus)))
 	mux.Handle("POST /v1/auth/register/complete", s.authRateLimit(http.HandlerFunc(s.completeOnboarding)))

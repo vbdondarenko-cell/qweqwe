@@ -8,10 +8,12 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Text
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -33,6 +35,7 @@ import com.linkup.app.core.mutation.DurableMutationRunner
 import com.linkup.app.core.mutation.DurableSocialApi
 import com.linkup.app.core.mutation.SecureMutationOutbox
 import com.linkup.app.core.network.ApiException
+import com.linkup.app.core.network.AppUpdateApiClient
 import com.linkup.app.core.network.CapabilityKey
 import com.linkup.app.core.network.CityContextApiClient
 import com.linkup.app.core.network.CityRealtimeApiClient
@@ -42,6 +45,7 @@ import com.linkup.app.core.network.RealtimeApiClient
 import com.linkup.app.core.network.SlotViewerState
 import com.linkup.app.core.network.passwordResetToken
 import com.linkup.app.core.push.PushCoordinator
+import com.linkup.app.core.update.AppUpdateCoordinator
 import com.linkup.app.core.realtime.CityRealtimeCoordinator
 import com.linkup.app.core.realtime.CityRealtimePull
 import com.linkup.app.core.realtime.RealtimeCoordinator
@@ -57,6 +61,7 @@ import com.linkup.app.core.social.ChatRefreshResult
 import com.linkup.app.core.social.LoadState
 import com.linkup.app.core.social.SocialCoordinator
 import com.linkup.app.ui.LinkUpApp
+import com.linkup.app.ui.update.AppUpdateOverlay
 import com.linkup.app.ui.theme.LinkUpRed
 import com.linkup.app.ui.theme.LinkUpTextDimmed
 import com.linkup.app.ui.theme.LinkUpTextPrimary
@@ -80,6 +85,7 @@ class MainActivity : ComponentActivity() {
     private var pendingResetToken by mutableStateOf<String?>(null)
     private var notificationPermissionRequested = false
     private val activityScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+    private var appUpdateCoordinator: AppUpdateCoordinator? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -137,6 +143,18 @@ class MainActivity : ComponentActivity() {
         )
         val pushCoordinator = PushCoordinator(applicationContext, PushApiClient(apiBaseUrl, sessionStore))
         val pushConfigured = pushCoordinator.configure()
+        val appUpdateCoordinator = AppUpdateCoordinator(applicationContext, AppUpdateApiClient(apiBaseUrl))
+        this.appUpdateCoordinator = appUpdateCoordinator
+        appUpdateCoordinator.register()
+
+        activityScope.launch {
+            lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+                while (currentCoroutineContext().isActive) {
+                    appUpdateCoordinator.check()
+                    delay(APP_UPDATE_POLL_MS)
+                }
+            }
+        }
 
         activityScope.launch {
             lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
@@ -262,18 +280,31 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             LinkUpTheme {
-                LinkUpApp(
-                    lifecycle = lifecycle,
-                    api = api,
-                    sessions = sessionCoordinator,
-                    social = socialCoordinator,
-                    hosting = hostingCoordinator,
-                    capabilities = capabilityCoordinator,
-                    cityContext = cityContextCoordinator,
-                    city = cityNetworkCoordinator,
-                    resetToken = pendingResetToken,
-                    onResetTokenConsumed = { pendingResetToken = null },
-                )
+                Box(Modifier.fillMaxSize()) {
+                    LinkUpApp(
+                        lifecycle = lifecycle,
+                        api = api,
+                        sessions = sessionCoordinator,
+                        social = socialCoordinator,
+                        hosting = hostingCoordinator,
+                        capabilities = capabilityCoordinator,
+                        cityContext = cityContextCoordinator,
+                        city = cityNetworkCoordinator,
+                        resetToken = pendingResetToken,
+                        onResetTokenConsumed = { pendingResetToken = null },
+                    )
+                    val appUpdateState by appUpdateCoordinator.state.collectAsState()
+                    AppUpdateOverlay(
+                        state = appUpdateState,
+                        canInstallUnknownApps = { appUpdateCoordinator.canInstallUnknownApps() },
+                        onDownload = { info -> appUpdateCoordinator.startDownload(info) },
+                        onInstall = { uri -> startActivity(appUpdateCoordinator.installIntent(uri)) },
+                        onRequestInstallPermission = {
+                            startActivity(appUpdateCoordinator.requestInstallUnknownAppsSettings())
+                        },
+                        onDismiss = { appUpdateCoordinator.dismiss() },
+                    )
+                }
             }
         }
     }
@@ -507,6 +538,7 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
+        appUpdateCoordinator?.unregister()
         activityScope.cancel()
         super.onDestroy()
     }
@@ -539,5 +571,6 @@ class MainActivity : ComponentActivity() {
         const val REALTIME_DRAIN_MS = 250L
         const val REALTIME_POLL_MS = 4_000L
         const val REALTIME_RETRY_MS = 5_000L
+        const val APP_UPDATE_POLL_MS = 6 * 60 * 60 * 1_000L
     }
 }

@@ -114,10 +114,57 @@ fi
   fi
 } > SIGNATURE_VERIFICATION.txt 2>&1
 
+# Over-the-air update manifest: describes whichever APK this candidate would
+# publish for GET /v1/app-update/latest (see backend internal/appupdate).
+# Prefer the release APK when one was built -- that is the artifact real
+# devices run -- falling back to the debug APK so OTA still works on a
+# non-release (debug-only) candidate.
+if [ "${LINKUP_BUILD_RELEASE:-0}" = "1" ]; then
+  public_apk="LinkUp-v1.0-$commit-release.apk"
+else
+  public_apk="$debug_apk"
+fi
+
+aapt_bin=""
+if command -v aapt2 >/dev/null 2>&1; then
+  aapt_bin="$(command -v aapt2)"
+elif [ -d "$ANDROID_HOME/build-tools" ]; then
+  aapt_bin="$(find "$ANDROID_HOME/build-tools" -mindepth 2 -maxdepth 2 -type f -name aapt2 -print | sort -V | tail -1)"
+fi
+[ -n "$aapt_bin" ] || fail "aapt2 not found"
+
+badging="$("$aapt_bin" dump badging "$public_apk")"
+version_code="$(printf '%s\n' "$badging" | sed -n "s/.*versionCode='\([0-9]*\)'.*/\1/p" | head -1)"
+version_name="$(printf '%s\n' "$badging" | sed -n "s/.*versionName='\([^']*\)'.*/\1/p" | head -1)"
+[ -n "$version_code" ] || fail "failed to parse versionCode from $public_apk"
+[ -n "$version_name" ] || fail "failed to parse versionName from $public_apk"
+case "$version_name" in
+  *'"'*|*'\'*) fail "unexpected characters in versionName" ;;
+esac
+
+public_sha256="$(awk -v f="$public_apk" '$2 == f {print $1; exit}' SHA256SUMS.txt)"
+[ -n "$public_sha256" ] || fail "failed to resolve checksum for $public_apk"
+
+mandatory_json="false"
+[ "${LINKUP_APP_UPDATE_MANDATORY:-0}" = "1" ] && mandatory_json="true"
+
+cat > update-manifest.json <<EOF
+{
+  "versionCode": $version_code,
+  "versionName": "$version_name",
+  "sha256": "$public_sha256",
+  "releaseNotes": "Automated build from commit $commit",
+  "mandatory": $mandatory_json
+}
+EOF
+sha256sum update-manifest.json >> SHA256SUMS.txt
+sha256sum -c SHA256SUMS.txt
+
 cat > BUILD_METADATA.txt <<EOF
 commit=$commit
 built_at_utc=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 release=${LINKUP_BUILD_RELEASE:-0}
+app_update_apk=$public_apk
 state=candidate
 EOF
 

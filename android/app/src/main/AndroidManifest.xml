@@ -4,6 +4,11 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <!-- Lets the user approve installing the OTA-downloaded APK -- see
+         core.update.AppUpdateCoordinator. This is a runtime-consent
+         permission (canRequestPackageInstalls()); declaring it alone does
+         not grant silent install. -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
     <application
         android:allowBackup="false"

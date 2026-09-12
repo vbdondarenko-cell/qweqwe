@@ -60,6 +60,14 @@ type Config struct {
 	EventReminderLeadTime          time.Duration
 	EventReminderPollInterval      time.Duration
 	EventReminderBatchSize         int
+	// AppUpdate* configures the over-the-air update endpoints
+	// (GET /v1/app-update/latest, GET /v1/app-update/download). Both are
+	// optional: when either path is empty, the endpoints fail closed
+	// (503) rather than serving a stale/missing artifact. The manifest is
+	// a small JSON file the release pipeline writes next to the APK it
+	// describes (see ops/build_v1.sh); Go never inspects the APK itself.
+	AppUpdateManifestPath string
+	AppUpdateAPKPath      string
 }
 
 func Load() (Config, error) {
@@ -112,6 +120,8 @@ func Load() (Config, error) {
 		EventReminderLeadTime:     30 * time.Minute,
 		EventReminderPollInterval: time.Minute,
 		EventReminderBatchSize:    100,
+		AppUpdateManifestPath:     os.Getenv("LINKUP_APP_UPDATE_MANIFEST_PATH"),
+		AppUpdateAPKPath:          os.Getenv("LINKUP_APP_UPDATE_APK_PATH"),
 	}
 	if cfg.DatabaseURL == "" {
 		return Config{}, errors.New("DATABASE_URL is required")

@@ -208,4 +208,17 @@
     <string name="onboarding_select_people_preference">Choose at least one people preference.</string>
     <string name="onboarding_select_goal_preference">Choose at least one LinkUp goal.</string>
     <string name="onboarding_teen_romantic_error">Romantic preferences are unavailable in Teen Mode.</string>
+
+    <string name="app_update_available_title">Update available</string>
+    <string name="app_update_available_body">LinkUp %1$s is ready to install.</string>
+    <string name="app_update_mandatory_body">LinkUp %1$s fixes an issue affecting this version. Please update.</string>
+    <string name="app_update_download">Download</string>
+    <string name="app_update_downloading">Downloading update…</string>
+    <string name="app_update_install">Install</string>
+    <string name="app_update_dismiss">Later</string>
+    <string name="app_update_failed">Update failed: %1$s</string>
+    <string name="app_update_notification_title">LinkUp update</string>
+    <string name="app_update_allow_unknown_sources">Allow LinkUp to install updates</string>
+    <string name="app_update_allow_unknown_sources_body">Android requires one-time permission before LinkUp can install a downloaded update.</string>
+    <string name="app_update_open_settings">Open settings</string>
 </resources>

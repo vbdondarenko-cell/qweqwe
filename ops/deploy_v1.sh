@@ -8,6 +8,13 @@ ENV_FILE="/etc/linkup/linkup.env"
 SECRET_ENV_FILE="/etc/linkup/linkup-api-secrets.env"
 SERVICE="linkup-api.service"
 STABLE_LINK="$ARTIFACT_ROOT/stable"
+# Fixed publish location for the OTA update manifest/APK -- $ENV_FILE must
+# set LINKUP_APP_UPDATE_MANIFEST_PATH and LINKUP_APP_UPDATE_APK_PATH to these
+# same two paths, or GET /v1/app-update/latest stays fail-closed (503
+# not_configured; see backend internal/appupdate).
+APP_UPDATE_DIR="$ROOT/app-update"
+APP_UPDATE_MANIFEST_LIVE="$APP_UPDATE_DIR/update-manifest.json"
+APP_UPDATE_APK_LIVE="$APP_UPDATE_DIR/LinkUp-update.apk"
 
 fail() {
   echo "ERROR: $*" >&2
@@ -89,4 +96,33 @@ sudo systemctl enable "$SERVICE" >/dev/null
 trap - ERR
 sudo rm -f "$previous"
 
-printf 'deployed_commit=%s\nservice=%s\n' "$commit" "$(sudo systemctl is-active "$SERVICE")"
+# Publish the OTA update manifest + APK now that the backend itself is
+# healthy. Deliberately after the backend rollback trap above is cleared:
+# a problem here must surface as a failed deploy without undoing an
+# already-healthy backend deploy.
+manifest_src="$artifact_dir/update-manifest.json"
+if [ -f "$artifact_dir/LinkUp-v1.0-$commit-release.apk" ]; then
+  apk_src="$artifact_dir/LinkUp-v1.0-$commit-release.apk"
+else
+  apk_src="$artifact_dir/LinkUp-v1.0-$commit-debug.apk"
+fi
+[ -f "$manifest_src" ] || fail "missing OTA update manifest in promoted artifact"
+[ -f "$apk_src" ] || fail "missing OTA public APK in promoted artifact"
+
+# The manifest's sha256 must match the APK being published before either
+# ever becomes reachable at /v1/app-update/download -- a stale or mismatched
+# pair must never go live.
+manifest_sha256="$(sed -n 's/.*"sha256": *"\([0-9a-f]*\)".*/\1/p' "$manifest_src" | head -1)"
+apk_sha256="$(sha256sum "$apk_src" | awk '{print $1}')"
+[ -n "$manifest_sha256" ] && [ "$manifest_sha256" = "$apk_sha256" ] || fail "OTA manifest checksum does not match the APK being published"
+
+sudo install -d -o root -g root -m 0755 "$APP_UPDATE_DIR"
+next_manifest="$APP_UPDATE_DIR/.update-manifest.json.$commit.next"
+next_apk="$APP_UPDATE_DIR/.LinkUp-update.apk.$commit.next"
+sudo install -o root -g root -m 0644 "$manifest_src" "$next_manifest"
+sudo install -o root -g root -m 0644 "$apk_src" "$next_apk"
+sudo mv -f "$next_manifest" "$APP_UPDATE_MANIFEST_LIVE"
+sudo mv -f "$next_apk" "$APP_UPDATE_APK_LIVE"
+
+printf 'deployed_commit=%s\nservice=%s\napp_update_published=%s\n' \
+  "$commit" "$(sudo systemctl is-active "$SERVICE")" "$commit"

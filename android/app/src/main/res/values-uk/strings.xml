@@ -208,4 +208,17 @@
     <string name="onboarding_select_people_preference">Обери хоча б один варіант знайомств.</string>
     <string name="onboarding_select_goal_preference">Обери хоча б одну мету LinkUp.</string>
     <string name="onboarding_teen_romantic_error">Романтичні знайомства недоступні у Teen Mode.</string>
+
+    <string name="app_update_available_title">Доступне оновлення</string>
+    <string name="app_update_available_body">LinkUp %1$s готовий до встановлення.</string>
+    <string name="app_update_mandatory_body">LinkUp %1$s виправляє проблему в цій версії. Будь ласка, онови застосунок.</string>
+    <string name="app_update_download">Завантажити</string>
+    <string name="app_update_downloading">Завантаження оновлення…</string>
+    <string name="app_update_install">Встановити</string>
+    <string name="app_update_dismiss">Пізніше</string>
+    <string name="app_update_failed">Помилка оновлення: %1$s</string>
+    <string name="app_update_notification_title">Оновлення LinkUp</string>
+    <string name="app_update_allow_unknown_sources">Дозволь LinkUp встановлювати оновлення</string>
+    <string name="app_update_allow_unknown_sources_body">Android вимагає одноразовий дозвіл, перш ніж LinkUp зможе встановити завантажене оновлення.</string>
+    <string name="app_update_open_settings">Відкрити налаштування</string>
 </resources>

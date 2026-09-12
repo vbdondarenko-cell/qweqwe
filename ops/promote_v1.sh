@@ -24,6 +24,7 @@ candidate="$CANDIDATE_ROOT/$commit"
 [ -d "$candidate" ] || fail "candidate not found: $candidate"
 [ -f "$candidate/SHA256SUMS.txt" ] || fail "candidate checksum ledger missing"
 [ -f "$candidate/BUILD_METADATA.txt" ] || fail "candidate metadata missing"
+[ -f "$candidate/update-manifest.json" ] || fail "candidate OTA update manifest missing"
 
 grep -qx "commit=$commit" "$candidate/BUILD_METADATA.txt" || fail "candidate metadata commit mismatch"
 grep -qx 'state=candidate' "$candidate/BUILD_METADATA.txt" || fail "candidate is not in candidate state"

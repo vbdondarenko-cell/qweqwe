@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/account"
+	"github.com/vbdondarenko-cell/qweqwe/backend/internal/appupdate"
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/blocklist"
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/bump"
 	"github.com/vbdondarenko-cell/qweqwe/backend/internal/capability"
@@ -36,28 +37,46 @@ import (
 
 func main() {
 	cfg, err := config.Load()
-	if err != nil { slog.Error("invalid configuration", "error", err); os.Exit(1) }
+	if err != nil {
+		slog.Error("invalid configuration", "error", err)
+		os.Exit(1)
+	}
 
 	pushCfg, err := push.LoadRuntimeConfig()
-	if err != nil { slog.Error("invalid push configuration", "error", err); os.Exit(1) }
+	if err != nil {
+		slog.Error("invalid push configuration", "error", err)
+		os.Exit(1)
+	}
 
 	startupCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	pool, err := postgres.Open(startupCtx, cfg.DatabaseURL)
-	if err != nil { slog.Error("database unavailable", "error", err); os.Exit(1) }
+	if err != nil {
+		slog.Error("database unavailable", "error", err)
+		os.Exit(1)
+	}
 	defer pool.Close()
 
 	passwordParams := password.Params{MemoryKiB: cfg.ArgonMemoryKiB, Iterations: cfg.ArgonIterations, Parallel: cfg.ArgonParallel, SaltBytes: 16, KeyBytes: 32}
 	accountService, err := account.NewService(postgres.NewAccountStore(pool), passwordParams, cfg.SessionTTL)
-	if err != nil { slog.Error("account service init failed", "error", err); os.Exit(1) }
+	if err != nil {
+		slog.Error("account service init failed", "error", err)
+		os.Exit(1)
+	}
 	if cfg.RecoverySMTPAddress != "" {
 		notifier, err := recovery.NewSMTP(recovery.SMTPConfig{
 			Address: cfg.RecoverySMTPAddress, Host: cfg.RecoverySMTPHost, Username: cfg.RecoverySMTPUsername,
 			Password: cfg.RecoverySMTPPassword, From: cfg.RecoveryFrom, ResetURL: cfg.RecoveryResetURL,
 			ImplicitTLS: cfg.RecoveryImplicitTLS, Timeout: 10 * time.Second,
 		})
-		if err != nil { slog.Error("password recovery init failed", "error", err); os.Exit(1) }
-		if err := accountService.ConfigureRecovery(notifier, cfg.PasswordResetTTL); err != nil { slog.Error("password recovery service init failed", "error", err); os.Exit(1) }
+		if err != nil {
+			slog.Error("password recovery init failed", "error", err)
+			os.Exit(1)
+		}
+		if err := accountService.ConfigureRecovery(notifier, cfg.PasswordResetTTL); err != nil {
+			slog.Error("password recovery service init failed", "error", err)
+			os.Exit(1)
+		}
 		slog.Info("password recovery enabled", "smtp_host", cfg.RecoverySMTPHost)
 	}
 
@@ -65,44 +84,95 @@ func main() {
 	var telegramBot onboarding.ContactPrompter
 	if cfg.TelegramBotToken != "" {
 		onboardingService, err = onboarding.NewService(postgres.NewOnboardingStore(pool), passwordParams, cfg.RegistrationTTL, cfg.SessionTTL, cfg.TelegramBotUsername)
-		if err != nil { slog.Error("onboarding service init failed", "error", err); os.Exit(1) }
+		if err != nil {
+			slog.Error("onboarding service init failed", "error", err)
+			os.Exit(1)
+		}
 		telegramBot, err = onboarding.NewTelegramBot(cfg.TelegramBotToken)
-		if err != nil { slog.Error("telegram onboarding init failed", "error", err); os.Exit(1) }
+		if err != nil {
+			slog.Error("telegram onboarding init failed", "error", err)
+			os.Exit(1)
+		}
 		slog.Info("telegram-only v1.0 registration enabled", "bot_username", cfg.TelegramBotUsername)
 	}
 
 	blockService, err := blocklist.NewService(postgres.NewBlockStore(pool, cfg.WaitlistRequestTTL))
-	if err != nil { slog.Error("block service init failed", "error", err); os.Exit(1) }
+	if err != nil {
+		slog.Error("block service init failed", "error", err)
+		os.Exit(1)
+	}
 
 	baseSlotStore, err := postgres.NewSlotStore(pool, cfg.IdempotencyTTL)
-	if err != nil { slog.Error("slot store init failed", "error", err); os.Exit(1) }
+	if err != nil {
+		slog.Error("slot store init failed", "error", err)
+		os.Exit(1)
+	}
 	slotStore, err := postgres.NewV11SlotStore(baseSlotStore, cfg.WaitlistRequestTTL)
-	if err != nil { slog.Error("v1.1 slot store init failed", "error", err); os.Exit(1) }
+	if err != nil {
+		slog.Error("v1.1 slot store init failed", "error", err)
+		os.Exit(1)
+	}
 	slotService, err := slot.NewService(slotStore)
-	if err != nil { slog.Error("slot service init failed", "error", err); os.Exit(1) }
+	if err != nil {
+		slog.Error("slot service init failed", "error", err)
+		os.Exit(1)
+	}
 
 	chatService, err := chat.NewService(postgres.NewChatStore(pool))
-	if err != nil { slog.Error("chat service init failed", "error", err); os.Exit(1) }
+	if err != nil {
+		slog.Error("chat service init failed", "error", err)
+		os.Exit(1)
+	}
 	cityContextStore, err := postgres.NewCityContextStore(pool)
-	if err != nil { slog.Error("city context store init failed", "error", err); os.Exit(1) }
+	if err != nil {
+		slog.Error("city context store init failed", "error", err)
+		os.Exit(1)
+	}
 	cityContextService, err := citycontext.NewService(cityContextStore, citycontext.DefaultPolicy())
-	if err != nil { slog.Error("city context service init failed", "error", err); os.Exit(1) }
+	if err != nil {
+		slog.Error("city context service init failed", "error", err)
+		os.Exit(1)
+	}
 	mapStore, err := postgres.NewCityMapStore(pool, cfg.WaitlistRequestTTL)
-	if err != nil { slog.Error("map store init failed", "error", err); os.Exit(1) }
+	if err != nil {
+		slog.Error("map store init failed", "error", err)
+		os.Exit(1)
+	}
 	mapService, err := citymap.NewService(mapStore)
-	if err != nil { slog.Error("map service init failed", "error", err); os.Exit(1) }
+	if err != nil {
+		slog.Error("map service init failed", "error", err)
+		os.Exit(1)
+	}
 	placeService, err := places.NewService(postgres.NewPlaceStore(pool))
-	if err != nil { slog.Error("place service init failed", "error", err); os.Exit(1) }
+	if err != nil {
+		slog.Error("place service init failed", "error", err)
+		os.Exit(1)
+	}
 	realtimeStore, err := postgres.NewRealtimeViewerStore(pool, cfg.WaitlistRequestTTL)
-	if err != nil { slog.Error("realtime store init failed", "error", err); os.Exit(1) }
+	if err != nil {
+		slog.Error("realtime store init failed", "error", err)
+		os.Exit(1)
+	}
 	realtimeService, err := realtime.NewFeedService(realtimeStore)
-	if err != nil { slog.Error("realtime service init failed", "error", err); os.Exit(1) }
+	if err != nil {
+		slog.Error("realtime service init failed", "error", err)
+		os.Exit(1)
+	}
 	cityRealtimeService, err := realtime.NewCityFeedService(realtimeStore)
-	if err != nil { slog.Error("city realtime service init failed", "error", err); os.Exit(1) }
+	if err != nil {
+		slog.Error("city realtime service init failed", "error", err)
+		os.Exit(1)
+	}
 	capabilityStore, err := postgres.NewCapabilityStore(pool)
-	if err != nil { slog.Error("capability store init failed", "error", err); os.Exit(1) }
+	if err != nil {
+		slog.Error("capability store init failed", "error", err)
+		os.Exit(1)
+	}
 	capabilityService, err := capability.NewService(capabilityStore)
-	if err != nil { slog.Error("capability service init failed", "error", err); os.Exit(1) }
+	if err != nil {
+		slog.Error("capability service init failed", "error", err)
+		os.Exit(1)
+	}
 
 	monetizationService := monetization.NewService(postgres.NewMonetizationStore(pool))
 
@@ -111,11 +181,17 @@ func main() {
 		var sender push.Sender
 		if pushCfg.DeliveryEnabled() {
 			firebaseSender, err := push.NewFirebaseSender(pushCfg.FirebaseProjectID, pushCfg.FirebaseCredentialsFile)
-			if err != nil { slog.Error("firebase sender init failed", "error", err); os.Exit(1) }
+			if err != nil {
+				slog.Error("firebase sender init failed", "error", err)
+				os.Exit(1)
+			}
 			sender = firebaseSender
 		}
 		pushService, err = push.NewService(postgres.NewPushStore(pool), pushCfg.TokenKeyID, pushCfg.TokenKeyBase64, sender)
-		if err != nil { slog.Error("push service init failed", "error", err); os.Exit(1) }
+		if err != nil {
+			slog.Error("push service init failed", "error", err)
+			os.Exit(1)
+		}
 		slog.Info("android push device registration enabled", "delivery_enabled", pushCfg.DeliveryEnabled())
 	}
 
@@ -131,68 +207,105 @@ func main() {
 	} else {
 		notificationProjector, err = postgres.NewNotificationProjector(pool, capabilityService, nil, cfg.NotificationTTL, cfg.NotificationFrequencyCapWindow, cfg.NotificationFrequencyCapMax, cfg.NotificationGroupWindow)
 	}
-	if err != nil { slog.Error("notification projector init failed", "error", err); os.Exit(1) }
+	if err != nil {
+		slog.Error("notification projector init failed", "error", err)
+		os.Exit(1)
+	}
 
 	notificationPreferencesStore, err := postgres.NewNotificationPreferencesStore(pool)
-	if err != nil { slog.Error("notification preferences store init failed", "error", err); os.Exit(1) }
+	if err != nil {
+		slog.Error("notification preferences store init failed", "error", err)
+		os.Exit(1)
+	}
 	notificationPreferencesService, err := notification.NewPreferencesService(notificationPreferencesStore)
-	if err != nil { slog.Error("notification preferences service init failed", "error", err); os.Exit(1) }
+	if err != nil {
+		slog.Error("notification preferences service init failed", "error", err)
+		os.Exit(1)
+	}
 
 	bumpStore, err := postgres.NewBumpStore(pool)
-	if err != nil { slog.Error("bump store init failed", "error", err); os.Exit(1) }
+	if err != nil {
+		slog.Error("bump store init failed", "error", err)
+		os.Exit(1)
+	}
 	bumpService, err := bump.NewService(bumpStore, cfg.BumpChallengeTTL)
-	if err != nil { slog.Error("bump service init failed", "error", err); os.Exit(1) }
+	if err != nil {
+		slog.Error("bump service init failed", "error", err)
+		os.Exit(1)
+	}
 
 	friendStore, err := postgres.NewFriendStore(pool)
-	if err != nil { slog.Error("friend store init failed", "error", err); os.Exit(1) }
+	if err != nil {
+		slog.Error("friend store init failed", "error", err)
+		os.Exit(1)
+	}
 	friendService, err := friend.NewService(friendStore)
-	if err != nil { slog.Error("friend service init failed", "error", err); os.Exit(1) }
+	if err != nil {
+		slog.Error("friend service init failed", "error", err)
+		os.Exit(1)
+	}
 
 	guardianService, err := guardian.NewService(postgres.NewGuardianStore(pool))
-	if err != nil { slog.Error("guardian service init failed", "error", err); os.Exit(1) }
+	if err != nil {
+		slog.Error("guardian service init failed", "error", err)
+		os.Exit(1)
+	}
 
 	reminderScanner, err := postgres.NewReminderScanner(pool, cfg.EventReminderLeadTime)
-	if err != nil { slog.Error("reminder scanner init failed", "error", err); os.Exit(1) }
+	if err != nil {
+		slog.Error("reminder scanner init failed", "error", err)
+		os.Exit(1)
+	}
 
 	authLimiter, err := ratelimit.New(ratelimit.Config{Limit: cfg.AuthRateLimit, Window: cfg.AuthRateWindow, IdleTTL: cfg.AuthRateIdleTTL, MaxEntries: cfg.AuthRateMaxEntries})
-	if err != nil { slog.Error("auth rate limiter init failed", "error", err); os.Exit(1) }
+	if err != nil {
+		slog.Error("auth rate limiter init failed", "error", err)
+		os.Exit(1)
+	}
 	userLimiter, err := ratelimit.New(ratelimit.Config{Limit: cfg.SocialRateLimit, Window: cfg.SocialRateWindow, IdleTTL: cfg.SocialRateIdleTTL, MaxEntries: cfg.SocialRateMaxEntries})
-	if err != nil { slog.Error("authenticated user rate limiter init failed", "error", err); os.Exit(1) }
+	if err != nil {
+		slog.Error("authenticated user rate limiter init failed", "error", err)
+		os.Exit(1)
+	}
 	monetizationLimiter, err := ratelimit.New(ratelimit.Config{Limit: cfg.MonetizationRateLimit, Window: cfg.MonetizationRateWindow, IdleTTL: cfg.MonetizationRateIdleTTL, MaxEntries: cfg.MonetizationRateMaxEntries})
-	if err != nil { slog.Error("monetization rate limiter init failed", "error", err); os.Exit(1) }
+	if err != nil {
+		slog.Error("monetization rate limiter init failed", "error", err)
+		os.Exit(1)
+	}
 
 	app := httpserver.New(httpserver.Dependencies{
-		Accounts: accountService,
-		Blocks: blockService,
-		Slots: slotService,
-		Chats: chatService,
-		CityContext: cityContextService,
-		Map: mapService,
-		Places: placeService,
-		Realtime: realtimeService,
-		CityRealtime: cityRealtimeService,
-		Capabilities: capabilityService,
-		Monetization: monetizationService,
-		Push: pushService,
+		Accounts:                accountService,
+		Blocks:                  blockService,
+		Slots:                   slotService,
+		Chats:                   chatService,
+		CityContext:             cityContextService,
+		Map:                     mapService,
+		Places:                  placeService,
+		Realtime:                realtimeService,
+		CityRealtime:            cityRealtimeService,
+		Capabilities:            capabilityService,
+		Monetization:            monetizationService,
+		Push:                    pushService,
 		NotificationPreferences: notificationPreferencesService,
-		Bump: bumpService,
-		Friends: friendService,
-		Guardians: guardianService,
-		Onboarding: onboardingService,
-		Telegram: telegramBot,
-		TelegramWebhookSecret: cfg.TelegramWebhookSecret,
-		Ready: pool.Ping,
-		AuthLimiter: authLimiter,
-		UserLimiter: userLimiter,
-		MonetizationLimiter: monetizationLimiter,
+		Bump:                    bumpService,
+		Friends:                 friendService,
+		Guardians:               guardianService,
+		AppUpdate:               appupdate.Config{ManifestPath: cfg.AppUpdateManifestPath, APKPath: cfg.AppUpdateAPKPath},
+		Onboarding:              onboardingService,
+		Telegram:                telegramBot,
+		TelegramWebhookSecret:   cfg.TelegramWebhookSecret,
+		Ready:                   pool.Ping,
+		AuthLimiter:             authLimiter,
+		UserLimiter:             userLimiter,
+		MonetizationLimiter:     monetizationLimiter,
 	})
 	srv := &http.Server{
-		Addr: cfg.HTTPAddr,
-		Handler: app.Handler(),
+		Addr:              cfg.HTTPAddr,
+		Handler:           app.Handler(),
 		ReadHeaderTimeout: 5 * time.Second,
-		ReadTimeout: 15 * time.Second,
-		WriteTimeout: 15 * time.Second,
-		IdleTimeout: 60 * time.Second,
+		ReadTimeout:       15 * time.Second,
+		WriteTimeout:      15 * time.Second,
+		IdleTimeout:       60 * time.Second,
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
@@ -200,7 +313,9 @@ func main() {
 	errCh := make(chan error, 1)
 	go func() {
 		slog.Info("linkup api listening", "addr", cfg.HTTPAddr)
-		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) { errCh <- err }
+		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			errCh <- err
+		}
 	}()
 
 	// README §6.8's notification projector/worker runs in-process on a
@@ -247,10 +362,14 @@ func main() {
 	select {
 	case <-ctx.Done():
 	case err := <-errCh:
-		slog.Error("http server failed", "error", err); os.Exit(1)
+		slog.Error("http server failed", "error", err)
+		os.Exit(1)
 	}
 
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer shutdownCancel()
-	if err := srv.Shutdown(shutdownCtx); err != nil { slog.Error("graceful shutdown failed", "error", err); os.Exit(1) }
+	if err := srv.Shutdown(shutdownCtx); err != nil {
+		slog.Error("graceful shutdown failed", "error", err)
+		os.Exit(1)
+	}
 }
