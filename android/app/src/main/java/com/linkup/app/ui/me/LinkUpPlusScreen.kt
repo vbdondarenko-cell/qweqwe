@@ -2,7 +2,6 @@ package com.linkup.app.ui.me
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -18,7 +17,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -40,8 +38,8 @@ import com.linkup.app.R
 import com.linkup.app.core.network.MonetizationApiClient
 import com.linkup.app.core.network.MonetizationPlan
 import com.linkup.app.core.network.MonetizationSnapshotModel
-import com.linkup.app.ui.theme.LinkUpBorder
-import com.linkup.app.ui.theme.LinkUpElevated
+import com.linkup.app.ui.design.LinkUpCard
+import com.linkup.app.ui.design.LinkUpTextField
 import com.linkup.app.ui.theme.LinkUpRed
 import com.linkup.app.ui.theme.LinkUpTextDimmed
 import com.linkup.app.ui.theme.LinkUpTextMuted
@@ -233,12 +231,11 @@ private fun PlusContent(
                 Text(stringResource(R.string.plus_referral_qualify_by_format, formatDateTime(it)), color = LinkUpTextMuted, fontSize = 11.sp)
             }
         } else {
-            OutlinedTextField(
+            LinkUpTextField(
                 value = referralInput,
                 onValueChange = { referralInput = it.uppercase().filter { char -> char.isLetterOrDigit() }.take(20) },
                 modifier = Modifier.fillMaxWidth(),
-                label = { Text(stringResource(R.string.plus_enter_referral_code)) },
-                singleLine = true,
+                label = stringResource(R.string.plus_enter_referral_code),
                 enabled = !referralBusy,
             )
             TextButton(
@@ -309,12 +306,7 @@ private fun CapabilityRow(label: String, active: Boolean) {
 
 @Composable
 private fun PlusCard(content: @Composable ColumnScope.() -> Unit) {
-    Column(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(LinkUpElevated)
-            .border(1.dp, LinkUpBorder, RoundedCornerShape(16.dp)).padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-        content = content,
-    )
+    LinkUpCard(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp), content = content)
 }
 
 @Composable

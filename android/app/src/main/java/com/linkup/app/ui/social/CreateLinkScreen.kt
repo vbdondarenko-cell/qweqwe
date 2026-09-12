@@ -19,9 +19,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -47,6 +44,10 @@ import com.linkup.app.core.network.CreateSlotInput
 import com.linkup.app.core.network.SlotAccessMode
 import com.linkup.app.core.scheduling.scheduleLabel
 import com.linkup.app.core.social.LoadState
+import com.linkup.app.ui.design.LinkUpButton
+import com.linkup.app.ui.design.LinkUpButtonSize
+import com.linkup.app.ui.design.LinkUpButtonVariant
+import com.linkup.app.ui.design.LinkUpTextField
 import com.linkup.app.ui.theme.LinkUpBorder
 import com.linkup.app.ui.theme.LinkUpElevated
 import com.linkup.app.ui.theme.LinkUpRed
@@ -299,18 +300,15 @@ private fun SectionTitle(title: String, subtitle: String) {
 
 @Composable
 private fun StyledField(label: String, value: String, onChange: (String) -> Unit, placeholder: String, singleLine: Boolean = true) {
-    Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
-        Text(label, color = LinkUpTextDimmed, fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
-        OutlinedTextField(
-            value = value,
-            onValueChange = onChange,
-            modifier = Modifier.fillMaxWidth(),
-            placeholder = { Text(placeholder, color = LinkUpTextMuted, fontSize = 13.sp) },
-            singleLine = singleLine,
-            minLines = if (singleLine) 1 else 3,
-            shape = RoundedCornerShape(12.dp),
-        )
-    }
+    LinkUpTextField(
+        value = value,
+        onValueChange = onChange,
+        label = label,
+        placeholder = placeholder,
+        singleLine = singleLine,
+        minLines = if (singleLine) 1 else 3,
+        modifier = Modifier.fillMaxWidth(),
+    )
 }
 
 @Composable
@@ -365,20 +363,23 @@ private fun FixedOption(icon: String, title: String, subtitle: String, color: an
 
 @Composable
 private fun PrimaryButton(label: String, modifier: Modifier = Modifier, enabled: Boolean = true, onClick: () -> Unit) {
-    Button(
+    LinkUpButton(
+        label = label,
         onClick = onClick,
         enabled = enabled,
         modifier = modifier.height(48.dp),
-        shape = RoundedCornerShape(12.dp),
-        colors = ButtonDefaults.buttonColors(containerColor = LinkUpRed, contentColor = LinkUpTextPrimary),
-    ) { Text(label, fontWeight = FontWeight.Bold) }
+        variant = LinkUpButtonVariant.PRIMARY,
+        size = LinkUpButtonSize.LG,
+    )
 }
 
 @Composable
 private fun SecondaryButton(label: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
-    Box(
-        modifier.height(48.dp).clip(RoundedCornerShape(12.dp)).background(LinkUpElevated)
-            .border(1.dp, LinkUpBorder, RoundedCornerShape(12.dp)).clickable(onClick = onClick),
-        contentAlignment = Alignment.Center,
-    ) { Text(label, color = LinkUpTextDimmed, fontWeight = FontWeight.Bold) }
+    LinkUpButton(
+        label = label,
+        onClick = onClick,
+        modifier = modifier.height(48.dp),
+        variant = LinkUpButtonVariant.SECONDARY,
+        size = LinkUpButtonSize.LG,
+    )
 }

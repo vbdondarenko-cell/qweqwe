@@ -13,19 +13,25 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -165,10 +171,70 @@ fun LinkUpChip(
     }
 }
 
+/**
+ * Frozen-design text input: flat elevated/bordered box, no Material3
+ * floating-label outline animation — matches the search field already
+ * built for [FrozenMapScreen]'s `MapCenterSearch`.
+ */
+@Composable
+fun LinkUpTextField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    modifier: Modifier = Modifier,
+    label: String? = null,
+    placeholder: String? = null,
+    enabled: Boolean = true,
+    singleLine: Boolean = true,
+    minLines: Int = 1,
+    isPassword: Boolean = false,
+    isError: Boolean = false,
+) {
+    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        if (label != null) {
+            Text(
+                label,
+                color = LinkUpTextDimmed,
+                fontFamily = LinkUpDesign.bodyFont,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 12.sp,
+            )
+        }
+        val shape = RoundedCornerShape(LinkUpDesign.radiusControl)
+        val borderColor = if (isError) LinkUpWarning else LinkUpBorder
+        Box(
+            Modifier.fillMaxWidth()
+                .let { if (minLines > 1) it.heightIn(min = (minLines * 20).dp) else it }
+                .clip(shape)
+                .background(LinkUpElevated)
+                .border(LinkUpDesign.borderWidth, borderColor, shape)
+                .padding(horizontal = 14.dp, vertical = 13.dp),
+            contentAlignment = if (minLines > 1) Alignment.TopStart else Alignment.CenterStart,
+        ) {
+            BasicTextField(
+                value = value,
+                onValueChange = onValueChange,
+                enabled = enabled,
+                singleLine = singleLine,
+                textStyle = TextStyle(color = LinkUpTextPrimary, fontFamily = LinkUpDesign.bodyFont, fontSize = 14.sp),
+                visualTransformation = if (isPassword) PasswordVisualTransformation() else VisualTransformation.None,
+                cursorBrush = SolidColor(LinkUpRed),
+                modifier = Modifier.fillMaxWidth(),
+                decorationBox = { inner ->
+                    if (value.isEmpty() && placeholder != null) {
+                        Text(placeholder, color = LinkUpTextMuted, fontFamily = LinkUpDesign.bodyFont, fontSize = 14.sp)
+                    }
+                    inner()
+                },
+            )
+        }
+    }
+}
+
 @Composable
 fun LinkUpCard(
     modifier: Modifier = Modifier,
     onClick: (() -> Unit)? = null,
+    verticalArrangement: Arrangement.Vertical = Arrangement.Top,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val shape = RoundedCornerShape(LinkUpDesign.radiusCard)
@@ -179,6 +245,7 @@ fun LinkUpCard(
             .border(BorderStroke(LinkUpDesign.borderWidth, LinkUpBorder), shape)
             .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
             .padding(LinkUpDesign.cardPadding),
+        verticalArrangement = verticalArrangement,
         content = content,
     )
 }

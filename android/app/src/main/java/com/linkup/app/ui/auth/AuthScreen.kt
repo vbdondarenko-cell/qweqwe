@@ -19,11 +19,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -38,7 +34,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.linkup.app.R
@@ -47,6 +42,11 @@ import com.linkup.app.core.network.OnboardingPreferences
 import com.linkup.app.core.network.OnboardingRegistrationDraft
 import com.linkup.app.core.network.validateOnboardingDraft
 import com.linkup.app.core.network.passwordResetToken
+import com.linkup.app.ui.design.LinkUpButton
+import com.linkup.app.ui.design.LinkUpButtonSize
+import com.linkup.app.ui.design.LinkUpButtonVariant
+import com.linkup.app.ui.design.LinkUpChip
+import com.linkup.app.ui.design.LinkUpTextField
 import com.linkup.app.ui.theme.LinkUpBorder
 import com.linkup.app.ui.theme.LinkUpElevated
 import com.linkup.app.ui.theme.LinkUpRed
@@ -208,38 +208,30 @@ private fun ModeButton(label: String, active: Boolean, modifier: Modifier, onCli
 
 @Composable
 private fun AuthField(label: String, value: String, onChange: (String) -> Unit) {
-    Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
-        Text(label, color = LinkUpTextDimmed, fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
-        OutlinedTextField(value = value, onValueChange = onChange, modifier = Modifier.fillMaxWidth(), singleLine = true, shape = RoundedCornerShape(12.dp))
-    }
+    LinkUpTextField(value = value, onValueChange = onChange, label = label, modifier = Modifier.fillMaxWidth())
 }
 
 @Composable
 private fun AuthPasswordField(value: String, label: String? = null, onChange: (String) -> Unit) {
-    Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
-        Text(label ?: stringResource(R.string.auth_password), color = LinkUpTextDimmed, fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
-        OutlinedTextField(
-            value = value,
-            onValueChange = onChange,
-            modifier = Modifier.fillMaxWidth(),
-            singleLine = true,
-            visualTransformation = PasswordVisualTransformation(),
-            shape = RoundedCornerShape(12.dp),
-        )
-    }
+    LinkUpTextField(
+        value = value,
+        onValueChange = onChange,
+        label = label ?: stringResource(R.string.auth_password),
+        isPassword = true,
+        modifier = Modifier.fillMaxWidth(),
+    )
 }
 
 @Composable
 private fun SubmitButton(label: String, busy: Boolean, valid: Boolean, onClick: () -> Unit) {
-    Button(
+    LinkUpButton(
+        label = label,
         onClick = onClick,
         enabled = !busy && valid,
         modifier = Modifier.fillMaxWidth().height(50.dp),
-        shape = RoundedCornerShape(12.dp),
-        colors = ButtonDefaults.buttonColors(containerColor = LinkUpRed, contentColor = LinkUpTextPrimary),
-    ) {
-        Text(label, fontWeight = FontWeight.Bold)
-    }
+        variant = LinkUpButtonVariant.PRIMARY,
+        size = LinkUpButtonSize.LG,
+    )
 }
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -401,7 +393,7 @@ private fun PreferenceGroup(
     Text(title, color = LinkUpTextDimmed, fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         options.forEach { (key, label) ->
-            FilterChip(selected = key in selected, onClick = { onToggle(key) }, label = { Text(label) })
+            LinkUpChip(label = label, active = key in selected, onClick = { onToggle(key) })
         }
     }
     Spacer(Modifier.height(12.dp))

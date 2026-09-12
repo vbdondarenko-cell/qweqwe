@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -28,6 +27,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.linkup.app.R
 import com.linkup.app.core.network.UserProfile
+import com.linkup.app.ui.design.LinkUpTextField
 import com.linkup.app.ui.theme.LinkUpRed
 import com.linkup.app.ui.theme.LinkUpTextMuted
 import com.linkup.app.ui.theme.LinkUpTextPrimary
@@ -63,20 +63,18 @@ fun EditProfileScreen(
             }
         }
         Text("@${user.username}", color = LinkUpTextMuted)
-        OutlinedTextField(
+        LinkUpTextField(
             value = name,
             onValueChange = { name = it },
             enabled = !busy,
-            label = { Text(stringResource(R.string.auth_display_name)) },
-            singleLine = true,
+            label = stringResource(R.string.auth_display_name),
             modifier = Modifier.fillMaxWidth(),
         )
-        OutlinedTextField(
+        LinkUpTextField(
             value = avatar,
             onValueChange = { avatar = it },
             enabled = !busy,
-            label = { Text(stringResource(R.string.profile_avatar_optional)) },
-            singleLine = true,
+            label = stringResource(R.string.profile_avatar_optional),
             modifier = Modifier.fillMaxWidth(),
         )
         Text(stringResource(R.string.profile_avatar_empty_hint), color = LinkUpTextMuted, fontSize = 12.sp)
