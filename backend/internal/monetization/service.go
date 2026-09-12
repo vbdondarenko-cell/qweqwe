@@ -4,115 +4,15 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
-	"errors"
 	"strings"
 	"time"
 )
 
-const (
-	MonthlyPriceUAHMinor    = 14999
-	AnnualEffectiveUAHMinor = 9999
-	AnnualTotalUAHMinor     = 119988
-	AnnualSavingsUAHMinor   = 60000
-	RewardedVideosRequired  = 5
-	RewardedNominalHours    = 20
-	ReferralDeadlineDays    = 14
-)
-
-var (
-	ErrUnavailable         = errors.New("monetization unavailable")
-	ErrInvalidReferralCode = errors.New("invalid referral code")
-	ErrReferralAlreadyBound = errors.New("referral already bound")
-	ErrSelfReferral        = errors.New("self referral is not allowed")
-	ErrReferralExpired     = errors.New("referral deadline expired")
-)
-
-type Plan struct {
-	ID                       string `json:"id"`
-	BillingPeriod            string `json:"billingPeriod"`
-	PriceUAHMinor            int    `json:"priceUahMinor"`
-	EffectiveMonthlyUAHMinor int    `json:"effectiveMonthlyUahMinor"`
-	Total12MonthsUAHMinor    int    `json:"total12MonthsUahMinor"`
-}
-
-type RewardedPolicy struct {
-	VideoIntervalSeconds   int64 `json:"videoIntervalSeconds"`
-	VideosRequired         int   `json:"videosRequired"`
-	NominalCompletionHours int   `json:"nominalCompletionHours"`
-	RewardSeconds          int64 `json:"rewardSeconds"`
-	ClaimCooldownSeconds   int64 `json:"claimCooldownSeconds"`
-}
-
-type ReferralMilestone struct {
-	QualifiedReferrals int  `json:"qualifiedReferrals"`
-	InviterRewardDays  int  `json:"inviterRewardDays"`
-	InviteeRewardDays  int  `json:"inviteeRewardDays"`
-	Badge              bool `json:"badge"`
-}
-
-type Catalog struct {
-	Currency                 string              `json:"currency"`
-	Plans                    []Plan              `json:"plans"`
-	AnnualSavingsUAHMinor    int                 `json:"annualSavingsUahMinor"`
-	AnnualSavingsPercent     float64             `json:"annualSavingsPercent"`
-	Rewarded                 RewardedPolicy      `json:"rewarded"`
-	ReferralDeadlineDays     int                 `json:"referralDeadlineDays"`
-	ReferralMilestones       []ReferralMilestone `json:"referralMilestones"`
-}
-
-type StoreStatus struct {
-	PremiumUntil             *time.Time
-	VideosWatchedCount       int
-	LastVideoWatchedAt       *time.Time
-	LastFreePremiumClaimedAt *time.Time
-	QualifiedReferrals       int
-	BoundReferralCode        *string
-	ReferralQualifyingDeadline *time.Time
-}
-
-type Store interface {
-	Status(ctx context.Context, userID string) (StoreStatus, error)
-	EnsureReferralCode(ctx context.Context, userID, code string) (string, error)
-	BindReferral(ctx context.Context, inviteeID, code string, deadlineDays int) error
-}
-
-type Capabilities struct {
-	PaidVerification       bool `json:"paidVerification"`
-	RewardedVerification   bool `json:"rewardedVerification"`
-	ReferralQualification  bool `json:"referralQualification"`
-}
-
-type RewardedStatus struct {
-	VideosWatchedCount       int        `json:"videosWatchedCount"`
-	NextVideoAt              *time.Time `json:"nextVideoAt,omitempty"`
-	LastFreePremiumClaimedAt *time.Time `json:"lastFreePremiumClaimedAt,omitempty"`
-	NextFreePremiumClaimAt   *time.Time `json:"nextFreePremiumClaimAt,omitempty"`
-}
-
-type ReferralStatus struct {
-	ReferralCode              string             `json:"referralCode"`
-	BoundReferralCode         *string            `json:"boundReferralCode,omitempty"`
-	QualifyingDeadline        *time.Time          `json:"qualifyingDeadline,omitempty"`
-	QualifiedReferrals        int                 `json:"qualifiedReferrals"`
-	NextMilestone             *ReferralMilestone  `json:"nextMilestone,omitempty"`
-}
-
-type Status struct {
-	PremiumActive bool           `json:"premiumActive"`
-	PremiumUntil  *time.Time     `json:"premiumUntil,omitempty"`
-	Rewarded      RewardedStatus `json:"rewarded"`
-	Referral      ReferralStatus `json:"referral"`
-}
-
-type Snapshot struct {
-	Catalog       Catalog      `json:"catalog"`
-	Status        Status       `json:"status"`
-	Capabilities Capabilities `json:"capabilities"`
-}
-
 type Service struct {
 	store        Store
 	now          func() time.Time
+	rewarded     RewardedVerifier
+	purchases    PurchaseVerifier
 	capabilities Capabilities
 }
 
@@ -120,24 +20,92 @@ func NewService(store Store) *Service {
 	return &Service{store: store, now: time.Now}
 }
 
+// ConfigureRewarded plugs in a real ad-network SSV adapter, enabling
+// SubmitRewardedView and flipping Capabilities.RewardedVerification on.
+// Mirrors account.Service.ConfigureRecovery's optional-dependency shape —
+// until this is called, SubmitRewardedView fails closed.
+func (s *Service) ConfigureRewarded(v RewardedVerifier) {
+	s.rewarded = v
+	s.capabilities.RewardedVerification = v != nil
+}
+
+// ConfigurePurchases plugs in a real store (Google Play/App Store) purchase
+// verifier, enabling VerifyPurchase. Referral qualification depends on a
+// real paid-purchase signal, so it is tied to the same capability rather
+// than needing its own separate configuration call.
+func (s *Service) ConfigurePurchases(v PurchaseVerifier) {
+	s.purchases = v
+	s.capabilities.PaidVerification = v != nil
+	s.capabilities.ReferralQualification = v != nil
+}
+
 func (s *Service) Catalog() Catalog {
 	return Catalog{
-		Currency: "UAH",
-		Plans: []Plan{
-			{ID: "monthly", BillingPeriod: "MONTH", PriceUAHMinor: MonthlyPriceUAHMinor, EffectiveMonthlyUAHMinor: MonthlyPriceUAHMinor, Total12MonthsUAHMinor: 179988},
-			{ID: "annual", BillingPeriod: "YEAR", PriceUAHMinor: AnnualTotalUAHMinor, EffectiveMonthlyUAHMinor: AnnualEffectiveUAHMinor, Total12MonthsUAHMinor: AnnualTotalUAHMinor},
-		},
-		AnnualSavingsUAHMinor: AnnualSavingsUAHMinor,
-		AnnualSavingsPercent:  33.3,
-		Rewarded: RewardedPolicy{
-			VideoIntervalSeconds:   int64((4 * time.Hour) / time.Second),
-			VideosRequired:         RewardedVideosRequired,
-			NominalCompletionHours: RewardedNominalHours,
-			RewardSeconds:          int64((24 * time.Hour) / time.Second),
-			ClaimCooldownSeconds:   int64((7 * 24 * time.Hour) / time.Second),
-		},
+		Currency:             "UAH",
+		Plans:                plans(),
+		RecommendedPlanID:    "THREE_MONTH",
 		ReferralDeadlineDays: ReferralDeadlineDays,
 		ReferralMilestones:   referralMilestones(),
+		Benefits:             benefits(),
+		Rewarded: RewardedPolicy{
+			VideoIntervalSeconds:   int64(rewardedMinInterval / time.Second),
+			VideosRequired:         RewardedVideosRequired,
+			NominalCompletionHours: RewardedNominalHours,
+			QuestWindowSeconds:     int64(rewardedQuestWindow / time.Second),
+			RewardSeconds:          int64(rewardedGrantDuration / time.Second),
+			ClaimCooldownSeconds:   int64(rewardedClaimCooldown / time.Second),
+		},
+	}
+}
+
+// plans returns the four launch-grid durations in the paywall's
+// recommended display order (docs/LINKUP_PLUS_MONETIZATION.md §2), with
+// each plan's own price/effective-monthly/savings computed from the exact
+// launch prices in that section's table — never re-derived from a
+// different formula that could silently drift from the documented numbers.
+func plans() []Plan {
+	monthly := MonthlyPriceUAHMinor
+	return []Plan{
+		{
+			ID: "THREE_MONTH", Label: "THREE_MONTH", PriceUAHMinor: ThreeMonthPriceUAHMinor,
+			EffectiveMonthlyUAHMinor: 8333,
+			SavingsVsMonthlyUAHMinor: 3*monthly - ThreeMonthPriceUAHMinor,
+			SavingsVsMonthlyPercent:  16.7,
+			Recommended:              true,
+		},
+		{
+			ID: "MONTHLY", Label: "MONTH", PriceUAHMinor: monthly,
+			EffectiveMonthlyUAHMinor: monthly,
+		},
+		{
+			ID: "ANNUAL", Label: "YEAR", PriceUAHMinor: AnnualPriceUAHMinor,
+			EffectiveMonthlyUAHMinor: 6667,
+			SavingsVsMonthlyUAHMinor: 12*monthly - AnnualPriceUAHMinor,
+			SavingsVsMonthlyPercent:  33.3,
+		},
+		{
+			ID: "WEEKLY", Label: "WEEK", PriceUAHMinor: WeeklyPriceUAHMinor,
+		},
+	}
+}
+
+// benefits reports the honest, currently-fail-closed availability of every
+// still-unbuilt LinkUp+ feature area (README §6.21-§6.26). None of Travel
+// Pro/Host Power Tools/Advanced Discovery/Privacy&QoL/Identity-Analytics/
+// Forgiveness has any server-side implementation yet — confirmed by
+// grepping the whole backend for their canonical terms (Mega-Slot, Stealth
+// Slot, Ghost Mode, Guardian Auto-Ping, Hex-Aura, No-Strike) before writing
+// this, not assumed. Every entry is therefore Available:false; this exists
+// so the paywall/UX can honestly show "coming soon", never "included and
+// active" (docs/LINKUP_PLUS_MONETIZATION.md §9's own explicit ban on that).
+func benefits() []Benefit {
+	return []Benefit{
+		{ID: BenefitTravelPro},
+		{ID: BenefitHostPowerTools},
+		{ID: BenefitAdvancedDiscovery},
+		{ID: BenefitPrivacyQoL},
+		{ID: BenefitIdentityAnalytics},
+		{ID: BenefitForgiveness},
 	}
 }
 
@@ -170,11 +138,11 @@ func (s *Service) Snapshot(ctx context.Context, userID string) (Snapshot, error)
 		},
 	}
 	if raw.LastVideoWatchedAt != nil {
-		next := raw.LastVideoWatchedAt.Add(4 * time.Hour)
+		next := raw.LastVideoWatchedAt.Add(rewardedMinInterval)
 		status.Rewarded.NextVideoAt = &next
 	}
 	if raw.LastFreePremiumClaimedAt != nil {
-		next := raw.LastFreePremiumClaimedAt.Add(7 * 24 * time.Hour)
+		next := raw.LastFreePremiumClaimedAt.Add(rewardedClaimCooldown)
 		status.Rewarded.NextFreePremiumClaimAt = &next
 	}
 	return Snapshot{Catalog: s.Catalog(), Status: status, Capabilities: s.capabilities}, nil
@@ -189,6 +157,70 @@ func (s *Service) BindReferral(ctx context.Context, userID, rawCode string) erro
 		return ErrInvalidReferralCode
 	}
 	return s.store.BindReferral(ctx, userID, code, ReferralDeadlineDays)
+}
+
+// SubmitRewardedView verifies one rewarded-ad-watch event with the
+// configured ad network before it ever reaches the Store — a client can
+// only trigger verification, never assert the outcome
+// (docs/LINKUP_PLUS_MONETIZATION.md §6: no client-authoritative
+// watched=true). Only the network's own verified view identity (hashed) is
+// persisted; the raw receipt/token never is.
+func (s *Service) SubmitRewardedView(ctx context.Context, userID, rawReceipt string) (Snapshot, error) {
+	if s == nil || s.store == nil || userID == "" {
+		return Snapshot{}, ErrUnavailable
+	}
+	if s.rewarded == nil {
+		return Snapshot{}, ErrCapabilityDisabled
+	}
+	provider, viewID, err := s.rewarded.VerifyRewardedView(ctx, userID, rawReceipt)
+	if err != nil || strings.TrimSpace(provider) == "" || strings.TrimSpace(viewID) == "" {
+		return Snapshot{}, ErrRewardedViewRejected
+	}
+	hash := sha256.Sum256([]byte(provider + ":" + viewID))
+	now := s.now().UTC()
+	if err := s.store.RecordRewardedView(ctx, userID, provider, hash[:], now,
+		rewardedMinInterval, rewardedQuestWindow, rewardedGrantDuration, rewardedClaimCooldown); err != nil {
+		return Snapshot{}, err
+	}
+	return s.Snapshot(ctx, userID)
+}
+
+// VerifyPurchase checks a subscription purchase with the configured store
+// verifier before recording anything — same client-cannot-assert-outcome
+// boundary as SubmitRewardedView.
+func (s *Service) VerifyPurchase(ctx context.Context, userID, rawPurchaseToken string) (Snapshot, error) {
+	if s == nil || s.store == nil || userID == "" {
+		return Snapshot{}, ErrUnavailable
+	}
+	if s.purchases == nil {
+		return Snapshot{}, ErrCapabilityDisabled
+	}
+	verified, err := s.purchases.VerifyPurchase(ctx, userID, rawPurchaseToken)
+	if err != nil {
+		return Snapshot{}, ErrPurchaseRejected
+	}
+	if !validSubscriptionState(verified.State) || strings.TrimSpace(verified.Provider) == "" ||
+		strings.TrimSpace(verified.PurchaseID) == "" || strings.TrimSpace(verified.ProductID) == "" ||
+		!verified.PeriodEnd.After(verified.PeriodStart) {
+		return Snapshot{}, ErrInvalidPurchase
+	}
+	hash := sha256.Sum256([]byte(verified.Provider + ":" + verified.PurchaseID))
+	now := s.now().UTC()
+	if err := s.store.RecordPurchase(ctx, userID, verified.Provider, verified.ProductID, hash[:],
+		verified.PeriodStart.UTC(), verified.PeriodEnd.UTC(), verified.State, now,
+		referralMilestones()); err != nil {
+		return Snapshot{}, err
+	}
+	return s.Snapshot(ctx, userID)
+}
+
+func validSubscriptionState(state string) bool {
+	switch state {
+	case "ACTIVE", "GRACE", "BILLING_RETRY", "EXPIRED", "REVOKED", "REFUNDED":
+		return true
+	default:
+		return false
+	}
 }
 
 func referralCodeForUser(userID string) string {

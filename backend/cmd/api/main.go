@@ -154,6 +154,8 @@ func main() {
 	if err != nil { slog.Error("auth rate limiter init failed", "error", err); os.Exit(1) }
 	userLimiter, err := ratelimit.New(ratelimit.Config{Limit: cfg.SocialRateLimit, Window: cfg.SocialRateWindow, IdleTTL: cfg.SocialRateIdleTTL, MaxEntries: cfg.SocialRateMaxEntries})
 	if err != nil { slog.Error("authenticated user rate limiter init failed", "error", err); os.Exit(1) }
+	monetizationLimiter, err := ratelimit.New(ratelimit.Config{Limit: cfg.MonetizationRateLimit, Window: cfg.MonetizationRateWindow, IdleTTL: cfg.MonetizationRateIdleTTL, MaxEntries: cfg.MonetizationRateMaxEntries})
+	if err != nil { slog.Error("monetization rate limiter init failed", "error", err); os.Exit(1) }
 
 	app := httpserver.New(httpserver.Dependencies{
 		Accounts: accountService,
@@ -177,6 +179,7 @@ func main() {
 		Ready: pool.Ping,
 		AuthLimiter: authLimiter,
 		UserLimiter: userLimiter,
+		MonetizationLimiter: monetizationLimiter,
 	})
 	srv := &http.Server{
 		Addr: cfg.HTTPAddr,

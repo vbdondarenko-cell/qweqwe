@@ -52,6 +52,12 @@ type Dependencies struct {
 	Ready                   func(context.Context) error
 	AuthLimiter             *ratelimit.Limiter
 	UserLimiter             *ratelimit.Limiter
+	// MonetizationLimiter enforces docs/LINKUP_PLUS_MONETIZATION.md §8.2's
+	// entitlement-sensitive rate limits (referral binding, rewarded-view
+	// submission, purchase verification) — a separate, tighter budget from
+	// UserLimiter's general per-authenticated-request limit, since these
+	// specific endpoints can create or influence entitlement.
+	MonetizationLimiter *ratelimit.Limiter
 }
 
 type Server struct {
@@ -101,7 +107,9 @@ func New(deps Dependencies) *Server {
 	mux.Handle("PUT /v1/me/blocks/{userID}", s.requireAuth(http.HandlerFunc(s.blockUser)))
 	mux.Handle("DELETE /v1/me/blocks/{userID}", s.requireAuth(http.HandlerFunc(s.unblockUser)))
 	mux.Handle("GET /v1/me/monetization", s.requireAuth(http.HandlerFunc(s.getMonetization)))
-	mux.Handle("PUT /v1/me/referral", s.requireAuth(http.HandlerFunc(s.bindReferral)))
+	mux.Handle("PUT /v1/me/referral", s.requireAuth(s.monetizationRateLimit(http.HandlerFunc(s.bindReferral))))
+	mux.Handle("POST /v1/me/monetization/rewarded-views", s.requireAuth(s.monetizationRateLimit(http.HandlerFunc(s.submitRewardedView))))
+	mux.Handle("POST /v1/me/monetization/purchases", s.requireAuth(s.monetizationRateLimit(http.HandlerFunc(s.verifyPurchase))))
 	mux.Handle("PUT /v1/me/push/android", s.requireAuth(s.requireCapability(capability.Notifications, http.HandlerFunc(s.registerAndroidPush))))
 	mux.Handle("DELETE /v1/me/push/android/{installationID}", s.requireAuth(s.requireCapability(capability.Notifications, http.HandlerFunc(s.revokeAndroidPush))))
 	mux.Handle("GET /v1/me/notifications/preferences", s.requireAuth(s.requireCapability(capability.Notifications, http.HandlerFunc(s.getNotificationPreferences))))
@@ -217,6 +225,31 @@ func (s *Server) authRateLimit(next http.Handler) http.Handler {
 			writeRetryAfter(w, retry)
 			writeProblem(w, r, http.StatusTooManyRequests, "rate_limited", "too many authentication attempts")
 			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+// monetizationRateLimit applies docs/LINKUP_PLUS_MONETIZATION.md §8.2's
+// entitlement-sensitive abuse budget, independent of the general UserLimiter
+// applied to every authenticated request. Must run after requireAuth (it
+// keys on the authenticated user, not the remote address, since a shared
+// NAT/family network legitimately produces many distinct users from one IP
+// — §8.3's own explicit caveat against treating that as fraud).
+func (s *Server) monetizationRateLimit(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if s.deps.MonetizationLimiter != nil {
+			auth, ok := authFrom(r)
+			if !ok {
+				writeProblem(w, r, http.StatusUnauthorized, "unauthorized", "authentication required")
+				return
+			}
+			allowed, retry := s.deps.MonetizationLimiter.Allow(auth.User.ID)
+			if !allowed {
+				writeRetryAfter(w, retry)
+				writeProblem(w, r, http.StatusTooManyRequests, "rate_limited", "too many monetization requests")
+				return
+			}
 		}
 		next.ServeHTTP(w, r)
 	})

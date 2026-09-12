@@ -12,25 +12,34 @@ import (
 )
 
 type Config struct {
-	HTTPAddr                       string
-	DatabaseURL                    string
-	SessionTTL                     time.Duration
-	PasswordResetTTL               time.Duration
-	RegistrationTTL                time.Duration
-	IdempotencyTTL                 time.Duration
-	WaitlistRequestTTL             time.Duration
-	MigrationDir                   string
-	ArgonMemoryKiB                 uint32
-	ArgonIterations                uint32
-	ArgonParallel                  uint8
-	AuthRateLimit                  int
-	AuthRateWindow                 time.Duration
-	AuthRateIdleTTL                time.Duration
-	AuthRateMaxEntries             int
-	SocialRateLimit                int
-	SocialRateWindow               time.Duration
-	SocialRateIdleTTL              time.Duration
-	SocialRateMaxEntries           int
+	HTTPAddr             string
+	DatabaseURL          string
+	SessionTTL           time.Duration
+	PasswordResetTTL     time.Duration
+	RegistrationTTL      time.Duration
+	IdempotencyTTL       time.Duration
+	WaitlistRequestTTL   time.Duration
+	MigrationDir         string
+	ArgonMemoryKiB       uint32
+	ArgonIterations      uint32
+	ArgonParallel        uint8
+	AuthRateLimit        int
+	AuthRateWindow       time.Duration
+	AuthRateIdleTTL      time.Duration
+	AuthRateMaxEntries   int
+	SocialRateLimit      int
+	SocialRateWindow     time.Duration
+	SocialRateIdleTTL    time.Duration
+	SocialRateMaxEntries int
+	// MonetizationRate* is a separate, tighter budget for entitlement-
+	// sensitive endpoints (referral binding, rewarded-view submission,
+	// purchase verification), independent of SocialRate's general
+	// per-authenticated-request limit — docs/LINKUP_PLUS_MONETIZATION.md
+	// §8.2.
+	MonetizationRateLimit          int
+	MonetizationRateWindow         time.Duration
+	MonetizationRateIdleTTL        time.Duration
+	MonetizationRateMaxEntries     int
 	RecoverySMTPAddress            string
 	RecoverySMTPHost               string
 	RecoverySMTPUsername           string
@@ -74,6 +83,10 @@ func Load() (Config, error) {
 		SocialRateWindow:               time.Minute,
 		SocialRateIdleTTL:              10 * time.Minute,
 		SocialRateMaxEntries:           20_000,
+		MonetizationRateLimit:          20,
+		MonetizationRateWindow:         time.Hour,
+		MonetizationRateIdleTTL:        2 * time.Hour,
+		MonetizationRateMaxEntries:     20_000,
 		RecoverySMTPAddress:            strings.TrimSpace(os.Getenv("LINKUP_RECOVERY_SMTP_ADDR")),
 		RecoverySMTPHost:               strings.TrimSpace(os.Getenv("LINKUP_RECOVERY_SMTP_HOST")),
 		RecoverySMTPUsername:           strings.TrimSpace(os.Getenv("LINKUP_RECOVERY_SMTP_USERNAME")),
@@ -202,6 +215,21 @@ func Load() (Config, error) {
 	}
 	if cfg.SocialRateIdleTTL < cfg.SocialRateWindow {
 		return Config{}, errors.New("LINKUP_SOCIAL_RATE_IDLE_TTL must be >= LINKUP_SOCIAL_RATE_WINDOW")
+	}
+	if cfg.MonetizationRateLimit, err = positiveIntEnv("LINKUP_MONETIZATION_RATE_LIMIT", cfg.MonetizationRateLimit); err != nil {
+		return Config{}, err
+	}
+	if cfg.MonetizationRateWindow, err = durationEnv("LINKUP_MONETIZATION_RATE_WINDOW", cfg.MonetizationRateWindow); err != nil {
+		return Config{}, err
+	}
+	if cfg.MonetizationRateIdleTTL, err = durationEnv("LINKUP_MONETIZATION_RATE_IDLE_TTL", cfg.MonetizationRateIdleTTL); err != nil {
+		return Config{}, err
+	}
+	if cfg.MonetizationRateMaxEntries, err = positiveIntEnv("LINKUP_MONETIZATION_RATE_MAX_ENTRIES", cfg.MonetizationRateMaxEntries); err != nil {
+		return Config{}, err
+	}
+	if cfg.MonetizationRateIdleTTL < cfg.MonetizationRateWindow {
+		return Config{}, errors.New("LINKUP_MONETIZATION_RATE_IDLE_TTL must be >= LINKUP_MONETIZATION_RATE_WINDOW")
 	}
 	if cfg.RecoveryImplicitTLS, err = boolEnv("LINKUP_RECOVERY_SMTP_IMPLICIT_TLS", false); err != nil {
 		return Config{}, err
