@@ -39,6 +39,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -49,6 +50,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.linkup.app.R
 import com.linkup.app.ui.theme.LinkUpBorder
 import com.linkup.app.ui.theme.LinkUpCritical
 import com.linkup.app.ui.theme.LinkUpElevated
@@ -61,6 +63,33 @@ import com.linkup.app.ui.theme.LinkUpTextPrimary
 import com.linkup.app.ui.theme.LinkUpWarning
 import com.linkup.app.ui.theme.LinkUpZone
 
+// The frozen reference's actual three families (tailwind.config.js:
+// display=Outfit, body=Inter, mono=JetBrains Mono), each bundled as the
+// real upstream OFL variable font (res/font/*.ttf) rather than a system
+// alias -- see app/src/main/assets/font_licenses for the OFL license text
+// each requires. A variable font's weight axis is set automatically by
+// Compose's Font(resId, weight) when multiple entries reference the same
+// file at different weights (no explicit FontVariation.Settings needed).
+private val LinkUpOutfit = FontFamily(
+    Font(R.font.outfit, FontWeight.Normal),
+    Font(R.font.outfit, FontWeight.Medium),
+    Font(R.font.outfit, FontWeight.SemiBold),
+    Font(R.font.outfit, FontWeight.Bold),
+    Font(R.font.outfit, FontWeight.Black),
+)
+private val LinkUpInter = FontFamily(
+    Font(R.font.inter, FontWeight.Normal),
+    Font(R.font.inter, FontWeight.Medium),
+    Font(R.font.inter, FontWeight.SemiBold),
+    Font(R.font.inter, FontWeight.Bold),
+)
+private val LinkUpJetBrainsMono = FontFamily(
+    Font(R.font.jetbrains_mono, FontWeight.Normal),
+    Font(R.font.jetbrains_mono, FontWeight.Medium),
+    Font(R.font.jetbrains_mono, FontWeight.SemiBold),
+    Font(R.font.jetbrains_mono, FontWeight.Bold),
+)
+
 object LinkUpDesign {
     val radiusBadge = 6.dp
     val radiusCompact = 8.dp
@@ -72,12 +101,9 @@ object LinkUpDesign {
     val borderWidth = 1.dp
     val progressHeight = 6.dp
 
-    // Frozen design font roles. Exact Outfit/Inter/JetBrains Mono resources
-    // are not yet present in the Android repository; these role aliases keep
-    // every screen structurally ready for the real bundled families.
-    val displayFont = FontFamily.SansSerif
-    val bodyFont = FontFamily.SansSerif
-    val monoFont = FontFamily.Monospace
+    val displayFont = LinkUpOutfit
+    val bodyFont = LinkUpInter
+    val monoFont = LinkUpJetBrainsMono
 }
 
 enum class LinkUpAvatarSize(val diameter: Dp, val textSize: Int) {
