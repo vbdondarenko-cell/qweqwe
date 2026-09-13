@@ -2055,3 +2055,28 @@ Next: build → promote → deploy → verify this block the same way as every p
 Not done or claimed in this block: Inter's `opsz` (optical size) axis is left at its default (14, tuned for small text) rather than dynamically tuned per `fontSize` — the reference's own CSS doesn't do this either (browsers auto-interpolate `opsz` from rendered size; Android's static `Font()` declaration doesn't), so this is a deliberate, honest simplification matching what the reference itself effectively does at typical UI text sizes, not a silently-dropped feature; large display text (24-34sp) will render with the font's small-size-tuned letterforms rather than its true large-display cut. No real device/emulator confirmed the fonts actually render as expected — only static file/axis validation was possible in this sandbox.
 
 Next: run this block through the real build → promote → deploy → verify cycle (bundled alongside §76's still-pending notification-inbox deploy, since both are queued); then decide on the signed release build (pending legal-document URLs) or the remaining animation keyframes.
+
+## 78. 2026-09-13 — §75/§76/§77 built, deployed and verified live on commit `9a463b9`
+
+**Context:** the user re-sent the same Bolt.new reference zip with the same "the design doesn't match / the app doesn't work" report while the previous deploy attempt was still pending. Verified first, rather than assuming: `diff -rq` against both earlier extracted copies of the archive (`design_zip_inspect`, `design_zip_inspect2`) showed **zero differences** — this is the same reference file already fully re-read structurally for §76 and §77, not a new or updated design. That made §77's font bundling (the concrete, most-likely-visible fix for exactly this complaint) the priority to get live.
+
+### What happened
+
+- Two build attempts failed before the real one, both on infrastructure, not on this session's code: a stale `sudo`-owned candidate directory from an earlier promote blocked `build_v1.sh`'s own cleanup step (`rm: Permission denied`, script exited under `set -e`), then a stale root-owned `android/build`/`.gradle` tree (left over from some earlier root-run of Gradle) caused a real `AccessDeniedException` inside `MergeResources`. Fixed both by identifying the actual root cause (`find -not -user ubuntu`) rather than guessing, then `sudo chown -R ubuntu:ubuntu /opt/linkup/src` and re-running.
+- Third run: `BUILD SUCCESSFUL in 2m 17s` on commit `9a463b9f0998a6ac4ac328b9b8a93eb6bfeddbb0` — backend `go test` suite green, Kotlin compiled clean (no missing-import or scope errors this round — the grep-based cross-checks done while writing §75-§77 held up under the real compiler), unit tests passed, lint passed.
+- `ops/promote_v1.sh 9a463b9f...` → promoted to `/opt/linkup/artifacts/stable`.
+- `ops/deploy_v1.sh` → `deployed_commit=9a463b9f...`, `service=active`, `app_update_published=9a463b9f...`.
+
+### Live verification
+
+- `GET /healthz` → `{"status":"ok",...}`.
+- `GET /v1/app-update/latest` → `sha256":"1b754fab...6dd27f"`, `releaseNotes` names commit `9a463b9f...`.
+- `GET /v1/app-update/download` → downloaded and re-hashed locally: **exact match** to the manifest's sha256.
+- `GET /v1/me/notifications` (no auth) → `401` (not `404`) confirming the route is registered and capability-gated correctly, not silently missing; same for `POST /v1/me/notifications/read` and a bogus bearer token.
+- APK delivered two ways: scp to the user's own Downloads folder (re-hashed there too — matches) and, separately, reconstructed byte-for-byte inside this sandbox via the base64/`read_file`-oversized-save technique and sent as a real chat attachment — sha256 of the reconstructed file matched the server's manifest exactly (`1b754fab...6dd27f`), confirming the chat attachment is bit-identical to what the server actually serves.
+
+### Honest status for the user's "1:1" complaint
+
+This build is the first one to actually carry the real Outfit/Inter/JetBrains Mono typefaces (§77) instead of generic system fonts, plus the real notification inbox (§76) behind the bell icon. Both are genuine, previously-missing pieces found by re-reading the reference structurally rather than by re-asserting prior work. Still open, named honestly rather than silently dropped: the five one-shot animation keyframes (`fade-slide-up`, `fade-in`, `scale-in`, `slide-up-sheet`, `count-up`); Inter's `opsz` axis statically fixed at 14; a signed release build (blocked on the user supplying real Privacy Policy/Terms URLs); no real device/emulator has visually confirmed the rendered result in this sandbox — verification here is limited to compiler success plus checksum/endpoint checks.
+
+Next: await the user's own visual check of this specific APK before making any further design changes — per the standing design-lock instruction, no further design changes happen until the user explicitly asks for one.
